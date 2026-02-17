@@ -21,7 +21,7 @@ const translations = {
     title: "TeamBuilder AI",
     hero: "팀 짜느라 더 이상 밤새지 마세요.",
     subHero: "성향 분석 알고리즘이 10초 만에 갈등 없는 완벽한 팀을 구성합니다.",
-    liveStats: "오늘 전국에서 {count}개의 팀이 새롭게 태어났습니다",
+    topBanner: "🔥 데이터 분석 기반의 가장 공정한 팀 빌딩 솔루션",
     startBtn: "지금 바로 팀 짜기",
     noLogin: "별도의 가입 없이 즉시 이용 가능",
     feature1Title: "불만 없는 공정한 배정",
@@ -52,7 +52,7 @@ const translations = {
     title: "TeamBuilder AI",
     hero: "Stop spending hours building teams.",
     subHero: "AI algorithm builds the perfect conflict-free team in just 10 seconds.",
-    liveStats: "Today, {count} teams were created across the country",
+    topBanner: "🔥 The fairest team building solution based on data analysis",
     startBtn: "Start Building Teams",
     noLogin: "Instant access without sign-up",
     feature1Title: "Fair & Bias-Free Assignment",
@@ -89,12 +89,6 @@ function App() {
   const [config, setConfig] = useState({ teamSize: 4 });
   const [teams, setTeams] = useState([]);
   const t = translations[lang];
-
-  const [liveCount, setLiveCount] = useState(124);
-  useEffect(() => {
-    const timer = setInterval(() => setLiveCount(prev => prev + Math.floor(Math.random() * 2)), 10000);
-    return () => clearInterval(timer);
-  }, []);
 
   const progress = Math.min(100, (participants.filter(p => p.name).length / 10) * 100);
 
@@ -167,12 +161,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100">
-      {/* Top Banner (Social Proof) */}
       <div className="bg-slate-900 text-white text-[11px] py-1.5 text-center font-medium tracking-wider uppercase">
-        🔥 {t.liveStats.replace('{count}', liveCount)}
+        {t.topBanner}
       </div>
 
-      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-4xl mx-auto px-6 h-16 flex justify-between items-center">
           <div 
