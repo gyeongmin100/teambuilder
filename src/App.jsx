@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Papa from 'papaparse';
 import { 
   Users, 
   UserPlus, 
@@ -10,59 +11,48 @@ import {
   LayoutDashboard,
   Settings,
   HelpCircle,
-  Download
+  Download,
+  Upload,
+  FileText,
+  Copy,
+  ExternalLink,
+  Info
 } from 'lucide-react';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 
 const translations = {
   ko: {
     title: "TeamBuilder AI",
-    subtitle: "AI 기반 지능형 팀 자동 배정 솔루션",
-    desc: "구글폼 응답이나 자기소개를 입력하면 GPT가 분석하여 최적의 팀을 구성해 드립니다.",
-    startBtn: "지금 시작하기",
-    addParticipant: "참여자 추가",
+    subtitle: "AI 기반 지능형 팀 자동 배정",
+    desc: "자기소개 텍스트, CSV 파일, 구글폼 데이터를 GPT가 분석하여 최적의 팀을 구성합니다.",
+    startBtn: "무료로 시작하기",
+    addParticipant: "참여자 직접 추가",
+    uploadCSV: "CSV/엑셀 업로드",
+    googleForm: "구글폼 연계 방법",
     namePlaceholder: "이름",
-    introPlaceholder: "자기소개 (역할, 스타일, 강점 등 자유롭게)",
-    assignBtn: "팀 배정 시작하기",
-    configTitle: "배정 설정",
+    introPlaceholder: "자기소개 (역할, 스타일, 강점 등)",
+    assignBtn: "최적의 팀 배정 시작",
+    configTitle: "배정 옵션",
     teamSize: "팀당 인원",
-    resultTitle: "배정 결과",
-    backBtn: "다시 하기",
-    loading: "AI가 팀을 분석하고 배정 중입니다...",
-    emptyParticipants: "참여자를 추가해 주세요."
-  },
-  en: {
-    title: "TeamBuilder AI",
-    subtitle: "AI-Powered Intelligent Team Assigner",
-    desc: "GPT analyzes intros and builds the best teams for your project automatically.",
-    startBtn: "Get Started",
-    addParticipant: "Add Participant",
-    namePlaceholder: "Name",
-    introPlaceholder: "Intro (Role, Style, Strengths, etc.)",
-    assignBtn: "Start Assignment",
-    configTitle: "Configuration",
-    teamSize: "Team Size",
-    resultTitle: "Assignment Result",
-    backBtn: "Restart",
-    loading: "AI is analyzing and assigning teams...",
-    emptyParticipants: "Please add participants first."
+    resultTitle: "배정 결과 리포트",
+    backBtn: "처음으로",
+    loading: "AI가 참여자 성향을 분석하여 최적의 조합을 찾는 중입니다...",
+    emptyParticipants: "최소 2명 이상의 참여자가 필요합니다.",
+    sampleBtn: "예시 데이터 불러오기"
   }
 };
 
 function App() {
   const [lang, setLang] = useState('ko');
-  const [step, setStep] = useState('landing'); // landing, input, loading, result
-  const [legalView, setLegalView] = useState(null); // terms, privacy, refund
+  const [step, setStep] = useState('landing'); 
+  const [legalView, setLegalView] = useState(null);
   const [participants, setParticipants] = useState([
     { id: 1, name: '', intro: '' }
   ]);
   const [config, setConfig] = useState({ teamSize: 4, goal: 'role_balance' });
   const [teams, setTeams] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const t = translations[lang];
-
-  if (legalView === 'terms') return <TermsOfService lang={lang} onBack={() => setLegalView(null)} />;
-  if (legalView === 'privacy') return <PrivacyPolicy lang={lang} onBack={() => setLegalView(null)} />;
-  if (legalView === 'refund') return <RefundPolicy lang={lang} onBack={() => setLegalView(null)} />;
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -76,12 +66,32 @@ function App() {
           setConfig(config);
           performAssignment(participants, config, checkoutId);
           localStorage.removeItem('pendingAssignment');
-        } catch (e) {
-          console.error("Data recovery failed", e);
-        }
+        } catch (e) { console.error(e); }
       }
     }
   }, []);
+
+  if (legalView === 'terms') return <TermsOfService lang={lang} onBack={() => setLegalView(null)} />;
+  if (legalView === 'privacy') return <PrivacyPolicy lang={lang} onBack={() => setLegalView(null)} />;
+  if (legalView === 'refund') return <RefundPolicy lang={lang} onBack={() => setLegalView(null)} />;
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const newParticipants = results.data.map((row, index) => ({
+            id: Date.now() + index,
+            name: row.이름 || row.name || row.Name || '',
+            intro: row.자기소개 || row.intro || row.Intro || row.Description || ''
+          })).filter(p => p.name);
+          setParticipants([...participants.filter(p => p.name), ...newParticipants]);
+        }
+      });
+    }
+  };
 
   const addParticipant = () => {
     setParticipants([...participants, { id: Date.now(), name: '', intro: '' }]);
@@ -92,49 +102,21 @@ function App() {
       { id: 1, name: "김철수", intro: "리더십이 있고 기획을 좋아합니다. 파이썬 능숙함." },
       { id: 2, name: "이영희", intro: "디자인과 발표 전문입니다. 협업을 중요하게 생각함." },
       { id: 3, name: "박민수", intro: "데이터 분석 및 코딩 담당. 꼼꼼한 성격입니다." },
-      { id: 4, name: "최지우", intro: "아이디어가 많고 실행력이 좋습니다. 분위기 메이커." },
-      { id: 5, name: "정다은", intro: "문서 작성과 리서치를 잘합니다. 시간 약속 철저." },
-      { id: 6, name: "홍길동", intro: "백엔드 개발 가능. 논리적인 분석을 좋아합니다." }
+      { id: 4, name: "최지우", intro: "아이디어가 많고 실행력이 좋습니다. 분위기 메이커." }
     ]);
   };
 
-  const removeParticipant = (id) => {
-    setParticipants(participants.filter(p => p.id !== id));
-  };
-
-  const updateParticipant = (id, field, value) => {
-    setParticipants(participants.map(p => p.id === id ? { ...p, [field]: value } : p));
-  };
-
   const startAssign = async () => {
-    if (participants.some(p => !p.name)) {
+    const validParticipants = participants.filter(p => p.name);
+    if (validParticipants.length < 2) {
       alert(t.emptyParticipants);
       return;
     }
-
-    localStorage.setItem('pendingAssignment', JSON.stringify({ participants, config }));
-
     setStep('loading');
-    try {
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participants, config })
-      });
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url; 
-      } else {
-        performAssignment(participants, config);
-      }
-    } catch (error) {
-      console.error("Checkout Error:", error);
-      performAssignment(participants, config); 
-    }
+    performAssignment(validParticipants, config);
   };
 
   const performAssignment = async (pList, pConfig, checkoutId) => {
-    setStep('loading');
     try {
       const response = await fetch('/api/assign', {
         method: 'POST',
@@ -155,124 +137,141 @@ function App() {
   };
 
   const exportToCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,Team,Name,Role,Style,Intro\n";
+    let csvContent = "Team,Name,Role,Style,Intro\n";
     teams.forEach(team => {
       team.members.forEach(m => {
         csvContent += `${team.id},${m.name},${m.role},"${m.style}","${m.intro}"\n`;
       });
     });
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `teambuilder_result_${Date.now()}.csv`);
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `teambuilder_result.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 md:p-8">
-      <nav className="max-w-6xl mx-auto flex justify-between items-center mb-12">
-        <div className="flex items-center gap-2 text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-          <Users className="text-blue-400" /> {t.title}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-2 text-xl font-bold text-blue-600">
+            <Users className="size-6" /> TeamBuilder AI
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setLang(lang === 'ko' ? 'en' : 'ko')} className="text-sm font-medium text-slate-600 hover:text-blue-600 px-3 py-1 rounded-full border border-slate-200">
+              {lang === 'ko' ? 'EN' : 'KO'}
+            </button>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <button 
-            onClick={() => setLang(lang === 'ko' ? 'en' : 'ko')}
-            className="px-3 py-1 rounded-full border border-slate-700 hover:bg-slate-800 transition"
-          >
-            {lang === 'ko' ? 'English' : '한국어'}
-          </button>
-        </div>
-      </nav>
+      </header>
 
-      <main className="max-w-4xl mx-auto">
+      <main className="max-w-4xl mx-auto px-4 py-12 md:py-20">
         <AnimatePresence mode="wait">
           {step === 'landing' && (
-            <motion.div 
-              key="landing"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center py-20"
-            >
-              <h1 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight">
-                {t.subtitle}
+            <motion.div key="landing" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="text-center space-y-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-600 text-sm font-bold mb-4">
+                <CheckCircle2 className="size-4" /> 100% GPT-4o 기반 지능형 분석
+              </div>
+              <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight leading-tight">
+                복잡한 팀 빌딩,<br/> 
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">AI가 10초 만에</span> 끝내드립니다.
               </h1>
-              <p className="text-xl text-slate-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+              <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
                 {t.desc}
               </p>
-              <button 
-                onClick={() => setStep('input')}
-                className="group flex items-center gap-2 mx-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl text-xl font-bold transition-all transform hover:scale-105"
-              >
-                {t.startBtn} <ChevronRight className="group-hover:translate-x-1 transition" />
-              </button>
+              <div className="pt-8">
+                <button onClick={() => setStep('input')} className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl text-xl font-bold shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-105 active:scale-95">
+                  {t.startBtn} <ChevronRight className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20 text-left">
+                {[
+                  { icon: FileText, title: "엑셀/CSV 업로드", desc: "기존 참여자 명단을 한 번에 불러오세요." },
+                  { icon: Copy, title: "구글폼 연계", desc: "설문 응답 결과를 복사해서 붙여넣기만 하세요." },
+                  { icon: LayoutDashboard, title: "시각화 리포트", desc: "팀별 성향 분석과 배정 근거를 제공합니다." }
+                ].map((feature, i) => (
+                  <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <feature.icon className="size-8 text-blue-600 mb-4" />
+                    <h3 className="font-bold text-slate-900 mb-1">{feature.title}</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed">{feature.desc}</p>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           )}
 
           {step === 'input' && (
-            <motion.div 
-              key="input"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8"
-            >
-              <div className="bg-slate-800 rounded-3xl p-6 md:p-8 shadow-xl border border-slate-700">
-                <div className="flex justify-between items-center mb-6">
+            <motion.div key="input" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
+              <div className="bg-white rounded-3xl p-6 md:p-8 shadow-2xl shadow-slate-200/50 border border-slate-200">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <UserPlus className="text-blue-400" /> 참여자 정보 입력
+                    <UserPlus className="text-blue-600" /> 참여자 데이터 준비
                   </h2>
-                  <div className="flex items-center gap-4">
-                    <button onClick={loadSample} className="text-xs text-blue-400 hover:underline">
-                      샘플 데이터 불러오기
+                  <div className="flex flex-wrap gap-2">
+                    <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">
+                      <Upload size={16} /> {t.uploadCSV}
+                      <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                    </label>
+                    <button onClick={loadSample} className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl text-sm font-bold transition">
+                      {t.sampleBtn}
                     </button>
-                    <label className="text-sm text-slate-400">{t.teamSize}</label>
-                    <input 
-                      type="number" min="2" max="10"
-                      value={config.teamSize}
-                      onChange={(e) => setConfig({...config, teamSize: parseInt(e.target.value)})}
-                      className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1"
-                    />
                   </div>
                 </div>
 
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 mb-8 flex gap-3 items-start">
+                  <Info className="size-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800 leading-relaxed">
+                    <strong>구글폼 사용 팁:</strong> 구글폼 응답 시트의 이름과 자기소개 열을 복사하여 아래 표에 붙여넣거나, 시트를 CSV로 다운로드하여 업로드하세요.
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                   {participants.map((p, idx) => (
-                    <div key={p.id} className="flex gap-3 group animate-in slide-in-from-left duration-300">
-                      <div className="flex-none flex items-center justify-center w-8 h-8 rounded-full bg-slate-700 text-sm font-bold mt-1">
+                    <div key={p.id} className="flex gap-3 group animate-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex-none flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 text-xs font-bold mt-1">
                         {idx + 1}
                       </div>
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
                         <input 
                           placeholder={t.namePlaceholder}
                           value={p.name}
                           onChange={(e) => updateParticipant(p.id, 'name', e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition shadow-sm"
                         />
-                        <textarea 
+                        <input 
                           placeholder={t.introPlaceholder}
                           value={p.intro}
                           onChange={(e) => updateParticipant(p.id, 'intro', e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition h-20 resize-none"
+                          className="w-full md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition shadow-sm"
                         />
                       </div>
-                      <button 
-                        onClick={() => removeParticipant(p.id)}
-                        className="flex-none text-slate-500 hover:text-red-400 p-2 h-fit"
-                      >
-                        <Trash2 size={20} />
+                      <button onClick={() => removeParticipant(p.id)} className="flex-none text-slate-300 hover:text-red-500 p-2 h-fit transition-colors">
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-8 flex gap-4">
-                  <button onClick={addParticipant} className="flex-1 py-4 border-2 border-dashed border-slate-600 rounded-2xl hover:border-blue-400 hover:bg-slate-800/50 transition-all text-slate-400 hover:text-blue-400 font-bold">
-                    + {t.addParticipant}
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button onClick={addParticipant} className="py-4 border-2 border-dashed border-slate-200 rounded-2xl hover:border-blue-400 hover:bg-blue-50 transition-all text-slate-400 hover:text-blue-600 font-bold">
+                    + 참여자 추가
                   </button>
-                  <button onClick={startAssign} className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl text-white font-bold shadow-lg shadow-blue-900/20 transition-all">
+                  <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-200">
+                    <span className="text-sm font-bold text-slate-600">{t.teamSize}</span>
+                    <input 
+                      type="number" min="2" max="10"
+                      value={config.teamSize}
+                      onChange={(e) => setConfig({...config, teamSize: parseInt(e.target.value)})}
+                      className="w-20 bg-white border border-slate-200 rounded-xl px-3 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-12">
+                  <button onClick={startAssign} className="w-full py-5 bg-blue-600 text-white rounded-2xl text-xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all transform hover:-translate-y-1 active:translate-y-0">
                     {t.assignBtn}
                   </button>
                 </div>
@@ -281,26 +280,31 @@ function App() {
           )}
 
           {step === 'loading' && (
-            <motion.div key="loading" className="text-center py-20">
-              <div className="relative w-24 h-24 mx-auto mb-8">
-                <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
-                <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+            <motion.div key="loading" className="text-center py-32 space-y-8">
+              <div className="relative w-32 h-32 mx-auto">
+                <div className="absolute inset-0 border-8 border-blue-100 rounded-full"></div>
+                <div className="absolute inset-0 border-8 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
               </div>
-              <p className="text-xl text-slate-400 animate-pulse">{t.loading}</p>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-slate-900">최적의 팀을 설계 중입니다</h3>
+                <p className="text-slate-500 max-w-sm mx-auto">{t.loading}</p>
+              </div>
             </motion.div>
           )}
 
           {step === 'result' && (
             <motion.div key="result" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold flex items-center gap-3">
-                  <LayoutDashboard className="text-emerald-400" /> {t.resultTitle}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-3xl font-black flex items-center gap-3 tracking-tight">
+                  <div className="p-2 bg-emerald-100 text-emerald-600 rounded-xl">
+                    <LayoutDashboard size={24} />
+                  </div> {t.resultTitle}
                 </h2>
-                <div className="flex gap-4">
-                  <button onClick={exportToCSV} className="flex items-center gap-2 px-6 py-2 bg-emerald-600 rounded-xl hover:bg-emerald-500 transition font-bold">
-                    <Download size={18} /> CSV 내보내기
+                <div className="flex gap-2 w-full md:w-auto">
+                  <button onClick={exportToCSV} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition font-bold shadow-lg shadow-emerald-100">
+                    <Download size={18} /> {lang === 'ko' ? 'CSV 저장' : 'Export CSV'}
                   </button>
-                  <button onClick={() => setStep('input')} className="px-6 py-2 bg-slate-800 rounded-xl hover:bg-slate-700 transition">
+                  <button onClick={() => setStep('input')} className="flex-1 md:flex-none px-6 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition font-bold">
                     {t.backBtn}
                   </button>
                 </div>
@@ -308,25 +312,36 @@ function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {teams.map((team) => (
-                  <div key={team.id} className="bg-slate-800 rounded-3xl p-6 border border-slate-700 hover:border-blue-500/50 transition">
-                    <h3 className="text-xl font-bold mb-4 flex items-center justify-between">
-                      Team {team.id}
-                      <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-lg">Optimized</span>
-                    </h3>
-                    <div className="space-y-3 mb-4">
+                  <div key={team.id} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-bold flex items-center gap-2">
+                        <span className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-lg text-sm italic">T{team.id}</span>
+                        Team {team.id}
+                      </h3>
+                      <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 bg-blue-50 text-blue-600 rounded-md">Balanced</span>
+                    </div>
+                    <div className="space-y-3 mb-6">
                       {team.members.map((m, idx) => (
-                        <div key={idx} className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700/50">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold">{m.name}</span>
-                            <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-md">{m.role}</span>
+                        <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                          <div className="flex-1">
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="font-bold text-slate-900">{m.name}</span>
+                              <span className="text-[11px] font-bold px-2 py-0.5 bg-white border border-slate-200 text-slate-600 rounded-full">{m.role}</span>
+                            </div>
+                            <p className="text-xs text-slate-500 truncate">{m.style}</p>
                           </div>
-                          <p className="text-xs text-slate-400 line-clamp-1">{m.style}</p>
                         </div>
                       ))}
                     </div>
-                    <p className="text-sm text-slate-500 italic bg-slate-900/30 p-3 rounded-xl border border-dashed border-slate-700">
-                      " {team.analysis} "
-                    </p>
+                    <div className="p-4 bg-slate-900 rounded-2xl">
+                      <div className="flex gap-2 items-center mb-2">
+                        <Info size={14} className="text-blue-400" />
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">AI Insight</span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed italic">
+                        "{team.analysis}"
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -335,13 +350,19 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <footer className="max-w-6xl mx-auto mt-20 pt-8 border-t border-slate-800 text-center text-slate-500 text-sm pb-12">
-        <div className="flex justify-center gap-6 mb-4">
-          <button onClick={() => setLegalView('terms')} className="hover:text-slate-300">이용약관</button>
-          <button onClick={() => setLegalView('privacy')} className="hover:text-slate-300">개인정보처리방침</button>
-          <button onClick={() => setLegalView('refund')} className="hover:text-slate-300">환불정책</button>
+      {/* Footer */}
+      <footer className="max-w-5xl mx-auto mt-20 px-4 py-12 border-t border-slate-200">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-2 font-bold text-slate-400">
+            <Users size={20} /> TeamBuilder AI
+          </div>
+          <div className="flex flex-wrap justify-center gap-6 text-sm font-medium text-slate-500">
+            <button onClick={() => setLegalView('terms')} className="hover:text-blue-600 transition">이용약관</button>
+            <button onClick={() => setLegalView('privacy')} className="hover:text-blue-600 transition">개인정보처리방침</button>
+            <button onClick={() => setLegalView('refund')} className="hover:text-blue-600 transition">환불정책</button>
+          </div>
+          <p className="text-sm text-slate-400">&copy; 2026 TeamBuilder AI. Built with GPT-4o.</p>
         </div>
-        <p>&copy; 2026 TeamBuilder AI. All rights reserved. Powered by GPT-4o.</p>
       </footer>
     </div>
   );
