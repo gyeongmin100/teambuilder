@@ -19,62 +19,62 @@ import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 const translations = {
   ko: {
     title: "TeamBuilder AI",
-    hero: "무의미한 랜덤 팀 배정,\n이제 마침표를 찍으세요",
-    subHero: "운에 맡긴 팀워크는 반드시 무너집니다. 팀원 개개인의 성향을 정밀 분석하여 갈등은 지우고 시너지만 남긴 '필승의 팀'을 구축하세요.",
-    topBanner: "🔥 데이터로 증명하는 가장 과학적인 팀 빌딩 솔루션",
-    startBtn: "지금 바로 팀 빌딩 시작",
+    hero: "운에 맡기는 팀 배정은 이제 그만",
+    subHero: "랜덤 배정이 만든 팀 갈등과 불만, 이제 팀원 각자의 특성을 반영한 맞춤형 배정으로 해결하세요.",
+    topBanner: "🔥 데이터 분석 기반의 가장 공정한 팀 빌딩 솔루션",
+    startBtn: "지금 바로 팀 짜기",
     noLogin: "별도의 가입 없이 즉시 이용 가능",
-    feature1Title: "근거 있는 공정한 배정",
-    feature1Desc: "단순히 섞는 것이 아닙니다. 성향 데이터 분석을 통해 모두가 인정할 수밖에 없는 완벽한 배정 근거를 제시합니다.",
-    feature2Title: "결과로 증명하는 팀 시너지",
-    feature2Desc: "리더와 조력자, 분석가의 황금 비율을 찾아 팀의 퍼포먼스를 폭발적으로 끌어올립니다.",
+    feature1Title: "모두가 납득하는 공정한 배정",
+    feature1Desc: "단순히 섞는 것이 아닙니다. 성향 데이터 분석을 통해 누구도 불만을 제기할 수 없는 결과를 만듭니다.",
+    feature2Title: "갈등을 예방하는 전략적 조합",
+    feature2Desc: "리더와 실행가, 분석가의 성향 밸런스를 맞춰 팀워크의 부작용을 사전에 차단합니다.",
     inputTitle: "참여자 명단 작성",
     uploadBtn: "엑셀 / CSV 업로드",
     googleFormTip: "구글폼 팁: 응답 시트의 데이터를 복사(Ctrl + C)하여 이름 칸에 붙여넣으세요.",
     addBtn: "다음 참여자 추가",
     teamSizeLabel: "팀당 목표 인원",
-    assignBtn: "AI 분석 및 필승의 팀 배정",
-    loadingTitle: "팀원 성향과 시너지를 분석 중입니다",
-    loadingDesc: "최적의 조합을 찾는 데 약 10초가 소요됩니다.",
-    resultTitle: "분석 완료! 최고의 시너지 팀",
-    resultDesc: "각 팀의 성향 밸런스와 생산성을 극대화하여 배정했습니다.",
+    assignBtn: "데이터 분석 및 팀 배정 시작하기",
+    loadingTitle: "팀원들의 데이터를 정밀 분석 중입니다",
+    loadingDesc: "약 10초 정도 소요됩니다.",
+    resultTitle: "분석 완료! 최적의 팀 구성안",
+    resultDesc: "각 팀의 성향 밸런스를 최우선으로 고려하여 배정했습니다.",
     exportBtn: "엑셀 파일(CSV)로 내려받기",
     retryBtn: "데이터 수정 후 다시 배정하기",
     terms: "이용약관",
     privacy: "개인정보처리방침",
     refund: "환불정책",
-    footerMsg: "Build winning teams, drive real results.",
+    footerMsg: "Prevent conflicts, maximize synergy.",
     emptyAlert: "최소 2명 이상의 이름을 입력해 주세요.",
     namePlaceholder: "이름",
     introPlaceholder: "자기소개 또는 협업 스타일"
   },
   en: {
     title: "TeamBuilder AI",
-    hero: "Stop Guessing.\nStart Building Winning Teams.",
-    subHero: "Luck-based teamwork eventually fails. Eliminate conflict and maximize synergy by building teams based on precise individual trait analysis.",
-    topBanner: "🔥 The most scientific team building solution based on data",
-    startBtn: "Build Your Winning Team Now",
+    hero: "Stop relying on luck for team building",
+    subHero: "Solve the conflicts and dissatisfaction of random assignments with custom teams that reflect each member's unique traits.",
+    topBanner: "🔥 The fairest team building solution based on data analysis",
+    startBtn: "Start Building Teams",
     noLogin: "Instant access without sign-up",
-    feature1Title: "Data-Driven Fair Assignment",
-    feature1Desc: "Go beyond simple shuffling. Provide undeniable evidence for assignments through deep trait analysis.",
-    feature2Title: "Proven Team Synergy",
-    feature2Desc: "Find the golden ratio of leaders, doers, and analysts to skyrocket your team's performance.",
+    feature1Title: "Fair Assignment Everyone Accepts",
+    feature1Desc: "Not just mixing. Create results no one can complain about through deep personality analysis.",
+    feature2Title: "Strategic Combos to Prevent Conflict",
+    feature2Desc: "Pre-emptively block teamwork friction by balancing leaders, doers, and analysts.",
     inputTitle: "Participant List",
     uploadBtn: "Upload Excel / CSV",
     googleFormTip: "Google Form Tip: Copy (Ctrl + C) response data and paste it into the name field.",
     addBtn: "Add Participant",
     teamSizeLabel: "Target Members Per Team",
     assignBtn: "Start AI Analysis & Assignment",
-    loadingTitle: "Analyzing Synergy & Traits...",
-    loadingDesc: "Finding the optimal combo in about 10 seconds.",
-    resultTitle: "Analysis Complete! High-Synergy Teams",
-    resultDesc: "Maximized team productivity and personality balance.",
+    loadingTitle: "Analyzing Participant Data...",
+    loadingDesc: "This will take about 10 seconds.",
+    resultTitle: "Analysis Complete! Optimal Teams",
+    resultDesc: "Prioritized team dynamics and personality balance.",
     exportBtn: "Download as Excel (CSV)",
     retryBtn: "Edit Data and Re-assign",
     terms: "Terms",
     privacy: "Privacy",
     refund: "Refund",
-    footerMsg: "Build winning teams, drive real results.",
+    footerMsg: "Prevent conflicts, maximize synergy.",
     emptyAlert: "Please enter at least 2 names.",
     namePlaceholder: "Name",
     introPlaceholder: "Self-intro or collaboration style"
@@ -143,7 +143,7 @@ function App() {
         setStep('result');
       } else { throw new Error(data.error); }
     } catch (error) {
-      alert(lang === 'ko' ? "분석 중 오류가 발생했습니다. 다시 시도해 주세요." : "An error occurred. Please try again.");
+      alert(lang === 'ko' ? "오류가 발생했습니다. 잠시 후 다시 시도해 주세요." : "An error occurred. Please try again.");
       setStep('input');
     }
   };
@@ -161,12 +161,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100 break-keep">
-      {/* Top Banner */}
       <div className="bg-slate-900 text-white text-[11px] py-2 text-center font-bold tracking-[0.1em] uppercase">
         {t.topBanner}
       </div>
 
-      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-4xl mx-auto px-6 h-16 flex justify-between items-center">
           <div 
@@ -193,43 +191,43 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-xl mx-auto px-6 py-12 md:py-24 flex flex-col items-center">
+      <main className="max-w-xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center">
         <AnimatePresence mode="wait">
           {step === 'landing' && (
-            <motion.div key="landing" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center space-y-10">
+            <motion.div key="landing" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center space-y-8">
               <div className="flex justify-center mb-4">
                 <div className="p-4 bg-blue-600 text-white rounded-[1.5rem] shadow-2xl shadow-blue-200">
                   <Users size={32} />
                 </div>
               </div>
-              <div className="space-y-5">
-                <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight leading-[1.15] whitespace-pre-line">
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-normal leading-snug">
                   {t.hero}
                 </h1>
-                <p className="text-[19px] text-slate-500 leading-relaxed font-semibold max-w-[95%] mx-auto">
+                <p className="text-lg text-slate-500 leading-relaxed font-medium max-w-[90%] mx-auto">
                   {t.subHero}
                 </p>
               </div>
 
-              <div className="flex flex-col items-center gap-4 pt-10">
+              <div className="flex flex-col items-center gap-4 pt-8">
                 <button 
                   onClick={() => setStep('input')}
-                  className="w-full sm:w-80 py-6 bg-blue-600 text-white rounded-2xl text-[21px] font-black shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.03] active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full sm:w-80 py-5 bg-blue-600 text-white rounded-2xl text-xl font-bold shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                 >
-                  <Zap size={22} fill="currentColor" /> {t.startBtn}
+                  <Zap size={20} fill="currentColor" /> {t.startBtn}
                 </button>
                 <p className="text-xs text-slate-400 font-bold tracking-tight">{t.noLogin}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-5 pt-16 text-left w-full">
+              <div className="grid grid-cols-1 gap-4 pt-12 text-left w-full">
                 {[
                   { icon: ShieldCheck, title: t.feature1Title, desc: t.feature1Desc },
                   { icon: Award, title: t.feature2Title, desc: t.feature2Desc }
                 ].map((f, i) => (
-                  <div key={i} className="flex gap-6 p-7 bg-slate-50 rounded-[2.5rem] border border-slate-100 transition-all hover:shadow-sm">
-                    <div className="shrink-0 text-blue-600 pt-1"><f.icon size={28} /></div>
-                    <div className="space-y-1.5">
-                      <h3 className="font-black text-slate-900 text-[19px] leading-snug">{f.title}</h3>
+                  <div key={i} className="flex gap-5 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:shadow-sm">
+                    <div className="shrink-0 text-blue-600 pt-1"><f.icon size={26} /></div>
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-slate-900 text-lg leading-snug">{f.title}</h3>
                       <p className="text-[15px] text-slate-500 leading-relaxed font-medium">{f.desc}</p>
                     </div>
                   </div>
@@ -240,8 +238,8 @@ function App() {
 
           {step === 'input' && (
             <motion.div key="input" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="w-full space-y-8">
-              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden shadow-inner">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="bg-blue-600 h-full shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="bg-blue-600 h-full" />
               </div>
 
               <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.06)] border border-slate-50">
