@@ -19,39 +19,39 @@ import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 const translations = {
   ko: {
     title: "TeamBuilder AI",
-    hero: "운에 맡기는 팀 배정은 이제 그만.",
-    subHero: "랜덤 배정이 만든 팀 갈등과 불만, 이제 팀원 각자의 특성을 반영한 맞춤형 배정으로 해결하세요.",
+    hero: "운에 맡기는 팀 배정은 이제 그만",
+    subHero: "랜덤 배정으로 인한 팀원 간의 갈등과 불만, 이제 각자의 성향을 반영한 맞춤형 배정으로 예방하세요.",
     topBanner: "🔥 데이터 분석 기반의 가장 공정한 팀 빌딩 솔루션",
     startBtn: "지금 바로 팀 짜기",
     noLogin: "별도의 가입 없이 즉시 이용 가능",
     feature1Title: "모두가 납득하는 공정한 배정",
-    feature1Desc: "단순한 섞기가 아닙니다. 성향 데이터 분석으로 누구도 불만을 제기할 수 없는 결과를 만듭니다.",
+    feature1Desc: "단순한 섞기가 아닙니다. 성향 데이터 분석을 통해 누구도 불만을 제기할 수 없는 결과를 만듭니다.",
     feature2Title: "갈등을 예방하는 전략적 조합",
     feature2Desc: "리더와 실행가, 분석가의 성향 밸런스를 맞춰 팀워크의 부작용을 사전에 차단합니다.",
     inputTitle: "참여자 명단 작성",
-    uploadBtn: "엑셀/CSV 업로드",
-    googleFormTip: "구글폼 팁: 응답 시트의 데이터를 복사(Ctrl+C)하여 이름 칸에 붙여넣으세요.",
+    uploadBtn: "엑셀 / CSV 업로드",
+    googleFormTip: "구글폼 팁: 응답 시트의 데이터를 복사(Ctrl + C)하여 이름 칸에 붙여넣으세요.",
     addBtn: "다음 참여자 추가",
     teamSizeLabel: "팀당 목표 인원",
-    assignBtn: "데이터 분석 및 팀 배정 시작",
+    assignBtn: "데이터 분석 및 팀 배정 시작하기",
     loadingTitle: "팀원들의 데이터를 정밀 분석 중입니다",
-    loadingDesc: "약 10초 정도 소요됩니다...",
+    loadingDesc: "약 10초 정도 소요됩니다.",
     resultTitle: "분석 완료! 최적의 팀 구성안",
-    resultDesc: "각 팀의 성향 밸런스를 최우선으로 배정했습니다.",
+    resultDesc: "각 팀의 성향 밸런스를 최우선으로 고려하여 배정했습니다.",
     exportBtn: "엑셀 파일(CSV)로 내려받기",
-    retryBtn: "데이터 수정하고 다시 배정하기",
+    retryBtn: "데이터 수정 후 다시 배정하기",
     terms: "이용약관",
     privacy: "개인정보처리방침",
     refund: "환불정책",
     footerMsg: "Prevent conflicts, maximize synergy.",
-    emptyAlert: "최소 2명 이상의 이름을 입력해주세요.",
+    emptyAlert: "최소 2명 이상의 이름을 입력해 주세요.",
     namePlaceholder: "이름",
     introPlaceholder: "자기소개 또는 협업 스타일"
   },
   en: {
     title: "TeamBuilder AI",
-    hero: "Stop relying on luck for team building.",
-    subHero: "Solve the conflicts and dissatisfaction of random assignments with custom teams that reflect each member's unique traits.",
+    hero: "Stop relying on luck for team building",
+    subHero: "Prevent conflicts and dissatisfaction with custom teams that reflect each member's unique traits and strengths.",
     topBanner: "🔥 The fairest team building solution based on data analysis",
     startBtn: "Start Building Teams",
     noLogin: "Instant access without sign-up",
@@ -60,13 +60,13 @@ const translations = {
     feature2Title: "Strategic Combos to Prevent Conflict",
     feature2Desc: "Pre-emptively block teamwork friction by balancing leaders, doers, and analysts.",
     inputTitle: "Participant List",
-    uploadBtn: "Upload Excel/CSV",
-    googleFormTip: "Google Form Tip: Copy (Ctrl+C) response data and paste it into the name field.",
+    uploadBtn: "Upload Excel / CSV",
+    googleFormTip: "Google Form Tip: Copy (Ctrl + C) response data and paste it into the name field.",
     addBtn: "Add Participant",
     teamSizeLabel: "Target Members Per Team",
     assignBtn: "Start AI Analysis & Assignment",
     loadingTitle: "Analyzing Participant Data...",
-    loadingDesc: "This will take about 10 seconds...",
+    loadingDesc: "This will take about 10 seconds.",
     resultTitle: "Analysis Complete! Optimal Teams",
     resultDesc: "Prioritized team dynamics and personality balance.",
     exportBtn: "Download as Excel (CSV)",
@@ -161,15 +161,17 @@ function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans selection:bg-blue-100">
-      <div className="bg-slate-900 text-white text-[11px] py-1.5 text-center font-medium tracking-wider uppercase">
+      {/* Top Banner */}
+      <div className="bg-slate-900 text-white text-[11px] py-2 text-center font-bold tracking-[0.1em] uppercase">
         {t.topBanner}
       </div>
 
+      {/* Header */}
       <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-4xl mx-auto px-6 h-16 flex justify-between items-center">
           <div 
             onClick={() => setStep('landing')}
-            className="flex items-center gap-2 text-xl font-black text-blue-600 cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 text-xl font-black text-blue-600 cursor-pointer hover:opacity-80 transition-all active:scale-95"
           >
             <Users className="size-6" fill="currentColor" /> {t.title}
           </div>
@@ -180,7 +182,7 @@ function App() {
             >
               KR
             </button>
-            <span className="text-slate-200">|</span>
+            <span className="text-slate-200 mx-1.5 opacity-50">|</span>
             <button 
               onClick={() => setLang('en')}
               className={`px-2 py-1 transition-colors ${lang === 'en' ? 'text-blue-600' : 'hover:text-slate-600'}`}
@@ -196,39 +198,39 @@ function App() {
           {step === 'landing' && (
             <motion.div key="landing" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center space-y-8">
               <div className="flex justify-center mb-4">
-                <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200">
+                <div className="p-4 bg-blue-600 text-white rounded-[1.5rem] shadow-2xl shadow-blue-200">
                   <Users size={32} />
                 </div>
               </div>
-              <div className="space-y-3">
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+              <div className="space-y-4">
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-normal leading-snug">
                   {t.hero}
                 </h1>
-                <p className="text-lg text-slate-500 leading-relaxed font-medium">
+                <p className="text-lg text-slate-500 leading-relaxed font-medium max-w-[90%] mx-auto">
                   {t.subHero}
                 </p>
               </div>
 
-              <div className="flex flex-col items-center gap-4 pt-6">
+              <div className="flex flex-col items-center gap-4 pt-8">
                 <button 
                   onClick={() => setStep('input')}
                   className="w-full sm:w-80 py-5 bg-blue-600 text-white rounded-2xl text-xl font-bold shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2"
                 >
                   <Zap size={20} fill="currentColor" /> {t.startBtn}
                 </button>
-                <p className="text-xs text-slate-400 font-medium">{t.noLogin}</p>
+                <p className="text-xs text-slate-400 font-bold tracking-tight">{t.noLogin}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 pt-12 text-left">
+              <div className="grid grid-cols-1 gap-4 pt-12 text-left w-full">
                 {[
-                  { icon: ShieldCheck, title: t.feature1Title, desc: t.feature1Desc },
-                  { icon: Award, title: t.feature2Title, desc: t.feature2Desc }
+                  { icon: ShieldCheck, title: f => f.feature1Title, desc: f => f.feature1Desc },
+                  { icon: Award, title: f => f.feature2Title, desc: f => f.feature2Desc }
                 ].map((f, i) => (
-                  <div key={i} className="flex gap-4 p-5 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="shrink-0 text-blue-600"><f.icon size={24} /></div>
-                    <div>
-                      <h3 className="font-bold text-slate-900">{f.title}</h3>
-                      <p className="text-sm text-slate-500 leading-snug mt-1">{f.desc}</p>
+                  <div key={i} className="flex gap-5 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 transition-all hover:shadow-sm">
+                    <div className="shrink-0 text-blue-600 pt-1"><f.icon size={26} /></div>
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-slate-900 text-lg leading-snug">{f.title(t)}</h3>
+                      <p className="text-[15px] text-slate-500 leading-relaxed">{f.desc(t)}</p>
                     </div>
                   </div>
                 ))}
@@ -238,72 +240,73 @@ function App() {
 
           {step === 'input' && (
             <motion.div key="input" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="w-full space-y-8">
-              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="bg-blue-600 h-full" />
+              {/* Progress Bar */}
+              <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden shadow-inner">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="bg-blue-600 h-full shadow-[0_0_10px_rgba(37,99,235,0.5)]" />
               </div>
 
-              <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100">
+              <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-[0_30px_60px_rgba(0,0,0,0.06)] border border-slate-50">
                 <div className="flex flex-col gap-6 mb-10">
                   <div className="flex justify-between items-end">
                     <h2 className="text-2xl font-black tracking-tight">{t.inputTitle}</h2>
-                    <label className="cursor-pointer flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors px-3 py-1.5 bg-blue-50 rounded-lg">
+                    <label className="cursor-pointer flex items-center gap-2 text-[13px] font-bold text-blue-600 hover:text-blue-700 transition-colors px-4 py-2 bg-blue-50 rounded-xl">
                       <Upload size={14} /> {t.uploadBtn}
                       <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
                     </label>
                   </div>
                   
-                  <div className="flex gap-2 p-4 bg-amber-50 text-amber-800 rounded-2xl border border-amber-100 items-start">
-                    <Info size={18} className="shrink-0 mt-0.5" />
-                    <p className="text-[13px] leading-relaxed font-medium">
+                  <div className="flex gap-3 p-5 bg-amber-50 text-amber-900 rounded-2xl border border-amber-100 items-start shadow-sm">
+                    <Info size={20} className="shrink-0 text-amber-600 mt-0.5" />
+                    <p className="text-[14px] leading-relaxed font-semibold opacity-90">
                       {t.googleFormTip}
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-3 custom-scrollbar">
+                <div className="space-y-5 max-h-[45vh] overflow-y-auto pr-3 custom-scrollbar">
                   {participants.map((p, idx) => (
-                    <div key={p.id} className="flex gap-3 animate-in slide-in-from-bottom-2 duration-300">
-                      <div className="flex-none flex items-center justify-center w-8 h-10 text-slate-300 font-black italic text-sm">
+                    <div key={p.id} className="flex gap-4 animate-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex-none flex items-center justify-center w-8 h-12 text-slate-300 font-black italic text-sm pt-1">
                         {idx + 1}
                       </div>
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 space-y-2.5">
                         <input 
                           placeholder={t.namePlaceholder}
                           value={p.name}
                           onChange={(e) => updateParticipant(p.id, 'name', e.target.value)}
-                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-bold placeholder:text-slate-300"
+                          className="w-full bg-slate-50 border-none rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition text-[15px] font-bold placeholder:text-slate-300 shadow-sm"
                         />
                         <textarea 
                           placeholder={t.introPlaceholder}
                           value={p.intro}
                           onChange={(e) => updateParticipant(p.id, 'intro', e.target.value)}
-                          className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium h-16 resize-none placeholder:text-slate-300"
+                          className="w-full bg-slate-50 border-none rounded-xl px-5 py-3.5 focus:ring-2 focus:ring-blue-500 outline-none transition text-[14px] font-medium h-20 resize-none placeholder:text-slate-300 shadow-sm"
                         />
                       </div>
-                      <button onClick={() => removeParticipant(p.id)} className="flex-none text-slate-200 hover:text-red-400 transition-colors p-2 h-fit mt-1">
-                        <Trash2 size={18} />
+                      <button onClick={() => removeParticipant(p.id)} className="flex-none text-slate-200 hover:text-red-500 transition-colors p-2 h-fit mt-2">
+                        <Trash2 size={20} />
                       </button>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-8 space-y-4">
-                  <button onClick={addParticipant} className="w-full py-4 border-2 border-dashed border-slate-100 rounded-2xl hover:bg-slate-50 transition-all text-slate-400 hover:text-slate-600 font-bold text-sm">
+                <div className="mt-10 space-y-5">
+                  <button onClick={addParticipant} className="w-full py-4 border-2 border-dashed border-slate-100 rounded-2xl hover:bg-slate-50 hover:border-blue-200 transition-all text-slate-400 hover:text-blue-500 font-bold text-[15px]">
                     + {t.addBtn}
                   </button>
                   
-                  <div className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl">
-                    <span className="text-sm font-black text-slate-600 uppercase tracking-tighter">{t.teamSizeLabel}</span>
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => setConfig(c => ({...c, teamSize: Math.max(2, c.teamSize-1)}))} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg font-bold hover:bg-slate-100">-</button>
-                      <span className="w-6 text-center font-black text-lg">{config.teamSize}</span>
-                      <button onClick={() => setConfig(c => ({...c, teamSize: Math.min(10, c.teamSize+1)}))} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg font-bold hover:bg-slate-100">+</button>
+                  <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                    <span className="text-sm font-black text-slate-600 uppercase tracking-tight">{t.teamSizeLabel}</span>
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => setConfig(c => ({...c, teamSize: Math.max(2, c.teamSize-1)}))} className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl font-bold hover:bg-slate-100 shadow-sm transition-colors text-lg">-</button>
+                      <span className="w-6 text-center font-black text-xl">{config.teamSize}</span>
+                      <button onClick={() => setConfig(c => ({...c, teamSize: Math.min(10, c.teamSize+1)}))} className="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl font-bold hover:bg-slate-100 shadow-sm transition-colors text-lg">+</button>
                     </div>
                   </div>
 
                   <button 
                     onClick={startAssign}
-                    className="w-full py-5 bg-slate-900 text-white rounded-2xl text-lg font-black shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all transform hover:-translate-y-1 active:translate-y-0"
+                    className="w-full py-6 bg-slate-900 text-white rounded-2xl text-[19px] font-black shadow-2xl shadow-slate-200 hover:bg-slate-800 transition-all transform hover:-translate-y-1 active:translate-y-0"
                   >
                     {t.assignBtn}
                   </button>
@@ -314,50 +317,51 @@ function App() {
 
           {step === 'loading' && (
             <motion.div key="loading" className="text-center py-24 space-y-10">
-              <div className="relative w-24 h-24 mx-auto">
-                <div className="absolute inset-0 border-[6px] border-slate-50 rounded-full"></div>
-                <div className="absolute inset-0 border-[6px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              <div className="relative w-28 h-28 mx-auto">
+                <div className="absolute inset-0 border-[8px] border-slate-50 rounded-full"></div>
+                <div className="absolute inset-0 border-[8px] border-blue-600 rounded-full border-t-transparent animate-spin"></div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">{t.loadingTitle}</h3>
-                <p className="text-slate-400 font-medium animate-pulse">{t.loadingDesc}</p>
+                <p className="text-slate-400 font-bold animate-pulse text-lg">{t.loadingDesc}</p>
               </div>
             </motion.div>
           )}
 
           {step === 'result' && (
-            <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-8">
-              <div className="text-center space-y-4">
-                <div className="inline-flex p-3 bg-emerald-50 text-emerald-600 rounded-2xl mb-2">
-                  <CheckCircle2 size={32} />
+            <motion.div key="result" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-10">
+              <div className="text-center space-y-5">
+                <div className="inline-flex p-4 bg-emerald-50 text-emerald-600 rounded-[1.5rem] shadow-inner mb-2">
+                  <CheckCircle2 size={36} />
                 </div>
                 <h2 className="text-3xl font-black tracking-tight">{t.resultTitle}</h2>
-                <p className="text-slate-500 font-medium">{t.resultDesc}</p>
+                <p className="text-lg text-slate-500 font-semibold">{t.resultDesc}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
+              <div className="grid grid-cols-1 gap-8">
                 {teams.map((t) => (
-                  <div key={t.id} className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-black flex items-center gap-2">
-                        <span className="text-blue-600">#0{t.id}</span> TEAM
+                  <div key={t.id} className="bg-white rounded-[2.5rem] p-8 shadow-[0_20px_40px_rgba(0,0,0,0.04)] border border-slate-100 hover:border-blue-100 transition-colors">
+                    <div className="flex justify-between items-center mb-8">
+                      <h3 className="text-2xl font-black flex items-center gap-3">
+                        <span className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl text-base italic shadow-lg shadow-blue-100">#0{t.id}</span>
+                        <span className="tracking-tighter uppercase">Team</span>
                       </h3>
-                      <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100">Balanced</span>
+                      <span className="text-[11px] font-black uppercase tracking-[0.15em] px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full border border-blue-100">Optimal Balance</span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                       {t.members.map((m, i) => (
-                        <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-1">
+                        <div key={i} className="p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 flex flex-col gap-2 shadow-sm">
                           <div className="flex justify-between items-center">
-                            <span className="font-black text-slate-900">{m.name}</span>
-                            <span className="text-[10px] font-black px-2 py-0.5 bg-white border border-slate-200 text-slate-500 rounded-md uppercase">{m.role}</span>
+                            <span className="font-black text-slate-900 text-base">{m.name}</span>
+                            <span className="text-[11px] font-black px-2.5 py-1 bg-white border border-slate-200 text-slate-500 rounded-lg uppercase tracking-tight">{m.role}</span>
                           </div>
-                          <p className="text-[11px] text-slate-400 font-medium leading-tight line-clamp-1">{m.style}</p>
+                          <p className="text-[12px] text-slate-400 font-bold leading-snug line-clamp-1 italic">{m.style}</p>
                         </div>
                       ))}
                     </div>
-                    <div className="p-5 bg-slate-900 rounded-2xl flex gap-3">
-                      <div className="text-blue-400 shrink-0"><Zap size={16} fill="currentColor" /></div>
-                      <p className="text-[12px] text-slate-300 leading-relaxed italic font-medium">
+                    <div className="p-6 bg-slate-900 rounded-[1.5rem] flex gap-4 shadow-xl">
+                      <div className="text-blue-400 shrink-0 pt-1"><Zap size={18} fill="currentColor" /></div>
+                      <p className="text-[13.5px] text-slate-200 leading-relaxed italic font-semibold opacity-90">
                         {t.analysis}
                       </p>
                     </div>
@@ -365,11 +369,11 @@ function App() {
                 ))}
               </div>
 
-              <div className="flex flex-col gap-3 pt-8">
-                <button onClick={exportCSV} className="w-full py-5 bg-emerald-600 text-white rounded-2xl text-lg font-black shadow-2xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                  <Download size={20} /> {t.exportBtn}
+              <div className="flex flex-col gap-4 pt-8">
+                <button onClick={exportCSV} className="w-full py-6 bg-emerald-600 text-white rounded-2xl text-[19px] font-black shadow-2xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-3">
+                  <Download size={24} /> {t.exportBtn}
                 </button>
-                <button onClick={() => setStep('input')} className="w-full py-4 text-slate-400 hover:text-slate-600 font-bold text-sm transition-colors">
+                <button onClick={() => setStep('input')} className="w-full py-4 text-slate-400 hover:text-slate-600 font-black text-[15px] transition-colors">
                   {t.retryBtn}
                 </button>
               </div>
@@ -378,13 +382,13 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <footer className="max-w-xl mx-auto px-6 py-16 border-t border-slate-100 text-center space-y-6">
-        <div className="flex justify-center gap-6 text-xs font-bold text-slate-400">
-          <button onClick={() => setLegalView('terms')} className="hover:text-blue-600">{t.terms}</button>
-          <button onClick={() => setLegalView('privacy')} className="hover:text-blue-600">{t.privacy}</button>
-          <button onClick={() => setLegalView('refund')} className="hover:text-blue-600">{t.refund}</button>
+      <footer className="max-w-xl mx-auto px-6 py-20 border-t border-slate-50 text-center space-y-8">
+        <div className="flex justify-center gap-8 text-[13px] font-black text-slate-400">
+          <button onClick={() => setLegalView('terms')} className="hover:text-blue-600 transition-colors uppercase tracking-widest">{t.terms}</button>
+          <button onClick={() => setLegalView('privacy')} className="hover:text-blue-600 transition-colors uppercase tracking-widest">{t.privacy}</button>
+          <button onClick={() => setLegalView('refund')} className="hover:text-blue-600 transition-colors uppercase tracking-widest">{t.refund}</button>
         </div>
-        <p className="text-[10px] text-slate-300 font-medium uppercase tracking-[0.2em]">&copy; 2026 TeamBuilder AI. {t.footerMsg}</p>
+        <p className="text-[11px] text-slate-300 font-bold uppercase tracking-[0.25em]">&copy; 2026 TeamBuilder AI. {t.footerMsg}</p>
       </footer>
     </div>
   );
