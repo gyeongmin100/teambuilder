@@ -1,22 +1,64 @@
-# 팀 자동 배정 SaaS (TeamBuilder) 구현 작업
+﻿# ? ?먮룞 諛곗젙 SaaS (TeamBuilder) 援ы쁽 ?묒뾽
 
-## 1. 초기 설정
-- [x] `task.md` 및 `implementation_plan.md` 작성
-- [x] 필요한 라이브러리 설치 (Lucide-react, Tailwind CSS v4, Framer-motion 등)
-- [x] 프로젝트 구조 정리 (frontend -> root 이동)
+## 1. 珥덇린 ?ㅼ젙
+- [x] `task.md` 諛?`implementation_plan.md` ?묒꽦
+- [x] ?꾩슂???쇱씠釉뚮윭由??ㅼ튂 (Lucide-react, Tailwind CSS v4, Framer-motion ??
+- [x] ?꾨줈?앺듃 援ъ“ ?뺣━ (frontend -> root ?대룞)
 
-## 2. 백엔드 구현 (Cloudflare Pages Functions)
-- [x] `functions/api/assign.js`: 팀 배정 로직 및 GPT 연동 (완료)
-- [x] `functions/api/checkout.js`: Polar 결제 세션 생성 (완료)
-- [x] 팀 배정 알고리즘 (Deterministic Algorithm) 개발 (완료)
+## 2. 諛깆뿏??援ы쁽 (Cloudflare Pages Functions)
+- [x] `functions/api/assign.js`: ? 諛곗젙 濡쒖쭅 諛?GPT ?곕룞 (?꾨즺)
+- [x] `functions/api/checkout.js`: Polar 寃곗젣 ?몄뀡 ?앹꽦 (?꾨즺)
+- [x] ? 諛곗젙 ?뚭퀬由ъ쬁 (Deterministic Algorithm) 媛쒕컻 (?꾨즺)
 
-## 3. 프론트엔드 구현 (React + Vite)
-- [x] 랜딩 페이지 및 입력 폼 (이름, 역할, 협업 스타일 등) (완료)
-- [x] 결과 표시 페이지 (팀 구성표, 배정 근거 요약) (완료)
-- [x] Polar 결제 연동 (Redirect Flow 구현) (완료)
-- [x] 로딩 및 에러 핸들링 (완료)
+## 3. ?꾨줎?몄뿏??援ы쁽 (React + Vite)
+- [x] ?쒕뵫 ?섏씠吏 諛??낅젰 ??(?대쫫, ??븷, ?묒뾽 ?ㅽ????? (?꾨즺)
+- [x] 寃곌낵 ?쒖떆 ?섏씠吏 (? 援ъ꽦?? 諛곗젙 洹쇨굅 ?붿빟) (?꾨즺)
+- [x] Polar 寃곗젣 ?곕룞 (Redirect Flow 援ы쁽) (?꾨즺)
+- [x] 濡쒕뵫 諛??먮윭 ?몃뱾留?(?꾨즺)
 
-## 4. 통합 및 배포 준비
-- [x] 빌드 검증 (Vite build 성공)
-- [ ] 환경 변수 설정 (OPENAI_API_KEY, POLAR_ACCESS_TOKEN 등) - 사용자 설정 필요
-- [ ] 실배포 (Wrangler deploy)
+## 4. ?듯빀 諛?諛고룷 以鍮?
+- [x] 鍮뚮뱶 寃利?(Vite build ?깃났)
+- [ ] ?섍꼍 蹂???ㅼ젙 (OPENAI_API_KEY, POLAR_ACCESS_TOKEN ?? - ?ъ슜???ㅼ젙 ?꾩슂
+- [ ] ?ㅻ같??(Wrangler deploy)
+
+## 5. 2026-02-19 추가 작업 (Google 로그인)
+- [x] `@supabase/supabase-js` 설치
+- [x] `src/App.jsx`에 Google 로그인/로그아웃 버튼 추가
+- [x] Supabase 세션 감지(`getSession`, `onAuthStateChange`) 연결
+- [ ] 교수용 Google Sheet 응답 가져오기(다음 작업)
+- [x] Supabase Google OAuth scope 확장(`spreadsheets.readonly`)
+- [x] Google Sheet URL/ID 입력 후 Sheets API로 응답 데이터 가져오기
+- [x] 컬럼 자동매핑(이름/학번/학과/자기소개/선호역할/협업스타일/가능시간)
+- [x] 가져온 응답을 참가자 목록에 중복 제거 후 자동 반영
+- [x] 가져오기 통계/오류 메시지/재로그인 안내 UI 추가
+- [x] Google Picker(시트 선택 팝업) 기능 추가
+- [x] 선택한 시트 ID로 즉시 참가자 자동 가져오기 연동
+- [x] Node 20 빌드로 dist 생성
+- [x] Cloudflare Pages `teambuilder` 프로덕션 배포 완료
+- [x] Google Picker 의존 제거
+- [x] Drive API 시트 목록 직접 조회 + 클릭 선택 UI 구현
+- [x] 깨진 번역 문자열/구문 오류 복구 후 빌드 통과
+- [x] 프로덕션 재배포 완료 (482ea996)
+- [x] App.jsx 전면 UTF-8 문자열 복구
+- [x] 깨진 한글 UI 텍스트 정상화
+- [x] 빌드/배포 완료 (8d54cf66)
+- [x] 구글시트 선택 방식 -> 구글폼 선택 방식으로 전환
+- [x] Forms API(form metadata/responses)로 참가자 매핑 구현
+- [x] 프로덕션 배포 완료 (98c0f3ec)
+
+## 6. 2026-02-19 Forms 怨좊룄???묒뾽
+- [x] 吏덈Ц=?뱀꽦 ??features) 援ъ“ 諛섏쁺
+- [x] ?앸퀎 湲곗? ?좏깮 UI(?쇰뵒??泥댄겕) 異붽?
+- [x] ?앸퀎 湲곗? 誘몄꽑????遺꾩꽍 ?쒖옉 李⑤떒
+- [x] ?뱀꽦 ?곸쐞 N媛?+ ?쇱퀜蹂닿린 UI 異붽?
+- [x] assign API ?꾨＼?꾪듃??features ?ы븿
+- [ ] 諛고룷 寃利?
+
+
+## 7. 2026-02-19 UI/UX 고도화 작업
+- [x] 입력 화면을 대시보드형으로 재구성
+- [x] 참가자 테이블 검색 기능 추가
+- [x] 표시 특성 수 조절 기능 추가
+- [x] 전체보기 기준을 필터 결과 기준으로 개선
+- [x] sticky 액션바 적용
+- [x] 빌드 검증 완료

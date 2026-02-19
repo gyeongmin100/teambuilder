@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
-import { Users, Upload, Trash2, Download } from 'lucide-react';
+import { Users, Upload, Trash2, Download, Search, SlidersHorizontal, Settings2, Database } from 'lucide-react';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
 
@@ -156,6 +156,8 @@ function App() {
   const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
   const [showAllParticipants, setShowAllParticipants] = useState(false);
+  const [participantQuery, setParticipantQuery] = useState('');
+  const [columnLimit, setColumnLimit] = useState(6);
 
   const maxInitialRows = 20;
 
@@ -312,6 +314,16 @@ function App() {
     [participants]
   );
 
+  const filteredParticipants = useMemo(() => {
+    const q = participantQuery.trim().toLowerCase();
+    if (!q) return validParticipants;
+    return validParticipants.filter((p) => {
+      const idValue = String(selectedIdentifierKey ? p?.features?.[selectedIdentifierKey] || '' : '').toLowerCase();
+      const featureText = Object.values(p.features || {}).join(' ').toLowerCase();
+      return idValue.includes(q) || featureText.includes(q);
+    });
+  }, [participantQuery, validParticipants, selectedIdentifierKey]);
+
   const getParticipantIdentifier = (participant) => {
     if (!selectedIdentifierKey) return '';
     return String(participant?.features?.[selectedIdentifierKey] || '').trim();
@@ -319,13 +331,13 @@ function App() {
 
   const tableFeatureKeys = useMemo(() => {
     const candidates = availableIdentifierKeys.filter((k) => k !== selectedIdentifierKey);
-    return candidates.slice(0, 6);
-  }, [availableIdentifierKeys, selectedIdentifierKey]);
+    return candidates.slice(0, columnLimit);
+  }, [availableIdentifierKeys, selectedIdentifierKey, columnLimit]);
 
   const shownParticipants = useMemo(() => {
-    if (showAllParticipants || validParticipants.length <= maxInitialRows) return validParticipants;
-    return validParticipants.slice(0, maxInitialRows);
-  }, [validParticipants, showAllParticipants]);
+    if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
+    return filteredParticipants.slice(0, maxInitialRows);
+  }, [filteredParticipants, showAllParticipants]);
 
   const runAssign = async () => {
     if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
@@ -377,10 +389,10 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100 via-white to-slate-100 text-slate-900 p-4">
+      <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center py-4 border-b border-slate-200">
-          <div className="flex items-center gap-2 font-black text-xl text-blue-600">
+          <div className="flex items-center gap-2 font-black text-xl text-cyan-700">
             <Users className="size-5" /> TeamBuilder AI
           </div>
           <div className="flex items-center gap-2">
@@ -395,11 +407,31 @@ function App() {
         </div>
 
         {step === 'input' && (
-          <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-            <p className="text-sm font-bold">100% 데이터 기반 팀 분석</p>
+          <div className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">현재 참가자</p>
+                <p className="text-2xl font-black text-slate-900">{validParticipants.length}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">식별 기준</p>
+                <p className="text-sm font-bold truncate">{selectedIdentifierKey || '미선택'}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">맞춤 프롬프트</p>
+                <p className="text-sm font-bold">{config.useCustomPrompt ? 'ON' : 'OFF'}</p>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-2xl p-4">
+                <p className="text-xs text-slate-500">진행 상태</p>
+                <p className="text-sm font-bold">{selectedIdentifierKey ? '배정 준비 완료' : '식별 기준 선택 필요'}</p>
+              </div>
+            </div>
 
-            <div className="rounded-xl border border-slate-200 p-3 space-y-3">
-              <p className="text-sm font-bold">1) 팀 설정</p>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+              <p className="text-sm font-bold">100% 데이터 기반 팀 분석</p>
+
+              <div className="rounded-xl border border-slate-200 p-3 space-y-3 bg-slate-50/70">
+                <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> 1) 팀 설정</p>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <label className="inline-flex items-center gap-2">
                   <span>1팀당 인원</span>
@@ -449,32 +481,35 @@ function App() {
                   />
                 )}
               </div>
-            </div>
+              </div>
 
-            <div className="flex gap-2">
-              <input
-                value={formUrl}
-                onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="Google Form URL 또는 Form ID"
-                className="flex-1 border rounded px-3 py-2"
-              />
-              <button
-                onClick={() => importSheet()}
-                disabled={sheetImportLoading}
-                className="px-3 py-2 bg-slate-900 text-white rounded"
-              >
-                {sheetImportLoading ? '불러오는 중...' : '불러오기'}
-              </button>
-              <button
-                onClick={openSheets}
-                disabled={sheetListLoading}
-                className="px-3 py-2 bg-slate-200 rounded"
-              >
-                {sheetListLoading ? '목록 조회 중...' : 'Google에서 폼 선택'}
-              </button>
-            </div>
+              <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+                <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> 2) 데이터 불러오기</p>
+                <div className="flex gap-2">
+                  <input
+                    value={formUrl}
+                    onChange={(e) => setFormUrl(e.target.value)}
+                    placeholder="Google Form URL 또는 Form ID"
+                    className="flex-1 border rounded px-3 py-2"
+                  />
+                  <button
+                    onClick={() => importSheet()}
+                    disabled={sheetImportLoading}
+                    className="px-3 py-2 bg-slate-900 text-white rounded"
+                  >
+                    {sheetImportLoading ? '불러오는 중...' : '불러오기'}
+                  </button>
+                  <button
+                    onClick={openSheets}
+                    disabled={sheetListLoading}
+                    className="px-3 py-2 bg-slate-200 rounded"
+                  >
+                    {sheetListLoading ? '목록 조회 중...' : 'Google에서 폼 선택'}
+                  </button>
+                </div>
+              </div>
 
-            {sheetListOpen && driveForms.length > 0 && (
+              {sheetListOpen && driveForms.length > 0 && (
               <div className="max-h-52 overflow-y-auto border rounded">
                 {driveForms.map((f) => (
                   <button
@@ -491,11 +526,11 @@ function App() {
                   </button>
                 ))}
               </div>
-            )}
+              )}
 
-            {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
+              {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
 
-            <div className="rounded-xl border border-slate-200 p-3">
+              <div className="rounded-xl border border-slate-200 p-3">
               <p className="text-sm font-bold mb-2">2) 식별 기준 선택 (필수)</p>
               <p className="text-xs text-slate-500 mb-2">기본 이름은 제거했습니다. 폼 질문 중 1개를 선택하세요.</p>
               <div className="flex flex-wrap gap-2">
@@ -516,15 +551,38 @@ function App() {
               {!selectedIdentifierKey && (
                 <p className="text-xs text-rose-600 mt-2">식별 기준을 선택하지 않으면 분석이 시작되지 않습니다.</p>
               )}
-            </div>
+              </div>
 
-            <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
+              <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
               <Upload size={16} /> CSV 업로드
               <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
-            </label>
+              </label>
 
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">참가자 데이터 미리보기 (엑셀 형태)</div>
+              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-slate-500" />
+                  <input
+                    value={participantQuery}
+                    onChange={(e) => setParticipantQuery(e.target.value)}
+                    placeholder="참가자/값 검색"
+                    className="border rounded px-2 py-1 text-sm w-52"
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <SlidersHorizontal size={14} className="text-slate-500" />
+                  <span>표시 특성 수</span>
+                  <input
+                    type="number"
+                    min="3"
+                    max="12"
+                    value={columnLimit}
+                    onChange={(e) => setColumnLimit(Math.min(12, Math.max(3, parseInt(e.target.value, 10) || 6)))}
+                    className="w-16 border rounded px-2 py-1"
+                  />
+                </div>
+              </div>
               <div className="overflow-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-slate-50 border-b">
@@ -572,16 +630,16 @@ function App() {
                     {shownParticipants.length === 0 && (
                       <tr>
                         <td colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-slate-500">
-                          아직 불러온 참가자가 없습니다.
+                          검색 결과가 없습니다.
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-            </div>
+              </div>
 
-            {validParticipants.length > maxInitialRows && (
+              {filteredParticipants.length > maxInitialRows && (
               <button
                 type="button"
                 onClick={() => setShowAllParticipants((v) => !v)}
@@ -589,18 +647,19 @@ function App() {
               >
                 {showAllParticipants
                   ? '접기'
-                  : `전체보기 (${validParticipants.length - maxInitialRows}명 더 보기)`}
+                  : `전체보기 (${filteredParticipants.length - maxInitialRows}명 더 보기)`}
               </button>
-            )}
+              )}
 
-            <div className="flex gap-2">
+              <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl p-3 flex gap-2">
               <button
                 onClick={() => setParticipants([...participants, { id: Date.now(), name: '', intro: '', source: 'manual', features: {} }])}
                 className="px-3 py-2 border rounded"
               >
                 빈 참가자 1명 추가
               </button>
-              <button onClick={runAssign} className="px-4 py-2 bg-slate-900 text-white rounded">팀 배정 실행</button>
+              <button onClick={runAssign} className="px-4 py-2 bg-cyan-700 text-white rounded">팀 배정 실행</button>
+              </div>
             </div>
           </div>
         )}
