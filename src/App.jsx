@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
-import { Users, Upload, Trash2, Download, Search, SlidersHorizontal, Settings2, Database } from 'lucide-react';
+import { Users, Upload, Trash2, Download, Search, Settings2, Database } from 'lucide-react';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
 
@@ -143,7 +143,7 @@ function App() {
   const [legalView, setLegalView] = useState(null);
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
-  const [participants, setParticipants] = useState([{ id: 1, name: '', intro: '', source: 'manual', features: {} }]);
+  const [participants, setParticipants] = useState([]);
   const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: false });
   const [teams, setTeams] = useState([]);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -160,9 +160,11 @@ function App() {
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
-  const [columnLimit, setColumnLimit] = useState(6);
+  const [manualIdentifier, setManualIdentifier] = useState('');
+  const [manualIntro, setManualIntro] = useState('');
 
   const maxInitialRows = 20;
+  const maxFeatureColumns = 6;
 
   useEffect(() => {
     let alive = true;
@@ -374,15 +376,33 @@ function App() {
     });
   }, [participantQuery, validParticipants, selectedIdentifierKey]);
 
+  const [useFeatureExclusion, setUseFeatureExclusion] = useState(false);
+  const [excludedFeatureKeys, setExcludedFeatureKeys] = useState([]);
+
+  const applyFeatureExclusion = (features) => {
+    const base = features || {};
+    if (!useFeatureExclusion) return base;
+    const blocked = new Set(excludedFeatureKeys);
+    return Object.fromEntries(Object.entries(base).filter(([k]) => !blocked.has(k)));
+  };
+
+  const toggleExcludedFeature = (key) => {
+    setExcludedFeatureKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
   const getParticipantIdentifier = (participant) => {
     if (!selectedIdentifierKey) return '';
     return String(participant?.features?.[selectedIdentifierKey] || '').trim();
   };
 
   const tableFeatureKeys = useMemo(() => {
-    const candidates = availableIdentifierKeys.filter((k) => k !== selectedIdentifierKey);
-    return candidates.slice(0, columnLimit);
-  }, [availableIdentifierKeys, selectedIdentifierKey, columnLimit]);
+    const candidates = availableIdentifierKeys
+      .filter((k) => k !== selectedIdentifierKey)
+      .filter((k) => !useFeatureExclusion || !excludedFeatureKeys.includes(k));
+    return candidates.slice(0, maxFeatureColumns);
+  }, [availableIdentifierKeys, selectedIdentifierKey, useFeatureExclusion, excludedFeatureKeys]);
 
   const shownParticipants = useMemo(() => {
     if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
@@ -397,13 +417,17 @@ function App() {
     if (missingIdentifier.length > 0) {
       return alert(`선택한 식별 기준 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
     }
+    if (useFeatureExclusion && excludedFeatureKeys.includes(selectedIdentifierKey)) {
+      return alert('식별 기준은 제외할 수 없습니다. 제외 목록에서 식별 기준을 해제해 주세요.');
+    }
 
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
       originalName: p.originalName || p.name,
       name: getParticipantIdentifier(p),
       identifierKey: selectedIdentifierKey,
-      identifierValue: getParticipantIdentifier(p)
+      identifierValue: getParticipantIdentifier(p),
+      features: applyFeatureExclusion(p.features || {})
     }));
 
     const assignPayload = {
@@ -458,6 +482,30 @@ function App() {
     a.href = url;
     a.download = 'TeamBuilder_Result.csv';
     a.click();
+  };
+
+  const addManualParticipant = () => {
+    if (!selectedIdentifierKey) return alert('먼저 식별 기준을 선택하세요.');
+    const idValue = String(manualIdentifier || '').trim();
+    if (!idValue) return alert('인원추가를 위해 식별값을 입력하세요.');
+
+    const introText = String(manualIntro || '').trim();
+    const features = { [selectedIdentifierKey]: idValue };
+    if (introText) features['수동메모'] = introText;
+
+    setParticipants((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        name: idValue,
+        originalName: idValue,
+        intro: introText,
+        source: 'manual',
+        features
+      }
+    ]);
+    setManualIdentifier('');
+    setManualIntro('');
   };
 
   return (
@@ -625,6 +673,39 @@ function App() {
               )}
               </div>
 
+              <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
+                  <input
+                    type="checkbox"
+                    checked={useFeatureExclusion}
+                    onChange={(e) => setUseFeatureExclusion(e.target.checked)}
+                  />
+                  제외할 특성 선택 사용
+                </label>
+                {useFeatureExclusion && (
+                  <div className="flex flex-wrap gap-2">
+                    {availableIdentifierKeys.length === 0 && (
+                      <p className="text-xs text-slate-500">폼을 먼저 불러오면 특성 목록이 표시됩니다.</p>
+                    )}
+                    {availableIdentifierKeys.map((key) => {
+                      const isIdentifier = key === selectedIdentifierKey;
+                      const checked = excludedFeatureKeys.includes(key);
+                      return (
+                        <label key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isIdentifier}
+                            onChange={() => toggleExcludedFeature(key)}
+                          />
+                          <span className="max-w-44 truncate" title={key}>{key}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
               <Upload size={16} /> CSV 업로드
               <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
@@ -640,18 +721,6 @@ function App() {
                     onChange={(e) => setParticipantQuery(e.target.value)}
                     placeholder="참가자/값 검색"
                     className="border rounded px-2 py-1 text-sm w-52"
-                  />
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <SlidersHorizontal size={14} className="text-slate-500" />
-                  <span>표시 특성 수</span>
-                  <input
-                    type="number"
-                    min="3"
-                    max="12"
-                    value={columnLimit}
-                    onChange={(e) => setColumnLimit(Math.min(12, Math.max(3, parseInt(e.target.value, 10) || 6)))}
-                    className="w-16 border rounded px-2 py-1"
                   />
                 </div>
               </div>
@@ -684,8 +753,8 @@ function App() {
                         </td>
                         {tableFeatureKeys.map((key) => (
                           <td key={`${p.id}-${key}`} className="px-3 py-2">
-                            <span className="inline-block max-w-52 truncate" title={String(p?.features?.[key] || '-')}>
-                              {String(p?.features?.[key] || '-')}
+                            <span className="inline-block max-w-52 truncate" title={String(applyFeatureExclusion(p?.features || {})?.[key] || '-')}>
+                              {String(applyFeatureExclusion(p?.features || {})?.[key] || '-')}
                             </span>
                           </td>
                         ))}
@@ -724,11 +793,23 @@ function App() {
               )}
 
               <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl p-3 flex gap-2">
+              <input
+                value={manualIdentifier}
+                onChange={(e) => setManualIdentifier(e.target.value)}
+                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별 기준 먼저 선택'}
+                className="px-3 py-2 border rounded w-56"
+              />
+              <input
+                value={manualIntro}
+                onChange={(e) => setManualIntro(e.target.value)}
+                placeholder="메모(선택)"
+                className="px-3 py-2 border rounded flex-1"
+              />
               <button
-                onClick={() => setParticipants([...participants, { id: Date.now(), name: '', intro: '', source: 'manual', features: {} }])}
+                onClick={addManualParticipant}
                 className="px-3 py-2 border rounded"
               >
-                빈 참가자 1명 추가
+                인원추가
               </button>
               <button onClick={runAssign} disabled={paymentLoading} className="px-4 py-2 bg-cyan-700 text-white rounded disabled:opacity-60">
                 {paymentLoading ? '결제창 이동 중...' : '결제 후 팀 배정 실행'}
