@@ -4,6 +4,8 @@ import { Users, Upload, Trash2, Download, Search, SlidersHorizontal, Settings2, 
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
 
+const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
+
 const parseFormId = (urlOrId) => {
   const raw = String(urlOrId || '').trim();
   if (!raw) return null;
@@ -152,6 +154,7 @@ function App() {
   const [sheetListOpen, setSheetListOpen] = useState(false);
   const [driveForms, setDriveForms] = useState([]);
   const [message, setMessage] = useState('');
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
@@ -181,6 +184,53 @@ function App() {
       alive = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const runAfterPayment = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const checkoutId = params.get('checkout_id');
+      const checkoutSuccess = params.get('checkout_success');
+      if (!checkoutId || checkoutSuccess !== 'true') return;
+
+      setStep('loading');
+      setMessage('결제 확인 중...');
+      try {
+        const verifyRes = await fetch(`/api/checkout?checkout_id=${encodeURIComponent(checkoutId)}`);
+        const verifyData = await verifyRes.json();
+        if (!verifyRes.ok || !verifyData?.paid) {
+          throw new Error(verifyData?.error || '결제가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.');
+        }
+
+        const raw = sessionStorage.getItem(PENDING_ASSIGN_KEY);
+        if (!raw) throw new Error('결제는 확인됐지만 분석 요청 데이터가 없습니다. 다시 실행해 주세요.');
+        const pending = JSON.parse(raw);
+        if (!pending?.payload) throw new Error('분석 요청 데이터가 손상되었습니다. 다시 실행해 주세요.');
+
+        const res = await fetch('/api/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pending.payload)
+        });
+        const data = await res.json();
+        if (!data.teams) throw new Error(data.error || '배정 실패');
+
+        sessionStorage.removeItem(PENDING_ASSIGN_KEY);
+        setTeams(data.teams);
+        setMessage('결제 완료 확인 후 팀 배정이 완료되었습니다.');
+        setStep('result');
+      } catch (error) {
+        setStep('input');
+        setMessage(error.message || '결제 확인/팀 배정 중 오류가 발생했습니다.');
+      } finally {
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('checkout_id');
+        cleanUrl.searchParams.delete('checkout_success');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    };
+
+    runAfterPayment();
   }, []);
 
   if (legalView === 'terms') return <TermsOfService lang={lang} onBack={() => setLegalView(null)} />;
@@ -356,24 +406,46 @@ function App() {
       identifierValue: getParticipantIdentifier(p)
     }));
 
+    const assignPayload = {
+      participants: payloadParticipants,
+      config,
+      customPrompt: config.useCustomPrompt ? String(customPrompt || '').trim() : ''
+    };
+
     setStep('loading');
+    setPaymentLoading(true);
     try {
-      const res = await fetch('/api/assign', {
+      const checkoutRes = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          participants: payloadParticipants,
-          config,
-          customPrompt: config.useCustomPrompt ? String(customPrompt || '').trim() : ''
+          email: user?.email || undefined,
+          metadata: {
+            participant_count: payloadParticipants.length,
+            identifier_key: selectedIdentifierKey
+          }
         })
       });
-      const data = await res.json();
-      if (!data.teams) throw new Error(data.error || '배정 실패');
-      setTeams(data.teams);
-      setStep('result');
-    } catch {
-      alert('분석 중 오류가 발생했습니다.');
+
+      const checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok || !checkoutData?.url) {
+        throw new Error(checkoutData?.error || '결제 세션 생성 실패');
+      }
+
+      sessionStorage.setItem(
+        PENDING_ASSIGN_KEY,
+        JSON.stringify({
+          payload: assignPayload,
+          createdAt: Date.now()
+        })
+      );
+
+      window.location.href = checkoutData.url;
+    } catch (error) {
+      alert(error.message || '결제 연결 중 오류가 발생했습니다.');
       setStep('input');
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -658,7 +730,9 @@ function App() {
               >
                 빈 참가자 1명 추가
               </button>
-              <button onClick={runAssign} className="px-4 py-2 bg-cyan-700 text-white rounded">팀 배정 실행</button>
+              <button onClick={runAssign} disabled={paymentLoading} className="px-4 py-2 bg-cyan-700 text-white rounded disabled:opacity-60">
+                {paymentLoading ? '결제창 이동 중...' : '결제 후 팀 배정 실행'}
+              </button>
               </div>
             </div>
           </div>
