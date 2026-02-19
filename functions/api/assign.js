@@ -92,9 +92,19 @@ const annotateTeams = (teams, prefix = '') => {
   return teams;
 };
 
+const fallbackEnrichedParticipant = (participant, reason = '정보 부족') => ({
+  ...participant,
+  role: 'supporter',
+  style: reason,
+  strength: reason,
+  traits: []
+});
+
 const enrichParticipants = async (participants, env) => {
-  return Promise.all(
-    participants.map(async (p) => {
+  const results = [];
+
+  for (const p of participants) {
+    try {
       const featuresText = Object.entries(p.features || {})
         .map(([k, v]) => `- ${k}: ${String(v)}`)
         .join('\n');
@@ -136,12 +146,17 @@ const enrichParticipants = async (participants, env) => {
 
       if (!res.ok) {
         const failText = await res.text();
-        throw new Error(`OpenAI API 오류: ${failText}`);
+        results.push(fallbackEnrichedParticipant(p, `추출 실패(${res.status})`));
+        console.error('OpenAI enrichment failed:', failText);
+        continue;
       }
 
       const data = await res.json();
       const extractedRaw = data?.choices?.[0]?.message?.content;
-      if (!extractedRaw) throw new Error('OpenAI 응답이 비어 있습니다.');
+      if (!extractedRaw) {
+        results.push(fallbackEnrichedParticipant(p, '추출 실패(응답 비어있음)'));
+        continue;
+      }
 
       const extracted = parseJsonSafe(extractedRaw, {
         role: 'supporter',
@@ -150,15 +165,20 @@ const enrichParticipants = async (participants, env) => {
         traits: []
       });
 
-      return {
+      results.push({
         ...p,
         role: extracted.role || 'supporter',
         style: extracted.style || '정보 부족',
         strength: extracted.strength || '정보 부족',
         traits: Array.isArray(extracted.traits) ? extracted.traits : []
-      };
-    })
-  );
+      });
+    } catch (error) {
+      console.error('OpenAI enrichment exception:', error);
+      results.push(fallbackEnrichedParticipant(p, '추출 예외 발생'));
+    }
+  }
+
+  return results;
 };
 
 const tryCustomPromptAssignment = async ({ participants, teamSize, remainderMode, customPrompt, env }) => {
