@@ -1,399 +1,648 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
-import { 
-  Users, 
-  Trash2, 
-  ChevronRight, 
-  LayoutDashboard,
-  Download,
-  Upload,
-  Info,
-  CheckCircle2,
-  Zap,
-  ShieldCheck,
-  Award,
-  FileText,
-  Copy,
-  Layout
-} from 'lucide-react';
+import { Users, Upload, Trash2, Download } from 'lucide-react';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
+import { supabase } from './lib/supabaseClient';
 
-const translations = {
-  ko: {
-    title: "TeamBuilder AI",
-    topBanner: "🔥 데이터 분석 기반의 가장 공정한 팀 빌딩 솔루션",
-    hero: "운에 맡기는 팀 배정은 이제 그만",
-    subHero: "랜덤 배정이 만든 팀 갈등과 불만, 이제 팀원 각자의 특성을 반영한 맞춤형 배정으로 해결하세요.",
-    startBtn: "지금 바로 팀 짜기",
-    noLogin: "별도의 가입 없이 즉시 이용 가능",
-    feature1Title: "엑셀 / CSV 업로드",
-    feature1Desc: "기존 참여자 명단을 한 번에 불러와서 빠르게 배정할 수 있습니다.",
-    feature2Title: "구글폼 데이터 연계",
-    feature2Desc: "설문 응답 결과를 복사해서 붙여넣기만 하면 분석이 시작됩니다.",
-    feature3Title: "시각화 분석 리포트",
-    feature3Desc: "팀별 성향 분석과 배정 근거를 포함한 리포트를 제공합니다.",
-    inputTitle: "참여자 명단 작성",
-    uploadBtn: "엑셀 / CSV 업로드",
-    googleFormTip: "구글폼 팁: 응답 시트의 데이터를 복사(Ctrl + C)하여 이름 칸에 붙여넣으세요.",
-    addBtn: "다음 참여자 추가",
-    teamSizeLabel: "팀당 목표 인원",
-    assignBtn: "데이터 분석 및 팀 배정 시작",
-    loadingTitle: "팀원들의 데이터를 정밀 분석 중입니다",
-    loadingDesc: "약 10초 정도 소요됩니다.",
-    resultTitle: "분석 완료! 최적의 팀 구성안",
-    resultDesc: "각 팀의 성향 밸런스를 최우선으로 고려하여 배정했습니다.",
-    exportBtn: "엑셀 파일(CSV)로 내려받기",
-    retryBtn: "데이터 수정 후 다시 배정하기",
-    terms: "이용약관",
-    privacy: "개인정보처리방침",
-    refund: "환불정책",
-    footerMsg: "High-Performance Team Dynamics.",
-    emptyAlert: "최소 2명 이상의 이름을 입력해 주세요.",
-    namePlaceholder: "이름",
-    introPlaceholder: "자기소개 또는 협업 스타일"
-  },
-  en: {
-    title: "TeamBuilder AI",
-    topBanner: "🔥 The fairest team building solution based on data analysis",
-    hero: "Stop relying on luck for team building",
-    subHero: "Solve the conflicts and dissatisfaction of random assignments with custom teams that reflect each member's unique traits.",
-    startBtn: "Start Building Teams",
-    noLogin: "Instant access without sign-up",
-    feature1Title: "Excel / CSV Upload",
-    feature1Desc: "Load your existing participant list all at once for fast assignment.",
-    feature2Title: "Google Form Sync",
-    feature2Desc: "Just copy and paste your survey responses to start the analysis.",
-    feature3Title: "Visual Analysis Report",
-    feature3Desc: "Provides reports including personality analysis and assignment logic.",
-    inputTitle: "Participant List",
-    uploadBtn: "Upload Excel / CSV",
-    googleFormTip: "Google Form Tip: Copy (Ctrl + C) response data and paste it into the name field.",
-    addBtn: "Add Participant",
-    teamSizeLabel: "Target Members Per Team",
-    assignBtn: "Start AI Analysis & Assignment",
-    loadingTitle: "Analyzing Participant Data...",
-    loadingDesc: "This will take about 10 seconds.",
-    resultTitle: "Analysis Complete! Optimal Teams",
-    resultDesc: "Prioritized team dynamics and personality balance.",
-    exportBtn: "Download as Excel (CSV)",
-    retryBtn: "Edit Data and Re-assign",
-    terms: "Terms",
-    privacy: "Privacy",
-    refund: "Refund",
-    footerMsg: "High-Performance Team Dynamics.",
-    emptyAlert: "Please enter at least 2 names.",
-    namePlaceholder: "Name",
-    introPlaceholder: "Self-intro or collaboration style"
+const parseFormId = (urlOrId) => {
+  const raw = String(urlOrId || '').trim();
+  if (!raw) return null;
+  const direct = raw.match(/^[a-zA-Z0-9-_]{20,}$/);
+  if (direct) return raw;
+  const fromPublicUrl = raw.match(/\/forms\/d\/e\/([a-zA-Z0-9-_]+)/);
+  if (fromPublicUrl) return fromPublicUrl[1];
+  const fromEditorUrl = raw.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
+  if (fromEditorUrl) return fromEditorUrl[1];
+  return null;
+};
+
+const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+
+const normalizeQuestionMap = (form) => {
+  const items = Array.isArray(form?.items) ? form.items : [];
+  return items
+    .map((item) => {
+      const qid = item?.questionItem?.question?.questionId;
+      const title = String(item?.title || '').trim();
+      return qid && title ? { qid, title } : null;
+    })
+    .filter(Boolean);
+};
+
+const findQuestionId = (questionMap, aliases) => {
+  const normalizedAliases = aliases.map(norm);
+  for (const q of questionMap) {
+    if (normalizedAliases.includes(norm(q.title))) return q.qid;
   }
+  return null;
+};
+
+const extractAnswerValue = (answerObj) => {
+  if (!answerObj) return '';
+
+  if (answerObj.textAnswers?.answers?.length) {
+    return answerObj.textAnswers.answers.map((a) => a.value).filter(Boolean).join(', ');
+  }
+
+  if (answerObj.choiceAnswers?.answers?.length) {
+    return answerObj.choiceAnswers.answers.map((a) => a.value).filter(Boolean).join(', ');
+  }
+
+  if (answerObj.fileUploadAnswers?.answers?.length) {
+    return answerObj.fileUploadAnswers.answers
+      .map((a) => a.fileName || a.fileId || '')
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (answerObj.dateAnswers?.answers?.length) {
+    return answerObj.dateAnswers.answers
+      .map((a) => {
+        const year = a?.date?.year;
+        const month = a?.date?.month;
+        const day = a?.date?.day;
+        if (!year || !month || !day) return '';
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  if (answerObj.timeAnswers?.answers?.length) {
+    return answerObj.timeAnswers.answers
+      .map((a) => {
+        const hour = a?.time?.hours;
+        const minute = a?.time?.minutes;
+        if (hour === undefined || minute === undefined) return '';
+        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  return '';
+};
+
+const mapFormResponsesToParticipants = (form, responses) => {
+  const questionMap = normalizeQuestionMap(form);
+  const nameQid = findQuestionId(questionMap, ['이름', '성명', 'name', 'fullname']);
+  const introQid = findQuestionId(questionMap, ['자기소개', '소개', 'intro', 'introduction']);
+  const majorQid = findQuestionId(questionMap, ['학과', '전공', 'major', 'department']);
+  const studentIdQid = findQuestionId(questionMap, ['학번', 'studentid', 'studentno']);
+
+  const list = Array.isArray(responses?.responses) ? responses.responses : [];
+  let mapped = 0;
+  let skipped = 0;
+
+  const participants = list
+    .map((r, i) => {
+      const answers = r?.answers || {};
+      const features = {};
+
+      for (const q of questionMap) {
+        const value = extractAnswerValue(answers[q.qid]);
+        if (value) features[q.title] = value;
+      }
+
+      const respondentEmail = String(r?.respondentEmail || '').trim();
+      if (respondentEmail) features['응답자 이메일'] = respondentEmail;
+
+      const guessedName = extractAnswerValue(answers[nameQid]) || respondentEmail || `참가자-${i + 1}`;
+      const intro = extractAnswerValue(answers[introQid]);
+      const major = extractAnswerValue(answers[majorQid]);
+      const studentId = extractAnswerValue(answers[studentIdQid]);
+
+      mapped += 1;
+      return {
+        id: Date.now() + i,
+        name: guessedName,
+        originalName: guessedName,
+        source: 'google-form',
+        features,
+        intro: [
+          studentId ? `학번: ${studentId}` : '',
+          major ? `학과: ${major}` : '',
+          intro ? `자기소개: ${intro}` : ''
+        ].filter(Boolean).join('\n')
+      };
+    })
+    .filter((p) => {
+      const hasIdentifierCandidate = p.name || Object.keys(p.features || {}).length > 0;
+      if (!hasIdentifierCandidate) skipped += 1;
+      return hasIdentifierCandidate;
+    });
+
+  return { participants, mapped, skipped };
 };
 
 function App() {
   const [lang, setLang] = useState('ko');
-  const [step, setStep] = useState('landing'); 
+  const [step, setStep] = useState('input');
   const [legalView, setLegalView] = useState(null);
-  const [participants, setParticipants] = useState([{ id: 1, name: '', intro: '' }]);
-  const [config, setConfig] = useState({ teamSize: 4 });
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [participants, setParticipants] = useState([{ id: 1, name: '', intro: '', source: 'manual', features: {} }]);
+  const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: false });
   const [teams, setTeams] = useState([]);
-  const t = translations[lang];
+  const [customPrompt, setCustomPrompt] = useState('');
 
-  const progress = Math.min(100, (participants.filter(p => p.name).length / 10) * 100);
+  const [formUrl, setFormUrl] = useState('');
+  const [sheetImportLoading, setSheetImportLoading] = useState(false);
+  const [sheetListLoading, setSheetListLoading] = useState(false);
+  const [sheetListOpen, setSheetListOpen] = useState(false);
+  const [driveForms, setDriveForms] = useState([]);
+  const [message, setMessage] = useState('');
+
+  const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
+  const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
+  const [showAllParticipants, setShowAllParticipants] = useState(false);
+
+  const maxInitialRows = 20;
+
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!alive) return;
+      setSession(data?.session ?? null);
+      setUser(data?.session?.user ?? null);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (!alive) return;
+      setSession(s ?? null);
+      setUser(s?.user ?? null);
+    });
+
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   if (legalView === 'terms') return <TermsOfService lang={lang} onBack={() => setLegalView(null)} />;
   if (legalView === 'privacy') return <PrivacyPolicy lang={lang} onBack={() => setLegalView(null)} />;
   if (legalView === 'refund') return <RefundPolicy lang={lang} onBack={() => setLegalView(null)} />;
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          const newParticipants = results.data.map((row, index) => ({
-            id: Date.now() + index,
-            name: row.이름 || row.name || row.Name || '',
-            intro: row.자기소개 || row.intro || row.Intro || ''
-          })).filter(p => p.name);
-          setParticipants(prev => [...prev.filter(p => p.name), ...newParticipants]);
-        }
-      });
-    }
+  const login = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes:
+          'openid email profile https://www.googleapis.com/auth/forms.body.readonly https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/drive.readonly',
+        queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
+      }
+    });
+    if (error) alert(`로그인 실패: ${error.message}`);
   };
 
-  const addParticipant = () => setParticipants([...participants, { id: Date.now(), name: '', intro: '' }]);
-  const removeParticipant = (id) => setParticipants(participants.filter(p => p.id !== id));
-  const updateParticipant = (id, field, value) => {
-    setParticipants(participants.map(p => p.id === id ? { ...p, [field]: value } : p));
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) alert(`로그아웃 실패: ${error.message}`);
   };
 
-  const startAssign = async () => {
-    const validOnes = participants.filter(p => p.name);
-    if (validOnes.length < 2) {
-      alert(t.emptyAlert);
-      return;
-    }
-    setStep('loading');
-    performAssignment(validOnes, config);
-  };
-
-  const performAssignment = async (pList, pConfig) => {
+  const openSheets = async () => {
     try {
-      const response = await fetch('/api/assign', {
+      if (!session?.provider_token) throw new Error('Google 권한 토큰이 없습니다. 재로그인하세요.');
+      setSheetListLoading(true);
+      setMessage('');
+
+      const q = encodeURIComponent("mimeType='application/vnd.google-apps.form' and trashed=false");
+      const fields = encodeURIComponent('files(id,name,modifiedTime)');
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime desc&q=${q}&fields=${fields}`,
+        {
+          headers: { Authorization: `Bearer ${session.provider_token}` }
+        }
+      );
+
+      if (!res.ok) throw new Error('구글폼 목록 조회 실패');
+
+      const data = await res.json();
+      setDriveForms(Array.isArray(data?.files) ? data.files : []);
+      setSheetListOpen(true);
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setSheetListLoading(false);
+    }
+  };
+
+  const importSheet = async (urlOrId) => {
+    try {
+      if (!session?.provider_token) throw new Error('Google 권한 토큰이 없습니다. 재로그인하세요.');
+      const formId = parseFormId(urlOrId ?? formUrl);
+      if (!formId) throw new Error('유효한 Google Form URL 또는 ID를 입력하세요.');
+
+      setSheetImportLoading(true);
+      setMessage('');
+
+      const formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
+        headers: { Authorization: `Bearer ${session.provider_token}` }
+      });
+      if (!formRes.ok) throw new Error('구글폼 메타데이터 조회 실패');
+      const formData = await formRes.json();
+
+      const respRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses?pageSize=500`, {
+        headers: { Authorization: `Bearer ${session.provider_token}` }
+      });
+      if (!respRes.ok) throw new Error('구글폼 응답 조회 실패');
+      const responses = await respRes.json();
+
+      const { participants: imported, mapped, skipped } = mapFormResponsesToParticipants(formData, responses);
+      if (!imported.length) throw new Error('가져올 참가자 데이터가 없습니다.');
+
+      const featureKeys = Array.from(
+        new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
+      );
+      setAvailableIdentifierKeys(featureKeys);
+      setSelectedIdentifierKey('');
+      setShowAllParticipants(false);
+
+      setParticipants((prev) => {
+        const existing = prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0);
+        const keySet = new Set(existing.map((p) => `${p.name}||${p.intro}`));
+        const merged = [...existing];
+
+        for (const p of imported) {
+          const key = `${p.name}||${p.intro}`;
+          if (!keySet.has(key)) {
+            keySet.add(key);
+            merged.push(p);
+          }
+        }
+        return merged;
+      });
+
+      setMessage(`구글폼 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`);
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setSheetImportLoading(false);
+    }
+  };
+
+  const onUploadCsv = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const list = results.data
+          .map((r, i) => ({
+            id: Date.now() + i,
+            name: r['이름'] || r.name || '',
+            intro: r['자기소개'] || r.intro || '',
+            source: 'csv',
+            features: {}
+          }))
+          .filter((p) => p.name || Object.keys(p.features || {}).length > 0);
+
+        setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...list]);
+      }
+    });
+  };
+
+  const validParticipants = useMemo(
+    () => participants.filter((p) => p.name || Object.keys(p.features || {}).length > 0),
+    [participants]
+  );
+
+  const getParticipantIdentifier = (participant) => {
+    if (!selectedIdentifierKey) return '';
+    return String(participant?.features?.[selectedIdentifierKey] || '').trim();
+  };
+
+  const tableFeatureKeys = useMemo(() => {
+    const candidates = availableIdentifierKeys.filter((k) => k !== selectedIdentifierKey);
+    return candidates.slice(0, 6);
+  }, [availableIdentifierKeys, selectedIdentifierKey]);
+
+  const shownParticipants = useMemo(() => {
+    if (showAllParticipants || validParticipants.length <= maxInitialRows) return validParticipants;
+    return validParticipants.slice(0, maxInitialRows);
+  }, [validParticipants, showAllParticipants]);
+
+  const runAssign = async () => {
+    if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
+    if (!selectedIdentifierKey) return alert('식별 기준을 먼저 선택해 주세요.');
+
+    const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
+    if (missingIdentifier.length > 0) {
+      return alert(`선택한 식별 기준 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
+    }
+
+    const payloadParticipants = validParticipants.map((p) => ({
+      ...p,
+      originalName: p.originalName || p.name,
+      name: getParticipantIdentifier(p),
+      identifierKey: selectedIdentifierKey,
+      identifierValue: getParticipantIdentifier(p)
+    }));
+
+    setStep('loading');
+    try {
+      const res = await fetch('/api/assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participants: pList, config: pConfig })
+        body: JSON.stringify({
+          participants: payloadParticipants,
+          config,
+          customPrompt: config.useCustomPrompt ? String(customPrompt || '').trim() : ''
+        })
       });
-      const data = await response.json();
-      if (data.teams) {
-        setTeams(data.teams);
-        setStep('result');
-      } else { throw new Error(data.error); }
-    } catch (error) {
-      alert(lang === 'ko' ? "분석 중 오류가 발생했습니다." : "An error occurred.");
+      const data = await res.json();
+      if (!data.teams) throw new Error(data.error || '배정 실패');
+      setTeams(data.teams);
+      setStep('result');
+    } catch {
+      alert('분석 중 오류가 발생했습니다.');
       setStep('input');
     }
   };
 
   const exportCSV = () => {
-    let csv = "\uFEFFTeam,Name,Role,Insight\n";
-    teams.forEach(t => t.members.forEach(m => csv += `${t.id},${m.name},${m.role},"${m.style}"\n`));
+    let csv = '\uFEFFTeam,Name,Role,Insight\n';
+    teams.forEach((t) => t.members.forEach((m) => (csv += `${t.id},${m.name},${m.role},"${m.style}"\n`)));
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `TeamBuilder_Result.csv`;
-    link.click();
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'TeamBuilder_Result.csv';
+    a.click();
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100 break-keep">
-      {/* Top Banner */}
-      <div className="bg-slate-900 text-white text-[11px] py-2 text-center font-bold tracking-widest uppercase">
-        {t.topBanner}
-      </div>
-
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div 
-            onClick={() => setStep('landing')}
-            className="flex items-center gap-2 text-xl font-black text-blue-600 cursor-pointer hover:opacity-80 transition-all active:scale-95"
-          >
-            <Users className="size-6" fill="currentColor" /> {t.title}
+    <div className="min-h-screen bg-slate-50 text-slate-900 p-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center py-4 border-b border-slate-200">
+          <div className="flex items-center gap-2 font-black text-xl text-blue-600">
+            <Users className="size-5" /> TeamBuilder AI
           </div>
-          <div className="flex items-center text-[13px] font-bold text-slate-400">
-            <button 
-              onClick={() => setLang('ko')}
-              className={`px-2 py-1 transition-colors ${lang === 'ko' ? 'text-blue-600' : 'hover:text-slate-600'}`}
-            >
-              KR
-            </button>
-            <span className="text-slate-200 mx-1.5 opacity-50">|</span>
-            <button 
-              onClick={() => setLang('en')}
-              className={`px-2 py-1 transition-colors ${lang === 'en' ? 'text-blue-600' : 'hover:text-slate-600'}`}
-            >
-              EN
-            </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setLang('ko')} className="text-sm">KR</button>
+            <button onClick={() => setLang('en')} className="text-sm">EN</button>
+            {!user ? (
+              <button onClick={login} className="px-3 py-1 bg-slate-900 text-white rounded">Google 로그인</button>
+            ) : (
+              <button onClick={logout} className="px-3 py-1 bg-slate-200 rounded">로그아웃</button>
+            )}
           </div>
         </div>
-      </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-12 md:py-20">
-        <AnimatePresence mode="wait">
-          {step === 'landing' && (
-            <motion.div key="landing" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="text-center space-y-12">
-              <div className="space-y-6">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-600 text-xs font-bold mb-4">
-                  <CheckCircle2 className="size-4" /> 100% 데이터 기반 지능형 분석
-                </div>
-                <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight leading-tight">
-                  {t.hero}
-                </h1>
-                <p className="text-lg md:text-xl text-slate-500 max-w-3xl mx-auto leading-relaxed font-medium">
-                  {t.subHero}
-                </p>
-                <div className="pt-6">
-                  <button 
-                    onClick={() => setStep('input')}
-                    className="group relative inline-flex items-center justify-center gap-2 px-10 py-5 bg-blue-600 text-white rounded-2xl text-xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all hover:scale-105 active:scale-95"
-                  >
-                    {t.startBtn} <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-                  </button>
-                  <p className="mt-4 text-xs text-slate-400 font-bold tracking-tight">{t.noLogin}</p>
-                </div>
+        {step === 'input' && (
+          <div className="mt-6 bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <p className="text-sm font-bold">100% 데이터 기반 팀 분석</p>
+
+            <div className="rounded-xl border border-slate-200 p-3 space-y-3">
+              <p className="text-sm font-bold">1) 팀 설정</p>
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <label className="inline-flex items-center gap-2">
+                  <span>1팀당 인원</span>
+                  <input
+                    type="number"
+                    min="2"
+                    max="10"
+                    value={config.teamSize}
+                    onChange={(e) => setConfig({ ...config, teamSize: parseInt(e.target.value, 10) || 4 })}
+                    className="w-20 border rounded px-2 py-1"
+                  />
+                </label>
+
+                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                  <input
+                    type="radio"
+                    checked={config.remainderMode === 'spread'}
+                    onChange={() => setConfig({ ...config, remainderMode: 'spread' })}
+                  />
+                  나머지 인원 기존 팀에 배분
+                </label>
+
+                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                  <input
+                    type="radio"
+                    checked={config.remainderMode === 'keep_partial'}
+                    onChange={() => setConfig({ ...config, remainderMode: 'keep_partial' })}
+                  />
+                  마지막 팀을 부족 인원 그대로 유지
+                </label>
               </div>
+              <div className="space-y-2">
+                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
+                  <input
+                    type="checkbox"
+                    checked={config.useCustomPrompt}
+                    onChange={(e) => setConfig({ ...config, useCustomPrompt: e.target.checked })}
+                  />
+                  사용자 맞춤 프롬프트 사용
+                </label>
+                {config.useCustomPrompt && (
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기"
+                    className="w-full min-h-24 border rounded px-3 py-2 text-sm"
+                  />
+                )}
+              </div>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 text-left">
-                {[
-                  { icon: FileText, title: t.feature1Title, desc: t.feature1Desc },
-                  { icon: Copy, title: t.feature2Title, desc: t.feature2Desc },
-                  { icon: LayoutDashboard, title: t.feature3Title, desc: t.feature3Desc }
-                ].map((f, i) => (
-                  <div key={i} className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl w-fit mb-6">
-                      <f.icon className="size-6" />
-                    </div>
-                    <h3 className="font-bold text-slate-900 text-lg mb-2">{f.title}</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed font-medium">{f.desc}</p>
-                  </div>
+            <div className="flex gap-2">
+              <input
+                value={formUrl}
+                onChange={(e) => setFormUrl(e.target.value)}
+                placeholder="Google Form URL 또는 Form ID"
+                className="flex-1 border rounded px-3 py-2"
+              />
+              <button
+                onClick={() => importSheet()}
+                disabled={sheetImportLoading}
+                className="px-3 py-2 bg-slate-900 text-white rounded"
+              >
+                {sheetImportLoading ? '불러오는 중...' : '불러오기'}
+              </button>
+              <button
+                onClick={openSheets}
+                disabled={sheetListLoading}
+                className="px-3 py-2 bg-slate-200 rounded"
+              >
+                {sheetListLoading ? '목록 조회 중...' : 'Google에서 폼 선택'}
+              </button>
+            </div>
+
+            {sheetListOpen && driveForms.length > 0 && (
+              <div className="max-h-52 overflow-y-auto border rounded">
+                {driveForms.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
+                      importSheet(f.id);
+                      setSheetListOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 border-b hover:bg-slate-50"
+                  >
+                    <div className="font-semibold text-sm">{f.name}</div>
+                    <div className="text-xs text-slate-500">{f.id}</div>
+                  </button>
                 ))}
               </div>
-            </motion.div>
-          )}
+            )}
 
-          {step === 'input' && (
-            <motion.div key="input" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="max-w-2xl mx-auto space-y-8">
-              <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className="bg-blue-600 h-full" />
-              </div>
+            {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
 
-              <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl shadow-slate-200/50 border border-slate-200">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                  <h2 className="text-2xl font-black tracking-tight">{t.inputTitle}</h2>
-                  <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition">
-                    <Upload size={16} /> {t.uploadBtn}
-                    <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+            <div className="rounded-xl border border-slate-200 p-3">
+              <p className="text-sm font-bold mb-2">2) 식별 기준 선택 (필수)</p>
+              <p className="text-xs text-slate-500 mb-2">기본 이름은 제거했습니다. 폼 질문 중 1개를 선택하세요.</p>
+              <div className="flex flex-wrap gap-2">
+                {availableIdentifierKeys.length === 0 && (
+                  <p className="text-xs text-slate-500">폼을 불러오면 질문 목록이 여기 표시됩니다.</p>
+                )}
+                {availableIdentifierKeys.map((key) => (
+                  <label key={key} className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
+                    <input
+                      type="radio"
+                      checked={selectedIdentifierKey === key}
+                      onChange={() => setSelectedIdentifierKey(key)}
+                    />
+                    <span className="max-w-44 truncate" title={key}>{key}</span>
                   </label>
-                </div>
+                ))}
+              </div>
+              {!selectedIdentifierKey && (
+                <p className="text-xs text-rose-600 mt-2">식별 기준을 선택하지 않으면 분석이 시작되지 않습니다.</p>
+              )}
+            </div>
 
-                <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-5 mb-8 flex gap-3 items-start">
-                  <Info className="size-5 text-blue-600 shrink-0 mt-0.5" />
-                  <p className="text-sm text-blue-800 leading-relaxed font-semibold">
-                    {t.googleFormTip}
-                  </p>
-                </div>
+            <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
+              <Upload size={16} /> CSV 업로드
+              <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
+            </label>
 
-                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-                  {participants.map((p, idx) => (
-                    <div key={p.id} className="flex gap-3 animate-in slide-in-from-bottom-2 duration-300">
-                      <div className="flex-none flex items-center justify-center w-8 h-10 text-slate-300 font-black italic text-xs">
-                        {idx + 1}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">참가자 데이터 미리보기 (엑셀 형태)</div>
+              <div className="overflow-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-50 border-b">
+                    <tr>
+                      <th className="px-3 py-2 text-left w-14">No</th>
+                      <th className="px-3 py-2 text-left min-w-44">
+                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || '식별 기준 미선택'}>
+                          {selectedIdentifierKey || '식별 기준 선택 필요'}
+                        </span>
+                      </th>
+                      {tableFeatureKeys.map((key) => (
+                        <th key={key} className="px-3 py-2 text-left min-w-44">
+                          <span className="inline-block max-w-40 truncate" title={key}>{key}</span>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-left w-16">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shownParticipants.map((p, idx) => (
+                      <tr key={p.id} className="border-b hover:bg-slate-50">
+                        <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
+                        <td className="px-3 py-2">
+                          <span className="inline-block max-w-52 truncate" title={getParticipantIdentifier(p) || '-'}>
+                            {getParticipantIdentifier(p) || '-'}
+                          </span>
+                        </td>
+                        {tableFeatureKeys.map((key) => (
+                          <td key={`${p.id}-${key}`} className="px-3 py-2">
+                            <span className="inline-block max-w-52 truncate" title={String(p?.features?.[key] || '-')}>
+                              {String(p?.features?.[key] || '-')}
+                            </span>
+                          </td>
+                        ))}
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => setParticipants(participants.filter((x) => x.id !== p.id))}
+                            className="text-slate-500"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {shownParticipants.length === 0 && (
+                      <tr>
+                        <td colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-slate-500">
+                          아직 불러온 참가자가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {validParticipants.length > maxInitialRows && (
+              <button
+                type="button"
+                onClick={() => setShowAllParticipants((v) => !v)}
+                className="px-3 py-2 border rounded hover:bg-slate-50"
+              >
+                {showAllParticipants
+                  ? '접기'
+                  : `전체보기 (${validParticipants.length - maxInitialRows}명 더 보기)`}
+              </button>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setParticipants([...participants, { id: Date.now(), name: '', intro: '', source: 'manual', features: {} }])}
+                className="px-3 py-2 border rounded"
+              >
+                빈 참가자 1명 추가
+              </button>
+              <button onClick={runAssign} className="px-4 py-2 bg-slate-900 text-white rounded">팀 배정 실행</button>
+            </div>
+          </div>
+        )}
+
+        {step === 'loading' && <div className="mt-10 text-center font-bold">데이터 분석 중입니다...</div>}
+
+        {step === 'result' && (
+          <div className="mt-6 space-y-4">
+            <div className="flex gap-2">
+              <button
+                onClick={exportCSV}
+                className="px-4 py-2 bg-emerald-600 text-white rounded inline-flex items-center gap-2"
+              >
+                <Download size={16} /> CSV 다운로드
+              </button>
+              <button onClick={() => setStep('input')} className="px-4 py-2 border rounded">다시 배정</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teams.map((t) => (
+                <div key={t.id} className="bg-white border rounded-2xl p-4">
+                  <h3 className="font-black mb-2">Team {t.id}</h3>
+                  {t.members.map((m, i) => (
+                    <div key={i} className="text-sm border rounded p-2 mb-2">
+                      <div className="font-bold">
+                        {m.name} <span className="text-xs text-slate-500">{m.role}</span>
                       </div>
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <input 
-                          placeholder={t.namePlaceholder}
-                          value={p.name}
-                          onChange={(e) => updateParticipant(p.id, 'name', e.target.value)}
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition shadow-sm font-bold text-sm"
-                        />
-                        <input 
-                          placeholder={t.introPlaceholder}
-                          value={p.intro}
-                          onChange={(e) => updateParticipant(p.id, 'intro', e.target.value)}
-                          className="w-full md:col-span-3 bg-white border border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition shadow-sm text-sm"
-                        />
-                      </div>
-                      <button onClick={() => removeParticipant(p.id)} className="flex-none text-slate-300 hover:text-red-500 p-2 h-fit transition-colors">
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="text-xs text-slate-500">{m.style}</div>
                     </div>
                   ))}
+                  <div className="text-xs text-slate-600">{t.analysis}</div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button onClick={addParticipant} className="py-4 border-2 border-dashed border-slate-200 rounded-2xl hover:border-blue-400 hover:bg-slate-50 transition-all text-slate-400 hover:text-blue-600 font-bold text-sm">
-                    + {t.addBtn}
-                  </button>
-                  <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-200">
-                    <span className="text-xs font-black text-slate-500 uppercase tracking-tighter">{t.teamSizeLabel}</span>
-                    <input 
-                      type="number" min="2" max="10"
-                      value={config.teamSize}
-                      onChange={(e) => setConfig({...config, teamSize: parseInt(e.target.value)})}
-                      className="w-16 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-center font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-10">
-                  <button 
-                    onClick={startAssign}
-                    className="w-full py-5 bg-slate-900 text-white rounded-2xl text-xl font-black shadow-xl shadow-slate-200 hover:bg-slate-800 transition-all transform hover:-translate-y-1 active:translate-y-0"
-                  >
-                    {t.assignBtn}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'loading' && (
-            <motion.div key="loading" className="text-center py-32 space-y-10">
-              <div className="relative w-24 h-24 mx-auto">
-                <div className="absolute inset-0 border-8 border-slate-100 rounded-full"></div>
-                <div className="absolute inset-0 border-8 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-              </div>
-              <div className="space-y-3">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">{t.loadingTitle}</h3>
-                <p className="text-slate-400 font-bold animate-pulse text-lg">{t.loadingDesc}</p>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'result' && (
-            <motion.div key="result" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-10">
-              <div className="text-center space-y-5">
-                <div className="inline-flex p-4 bg-emerald-50 text-emerald-600 rounded-[1.5rem] mb-2">
-                  <CheckCircle2 size={36} />
-                </div>
-                <h2 className="text-3xl font-black tracking-tight">{t.resultTitle}</h2>
-                <p className="text-lg text-slate-500 font-semibold">{t.resultDesc}</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {teams.map((t) => (
-                  <div key={t.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-black flex items-center gap-2">
-                        <span className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-lg text-xs italic">T{t.id}</span>
-                        Team {t.id}
-                      </h3>
-                      <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-blue-50 text-blue-600 rounded-full border border-blue-100">Balanced</span>
-                    </div>
-                    <div className="space-y-3 mb-6">
-                      {t.members.map((m, i) => (
-                        <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-1">
-                          <div className="flex justify-between items-center">
-                            <span className="font-black text-slate-900 text-sm">{m.name}</span>
-                            <span className="text-[10px] font-black px-2 py-0.5 bg-white border border-slate-200 text-slate-500 rounded-md uppercase">{m.role}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-400 font-bold leading-snug line-clamp-1 italic">{m.style}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-5 bg-slate-900 rounded-2xl flex gap-3 shadow-lg">
-                      <div className="text-blue-400 shrink-0 pt-1"><Zap size={16} fill="currentColor" /></div>
-                      <p className="text-[12px] text-slate-300 leading-relaxed italic font-semibold opacity-90">
-                        {t.analysis}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-col md:flex-row gap-4 pt-8">
-                <button onClick={exportCSV} className="flex-1 py-5 bg-emerald-600 text-white rounded-2xl text-lg font-black shadow-2xl shadow-emerald-100 hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
-                  <Download size={20} /> {t.exportBtn}
-                </button>
-                <button onClick={() => setStep('input')} className="flex-1 py-5 bg-white border border-slate-200 text-slate-600 rounded-2xl text-lg font-black hover:bg-slate-50 transition-all">
-                  {t.retryBtn}
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
-
-      <footer className="max-w-5xl mx-auto px-4 py-20 border-t border-slate-200 text-center space-y-8">
-        <div className="flex justify-center gap-8 text-[13px] font-black text-slate-400 uppercase tracking-widest">
-          <button onClick={() => setLegalView('terms')} className="hover:text-blue-600 transition-colors">{t.terms}</button>
-          <button onClick={() => setLegalView('privacy')} className="hover:text-blue-600 transition-colors">{t.privacy}</button>
-          <button onClick={() => setLegalView('refund')} className="hover:text-blue-600 transition-colors">{t.refund}</button>
-        </div>
-        <p className="text-[11px] text-slate-300 font-bold uppercase tracking-[0.25em]">&copy; 2026 TeamBuilder AI. {t.footerMsg}</p>
-      </footer>
+        <footer className="mt-10 pt-6 border-t text-center text-sm text-slate-500">
+          <button onClick={() => setLegalView('terms')} className="mx-2">이용약관</button>
+          <button onClick={() => setLegalView('privacy')} className="mx-2">개인정보처리방침</button>
+          <button onClick={() => setLegalView('refund')} className="mx-2">환불정책</button>
+        </footer>
+      </div>
     </div>
   );
 }
