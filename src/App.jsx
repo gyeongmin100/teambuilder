@@ -1,10 +1,16 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
-import { Users, Upload, Trash2, Download, Search, Settings2, Database } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
 
 const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } },
+  exit: { opacity: 0, y: -8, transition: { duration: 0.22 } }
+};
 
 const parseFormId = (urlOrId) => {
   const raw = String(urlOrId || '').trim();
@@ -140,6 +146,7 @@ const mapFormResponsesToParticipants = (form, responses) => {
 function App() {
   const [lang, setLang] = useState('ko');
   const [step, setStep] = useState('input');
+  const [uiPage, setUiPage] = useState('landing');
   const [legalView, setLegalView] = useState(null);
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
@@ -172,6 +179,7 @@ function App() {
       if (!alive) return;
       setSession(data?.session ?? null);
       setUser(data?.session?.user ?? null);
+      if (data?.session?.user) setUiPage('input');
     });
 
     const {
@@ -180,6 +188,8 @@ function App() {
       if (!alive) return;
       setSession(s ?? null);
       setUser(s?.user ?? null);
+      if (s?.user) setUiPage('input');
+      if (!s?.user) setUiPage('landing');
     });
 
     return () => {
@@ -195,6 +205,7 @@ function App() {
       const checkoutSuccess = params.get('checkout_success');
       if (!checkoutId || checkoutSuccess !== 'true') return;
 
+      setUiPage('input');
       setStep('loading');
       setMessage('결제 확인 중...');
       try {
@@ -508,6 +519,8 @@ function App() {
     setManualIntro('');
   };
 
+  const currentPage = step === 'loading' ? 'loading' : step === 'result' ? 'result' : uiPage;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100 via-white to-slate-100 text-slate-900 p-4">
       <div className="max-w-7xl mx-auto">
@@ -519,14 +532,58 @@ function App() {
             <button onClick={() => setLang('ko')} className="text-sm">KR</button>
             <button onClick={() => setLang('en')} className="text-sm">EN</button>
             {!user ? (
-              <button onClick={login} className="px-3 py-1 bg-slate-900 text-white rounded">Google 로그인</button>
+              <button onClick={() => setUiPage('login')} className="px-3 py-1 bg-slate-900 text-white rounded">로그인</button>
             ) : (
               <button onClick={logout} className="px-3 py-1 bg-slate-200 rounded">로그아웃</button>
             )}
           </div>
         </div>
 
-        {step === 'input' && (
+        <AnimatePresence mode="wait">
+        {currentPage === 'landing' && (
+          <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <div>
+                <p className="inline-flex items-center gap-2 rounded-full border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+                  <Sparkles size={14} /> AI Team Orchestration
+                </p>
+                <h1 className="mt-4 text-4xl lg:text-5xl font-black leading-tight tracking-tight">
+                  설문 데이터로<br />
+                  <span className="text-cyan-700">팀빌딩 자동화</span>
+                </h1>
+                <p className="mt-4 text-slate-600 max-w-xl">
+                  Google Form 응답을 바로 읽고, 결제 완료 후 AI가 역할과 조합을 분석해 팀을 배정합니다.
+                </p>
+                <div className="mt-6 flex gap-3">
+                  <button onClick={() => (user ? setUiPage('input') : setUiPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-white font-semibold">
+                    시작하기 <ArrowRight size={16} />
+                  </button>
+                  <button onClick={() => setUiPage('input')} className="rounded-xl border border-slate-300 px-5 py-3 font-semibold">데모 보기</button>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">자동 추출</p><p className="text-2xl font-black mt-2">질문=특성</p></div>
+                  <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs text-slate-500">배정 방식</p><p className="text-2xl font-black mt-2">결제 후 실행</p></div>
+                  <div className="rounded-2xl bg-slate-50 p-4 col-span-2"><p className="text-xs text-slate-500">신뢰성</p><p className="text-lg font-bold mt-2 inline-flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-600" /> OAuth + Polar + AI 폴백</p></div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {currentPage === 'login' && (
+          <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-10 max-w-xl mx-auto">
+            <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+              <h2 className="text-3xl font-black">로그인</h2>
+              <p className="text-slate-600 mt-3">교수 계정으로 로그인하면 Google Form 목록을 바로 선택할 수 있습니다.</p>
+              <button onClick={login} className="mt-6 w-full rounded-xl bg-slate-900 py-3 text-white font-semibold">Google 로그인</button>
+              <button onClick={() => setUiPage('landing')} className="mt-3 w-full rounded-xl border border-slate-300 py-3 font-semibold">랜딩으로 돌아가기</button>
+            </div>
+          </motion.div>
+        )}
+
+        {currentPage === 'input' && (
           <div className="mt-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -819,10 +876,18 @@ function App() {
           </div>
         )}
 
-        {step === 'loading' && <div className="mt-10 text-center font-bold">데이터 분석 중입니다...</div>}
+        {currentPage === 'loading' && (
+          <motion.div key="loading" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1.4 }} className="mx-auto h-12 w-12 rounded-full border-4 border-slate-200 border-t-cyan-600" />
+              <h3 className="mt-6 text-2xl font-black">AI 분석 중</h3>
+              <p className="mt-2 text-slate-600">결제 확인 후 팀 구성과 역할 분포를 계산하고 있습니다.</p>
+            </div>
+          </motion.div>
+        )}
 
-        {step === 'result' && (
-          <div className="mt-6 space-y-4">
+        {currentPage === 'result' && (
+          <motion.div key="result" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-6 space-y-4">
             <div className="flex gap-2">
               <button
                 onClick={exportCSV}
@@ -830,7 +895,7 @@ function App() {
               >
                 <Download size={16} /> CSV 다운로드
               </button>
-              <button onClick={() => setStep('input')} className="px-4 py-2 border rounded">다시 배정</button>
+              <button onClick={() => { setStep('input'); setUiPage('input'); }} className="px-4 py-2 border rounded">다시 배정</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {teams.map((t) => (
@@ -848,8 +913,9 @@ function App() {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         <footer className="mt-10 pt-6 border-t text-center text-sm text-slate-500">
           <button onClick={() => setLegalView('terms')} className="mx-2">이용약관</button>
@@ -862,3 +928,8 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
