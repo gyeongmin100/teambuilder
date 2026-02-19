@@ -485,8 +485,14 @@ function App() {
   };
 
   const exportCSV = () => {
-    let csv = '\uFEFFTeam,Name,Role,Insight\n';
-    teams.forEach((t) => t.members.forEach((m) => (csv += `${t.id},${m.name},${m.role},"${m.style}"\n`)));
+    let csv = '\uFEFFTeam,Identifier,Analysis\n';
+    teams.forEach((t) =>
+      t.members.forEach((m) => {
+        const identifier = String(m.name || m.id || '').replaceAll('"', '""');
+        const analysis = String(t.analysis || '').replaceAll('"', '""');
+        csv += `${t.id},"${identifier}","${analysis}"\n`;
+      })
+    );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -881,7 +887,7 @@ function App() {
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center">
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1.4 }} className="mx-auto h-12 w-12 rounded-full border-4 border-slate-200 border-t-cyan-600" />
               <h3 className="mt-6 text-2xl font-black">AI 분석 중</h3>
-              <p className="mt-2 text-slate-600">결제 확인 후 팀 구성과 역할 분포를 계산하고 있습니다.</p>
+              <p className="mt-2 text-slate-600">결제 확인 후 팀 구성 결과를 계산하고 있습니다.</p>
             </div>
           </motion.div>
         )}
@@ -903,10 +909,7 @@ function App() {
                   <h3 className="font-black mb-2">Team {t.id}</h3>
                   {t.members.map((m, i) => (
                     <div key={i} className="text-sm border rounded p-2 mb-2">
-                      <div className="font-bold">
-                        {m.name} <span className="text-xs text-slate-500">{m.role}</span>
-                      </div>
-                      <div className="text-xs text-slate-500">{m.style}</div>
+                      <div className="font-bold">{m.name || m.id || '-'}</div>
                     </div>
                   ))}
                   <div className="text-xs text-slate-600">{t.analysis}</div>

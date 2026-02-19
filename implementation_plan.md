@@ -85,3 +85,14 @@
 - 로그인 페이지 분리(랜딩 -> 로그인 -> 입력 흐름)
 - 분석중 전용 페이지(로딩 모션/상태 안내)
 - 결과 페이지 모션 전환 및 재실행 동선 정리
+
+## 10. 2026-02-20 Root Cause Fix Plan (AI fallback overuse / missing names)
+- Problem 1: Result cards expected m.name, but server-side transformation could lose direct name linkage in prior flow.
+- Problem 2: Validation path tended to fall back too aggressively, so AI result quality looked degraded.
+- Fix 1: Keep stable identifier + display name in assign pipeline and always return member name.
+- Fix 2: Normalize AI teams, deduplicate member IDs, then auto-fill unassigned members before fallback.
+- Fix 3: Remove role-centric rendering from result/CSV so output matches current product requirement.
+- Verification:
+  - npm run build succeeds
+  - /api/assign response includes teams[].members[].name
+  - Result page renders participant names consistently

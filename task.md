@@ -78,3 +78,10 @@
 - [x] 결과 페이지 전환 구조 개선
 - [x] 빌드 검증 완료
 - [ ] 배포 확인
+## 10. 2026-02-20 Assign 결과 안정화 (이름 누락/검증 실패 개선)
+- [x] `functions/api/assign.js` 재정리: 참가자 `name` 보존 및 단일 호출 유지
+- [x] AI 응답 팀 검증 후 누락 인원 자동 보정 로직 적용
+- [x] 역할(leader/supporter) 의존 출력 제거
+- [x] `src/App.jsx` 결과 화면을 `name` 중심으로 단순화
+- [x] CSV 내보내기 포맷을 `Team,Identifier,Analysis`로 변경
+- [ ] 빌드/배포 검증

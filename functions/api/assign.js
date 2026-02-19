@@ -1,5 +1,5 @@
 ﻿const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const MAX_INTRO = 300;
+const MAX_INTRO = 260;
 const MAX_FEATURES = 12;
 const MAX_FEATURE_VALUE = 120;
 
@@ -24,139 +24,98 @@ const compactFeatures = (features) => {
   return Object.fromEntries(entries.map(([k, v]) => [trimText(k, 80), trimText(v, MAX_FEATURE_VALUE)]));
 };
 
-const compactParticipant = (p) => ({
-  id: String(p.name || '').trim(),
-  originalName: trimText(p.originalName || p.name || '', 120),
-  intro: trimText(p.intro || '', MAX_INTRO),
-  features: compactFeatures(p.features || {}),
-  identifierKey: trimText(p.identifierKey || '', 80)
-});
-
-const roleWeight = {
-  leader: 10,
-  presenter: 8,
-  analyst: 6,
-  executor: 4,
-  supporter: 2
+const compactParticipant = (p) => {
+  const id = String(p.name || p.identifierValue || '').trim();
+  return {
+    id,
+    displayName: trimText(p.originalName || p.name || id, 120),
+    intro: trimText(p.intro || '', MAX_INTRO),
+    features: compactFeatures(p.features || {}),
+    identifierKey: trimText(p.identifierKey || '', 80)
+  };
 };
 
-const normalizeRole = (role) => {
-  const r = String(role || '').toLowerCase();
-  if (r in roleWeight) return r;
-  return 'supporter';
-};
+const buildBaseTeams = (participants, teamSize, remainderMode) => {
+  if (participants.length === 0) return [];
 
-const buildBaseTeams = (sortedParticipants, teamSize, remainderMode) => {
   if (remainderMode === 'keep_partial') {
-    const total = sortedParticipants.length;
+    const total = participants.length;
     const fullTeamCount = Math.floor(total / teamSize);
     const remainder = total % teamSize;
     const numTeams = fullTeamCount + (remainder > 0 ? 1 : 0);
 
-    const teams = Array.from({ length: numTeams }, (_, i) => ({ id: i + 1, members: [], analysis: '' }));
+    const teams = Array.from({ length: Math.max(1, numTeams) }, (_, i) => ({
+      id: i + 1,
+      members: [],
+      analysis: ''
+    }));
 
     if (fullTeamCount === 0) {
-      teams[0].members = sortedParticipants;
+      teams[0].members = participants;
       return teams;
     }
 
     const fullCapacity = fullTeamCount * teamSize;
     for (let i = 0; i < fullCapacity; i += 1) {
-      teams[i % fullTeamCount].members.push(sortedParticipants[i]);
+      teams[i % fullTeamCount].members.push(participants[i]);
     }
+
     for (let i = fullCapacity; i < total; i += 1) {
-      teams[numTeams - 1].members.push(sortedParticipants[i]);
+      teams[teams.length - 1].members.push(participants[i]);
     }
+
     return teams;
   }
 
-  const numTeams = Math.ceil(sortedParticipants.length / teamSize);
-  const teams = Array.from({ length: numTeams }, (_, i) => ({ id: i + 1, members: [], analysis: '' }));
-  sortedParticipants.forEach((participant, index) => {
-    teams[index % numTeams].members.push(participant);
-  });
-  return teams;
-};
-
-const annotateTeams = (teams, prefix = '') => {
-  teams.forEach((team) => {
-    const roles = team.members.map((m) => m.role).filter(Boolean);
-    const roleSummary = [...new Set(roles)].join(', ') || '정보 없음';
-    const base = `${team.members.length}명 구성 / 역할 분포: ${roleSummary}`;
-    team.analysis = prefix ? `${prefix} | ${base}` : base;
-  });
-  return teams;
-};
-
-const fallbackResult = (participants, teamSize, remainderMode, reason = '기본 배정') => {
-  const normalized = participants.map((p) => ({
-    ...p,
-    role: normalizeRole(p.role),
-    style: p.style || '정보 기반 기본 배정',
-    strength: p.strength || '정보 부족',
-    traits: Array.isArray(p.traits) ? p.traits : []
+  const numTeams = Math.ceil(participants.length / teamSize);
+  const teams = Array.from({ length: Math.max(1, numTeams) }, (_, i) => ({
+    id: i + 1,
+    members: [],
+    analysis: ''
   }));
 
-  const sorted = [...normalized].sort((a, b) => (roleWeight[b.role] || 0) - (roleWeight[a.role] || 0));
-  const teams = annotateTeams(buildBaseTeams(sorted, teamSize, remainderMode), reason);
-  return { teams, reason };
+  participants.forEach((participant, index) => {
+    teams[index % teams.length].members.push(participant);
+  });
+
+  return teams;
 };
 
-const validateTeamIds = (teamIds, idSet, teamSize, remainderMode) => {
-  if (!Array.isArray(teamIds) || teamIds.length === 0) return false;
-
-  const used = new Set();
-  for (let i = 0; i < teamIds.length; i += 1) {
-    const arr = Array.isArray(teamIds[i]) ? teamIds[i] : [];
-    if (arr.length === 0) return false;
-    if (arr.length > teamSize) return false;
-    if (remainderMode === 'keep_partial' && i < teamIds.length - 1 && arr.length < teamSize) return false;
-
-    for (const id of arr) {
-      if (!idSet.has(id) || used.has(id)) return false;
-      used.add(id);
-    }
-  }
-
-  return used.size === idSet.size;
-};
+const annotateTeams = (teams, reason = '') =>
+  teams.map((team, index) => ({
+    ...team,
+    id: Number(team.id) > 0 ? Number(team.id) : index + 1,
+    analysis: trimText(team.analysis || '', 220) || `${team.members.length}명 구성${reason ? ` / ${reason}` : ''}`
+  }));
 
 const buildPrompt = ({ participants, teamSize, remainderMode, customPrompt }) => {
-  const hardRules = [
-    '모든 참가자 id를 정확히 한 번씩만 사용한다.',
-    '존재하지 않는 id를 만들지 않는다.',
-    'JSON 객체만 반환한다.',
-    `teamSize=${teamSize}, remainderMode=${remainderMode} 규칙을 지킨다.`
-  ];
-
   const schema = {
-    members: [
+    teams: [
       {
-        id: '식별 id',
-        role: 'leader|analyst|executor|presenter|supporter',
-        style: '30단어 이내 요약',
-        strength: '30단어 이내 요약',
-        traits: ['trait1', 'trait2']
+        id: 1,
+        members: ['id1', 'id2', 'id3'],
+        analysis: '왜 이 조합인지 간단히 설명'
       }
     ],
-    teams: [{ id: 1, members: ['id1', 'id2'], analysis: '팀 설명' }],
-    reason: '배정 요약'
+    reason: '전체 배정 요약'
   };
 
   return [
-    '다음 참가자 전원에 대해 역할 추출과 팀 배정을 한 번에 수행해라.',
-    '',
+    '다음 참가자 전원을 팀으로 배정해라.',
+    '중요: 반드시 JSON 객체만 반환한다. Markdown 금지.',
     `teamSize: ${teamSize}`,
     `remainderMode: ${remainderMode}`,
     `customRequirements: ${customPrompt || '(없음)'}`,
     '',
     '규칙:',
-    ...hardRules.map((r) => `- ${r}`),
+    '- 모든 id를 정확히 한 번씩만 사용',
+    '- 존재하지 않는 id 사용 금지',
+    '- 사용자 요청사항을 최대한 반영',
     '',
-    '참가자 입력(JSON):',
+    'participants(JSON):',
     JSON.stringify(participants),
     '',
-    '반환 JSON 스키마 예시:',
+    '반환 스키마 예시:',
     JSON.stringify(schema)
   ].join('\n');
 };
@@ -176,7 +135,7 @@ const callOpenAIOnce = async ({ participants, teamSize, remainderMode, customPro
         {
           role: 'system',
           content:
-            '너는 팀빌딩 배정 엔진이다. 반드시 JSON 객체만 출력한다. 마크다운 금지. 참가자 id 누락/중복 금지.'
+            '너는 팀빌딩 배정 엔진이다. 반드시 JSON 객체만 출력한다. 참가자 id 누락/중복 금지. 사용자 조건 우선.'
         },
         { role: 'user', content: prompt }
       ],
@@ -193,8 +152,53 @@ const callOpenAIOnce = async ({ participants, teamSize, remainderMode, customPro
   const data = await res.json();
   const raw = data?.choices?.[0]?.message?.content;
   if (!raw) throw new Error('OpenAI 응답이 비어 있습니다.');
-
   return parseJsonSafe(raw, null);
+};
+
+const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode }) => {
+  const used = new Set();
+  const normalized = [];
+
+  for (const team of aiTeams || []) {
+    const ids = Array.isArray(team?.members) ? team.members.map((x) => String(x || '').trim()).filter(Boolean) : [];
+    const dedup = [];
+    for (const id of ids) {
+      if (!memberById.has(id) || used.has(id)) continue;
+      used.add(id);
+      dedup.push(id);
+    }
+    if (dedup.length > 0) {
+      normalized.push({
+        id: Number(team?.id) > 0 ? Number(team.id) : normalized.length + 1,
+        memberIds: dedup,
+        analysis: trimText(team?.analysis || '', 220)
+      });
+    }
+  }
+
+  const unassigned = Array.from(memberById.keys()).filter((id) => !used.has(id));
+
+  if (normalized.length === 0) {
+    return { valid: false, teams: [], unassigned: Array.from(memberById.keys()) };
+  }
+
+  for (const id of unassigned) {
+    let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
+    if (target.memberIds.length >= teamSize) {
+      target = null;
+    }
+
+    if (target) {
+      target.memberIds.push(id);
+    } else if (remainderMode === 'spread') {
+      normalized.sort((a, b) => a.memberIds.length - b.memberIds.length);
+      normalized[0].memberIds.push(id);
+    } else {
+      normalized.push({ id: normalized.length + 1, memberIds: [id], analysis: '' });
+    }
+  }
+
+  return { valid: true, teams: normalized, unassigned: [] };
 };
 
 export async function onRequestPost(context) {
@@ -217,12 +221,25 @@ export async function onRequestPost(context) {
 
     const compact = participants.map(compactParticipant).filter((p) => p.id);
     const idSet = new Set(compact.map((p) => p.id));
-
     if (compact.length < 2 || idSet.size !== compact.length) {
       return json({ error: '식별 id가 비어있거나 중복되어 배정할 수 없습니다.' }, 400);
     }
 
-    let ai;
+    const memberById = new Map(
+      compact.map((p) => [
+        p.id,
+        {
+          id: p.id,
+          name: p.displayName,
+          style: '',
+          intro: p.intro
+        }
+      ])
+    );
+
+    let ai = null;
+    let reason = 'AI 팀배정 완료';
+
     try {
       ai = await callOpenAIOnce({
         participants: compact,
@@ -231,49 +248,36 @@ export async function onRequestPost(context) {
         customPrompt: String(customPrompt || '').trim(),
         env
       });
+      reason = trimText(ai?.reason || 'AI 팀배정 완료', 120);
     } catch (e) {
       console.error('OpenAI single-call failed:', e);
-      const fallbackParticipants = compact.map((p) => ({
-        ...p,
-        role: 'supporter',
-        style: 'AI 호출 실패로 기본값 적용',
-        strength: '정보 부족',
-        traits: []
-      }));
-      return json(fallbackResult(fallbackParticipants, teamSize, remainderMode, 'AI 실패, 기본 규칙 배정'));
     }
 
-    const aiMembers = Array.isArray(ai?.members) ? ai.members : [];
-    const memberById = new Map(compact.map((p) => [p.id, { ...p, role: 'supporter', style: '정보 부족', strength: '정보 부족', traits: [] }]));
-
-    for (const m of aiMembers) {
-      const id = String(m?.id || '').trim();
-      if (!memberById.has(id)) continue;
-      const base = memberById.get(id);
-      memberById.set(id, {
-        ...base,
-        role: normalizeRole(m?.role),
-        style: trimText(m?.style || '정보 부족', 120),
-        strength: trimText(m?.strength || '정보 부족', 120),
-        traits: Array.isArray(m?.traits) ? m.traits.slice(0, 5).map((t) => trimText(t, 40)).filter(Boolean) : []
+    let teams;
+    if (ai?.teams && Array.isArray(ai.teams)) {
+      const normalized = normalizeAiTeams({
+        aiTeams: ai.teams,
+        memberById,
+        teamSize,
+        remainderMode
       });
+
+      if (normalized.valid) {
+        teams = normalized.teams.map((team, idx) => ({
+          id: team.id || idx + 1,
+          members: team.memberIds.map((id) => memberById.get(id)).filter(Boolean),
+          analysis: team.analysis || `${team.memberIds.length}명 구성`
+        }));
+      }
     }
 
-    const teamsRaw = Array.isArray(ai?.teams) ? ai.teams : [];
-    const teamIds = teamsRaw.map((t) => (Array.isArray(t?.members) ? t.members.map((x) => String(x)) : []));
-
-    if (!validateTeamIds(teamIds, idSet, teamSize, remainderMode)) {
-      const fallbackParticipants = Array.from(memberById.values());
-      return json(fallbackResult(fallbackParticipants, teamSize, remainderMode, 'AI 팀구성 검증 실패, 기본 규칙 배정'));
+    if (!teams || teams.length === 0) {
+      const fallback = buildBaseTeams(Array.from(memberById.values()), teamSize, remainderMode);
+      teams = fallback;
+      reason = 'AI 배정 실패로 기본 규칙 배정';
     }
 
-    const teams = teamsRaw.map((t, idx) => ({
-      id: Number(t?.id) > 0 ? Number(t.id) : idx + 1,
-      members: (t.members || []).map((id) => memberById.get(String(id))).filter(Boolean),
-      analysis: trimText(t?.analysis || '', 220)
-    }));
-
-    return json(annotateTeams(teams, trimText(ai?.reason || 'AI 팀배정 완료', 120)));
+    return json({ teams: annotateTeams(teams, reason) });
   } catch (error) {
     return json({ error: error.message || '팀 배정 중 오류가 발생했습니다.' }, 500);
   }
