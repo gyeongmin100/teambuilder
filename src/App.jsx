@@ -25,6 +25,46 @@ const parseFormId = (urlOrId) => {
 };
 
 const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+const countMatches = (text, regex) => (text.match(regex) || []).length;
+const scoreDecodedText = (text) => {
+  if (!text) return -9999;
+  const replacement = countMatches(text, /\uFFFD/g);
+  const badPattern = countMatches(text, /[ÃÂÐØ]/g);
+  const hangul = countMatches(text, /[가-힣]/g);
+  return hangul * 2 - replacement * 8 - badPattern * 3;
+};
+
+const decodeCsvTextWithFallback = async (file) => {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return { text: new TextDecoder('utf-8').decode(buffer), encoding: 'utf-8-bom', fallbackUsed: false };
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return { text: new TextDecoder('utf-16le').decode(buffer), encoding: 'utf-16le', fallbackUsed: false };
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return { text: new TextDecoder('utf-16be').decode(buffer), encoding: 'utf-16be', fallbackUsed: false };
+  }
+
+  const utf8Text = new TextDecoder('utf-8').decode(buffer);
+  let eucKrText = '';
+  try {
+    eucKrText = new TextDecoder('euc-kr').decode(buffer);
+  } catch {
+    eucKrText = '';
+  }
+
+  const utf8Score = scoreDecodedText(utf8Text);
+  const eucKrScore = scoreDecodedText(eucKrText);
+
+  if (eucKrText && eucKrScore > utf8Score + 3) {
+    return { text: eucKrText, encoding: 'euc-kr', fallbackUsed: true };
+  }
+  return { text: utf8Text, encoding: 'utf-8', fallbackUsed: false };
+};
+
 const createInternalId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -494,7 +534,8 @@ function App() {
     if (!file) return;
 
     try {
-      Papa.parse(file, {
+      const { text, encoding, fallbackUsed } = await decodeCsvTextWithFallback(file);
+      Papa.parse(text, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
@@ -504,7 +545,9 @@ function App() {
             return;
           }
           mergeImportedParticipants(imported);
-          setMessage(`CSV 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`);
+          setMessage(
+            `CSV 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵${fallbackUsed ? ` (인코딩 자동보정: ${encoding})` : ''}`
+          );
         },
         error: () => setMessage('CSV 파싱 중 오류가 발생했습니다.')
       });

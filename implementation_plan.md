@@ -152,3 +152,11 @@
 - Goal: 수기 등록에서 불필요한 메모 입력을 제거해 입력 부담과 혼란을 줄임.
 - Applied: manualIdentifier 단일 입력만 유지, manualIntro/수동메모 관련 상태 및 저장 제거.
 - Effect: 수기 등록 흐름이 핵심값 입력 중심으로 단순화됨.
+
+## 17. 2026-02-20 Korean CSV Encoding Safety
+- Problem: 한글 CSV가 UTF-8이 아닐 때(예: EUC-KR/CP949) 글자 깨짐 발생.
+- Applied:
+  - 파일 바이트에서 BOM(UTF-8/UTF-16LE/UTF-16BE) 우선 감지
+  - BOM이 없으면 UTF-8과 EUC-KR 디코딩 결과를 품질 점수로 비교
+  - 더 자연스러운 결과를 자동 채택하고 보정 여부를 안내 메시지로 표시
+- Effect: 한국어 CSV 업로드 시 깨짐 가능성을 크게 낮춤
