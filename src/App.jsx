@@ -859,7 +859,8 @@ function App() {
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3 space-y-3">
-                <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> 2) 데이터 불러오기</p>
+                <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> 2) 데이터 가져오기</p>
+                <p className="text-xs text-slate-500">지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가</p>
                 <div className="flex gap-2">
                   <input
                     value={formUrl}
@@ -879,9 +880,13 @@ function App() {
                     disabled={sheetListLoading}
                     className="px-3 py-2 bg-slate-200 rounded"
                   >
-                    {sheetListLoading ? '목록 조회 중...' : 'Google에서 폼 선택'}
+                    {sheetListLoading ? '목록 조회 중...' : '내 구글폼 목록'}
                   </button>
                 </div>
+                <label className="inline-flex w-fit items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
+                  <Upload size={16} /> CSV 업로드
+                  <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
+                </label>
               </div>
 
               {sheetListOpen && driveForms.length > 0 && (
@@ -906,7 +911,7 @@ function App() {
               {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
 
               <div className="rounded-xl border border-slate-200 p-3 space-y-2">
-                <p className="text-sm font-bold">열 관리</p>
+                <p className="text-sm font-bold">3) 열 관리</p>
                 <p className="text-xs text-slate-500">맨 앞 열을 기준으로 팀을 나눕니다.</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
@@ -985,13 +990,8 @@ function App() {
                 </div>
               </div>
 
-              <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
-              <Upload size={16} /> CSV 업로드
-              <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
-              </label>
-
               <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">참가자 데이터 미리보기 (테이블 형태)</div>
+              <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">4) 참가자 데이터 (테이블)</div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
                 <div className="flex items-center gap-2">
                   <Search size={14} className="text-slate-500" />
