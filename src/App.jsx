@@ -45,6 +45,58 @@ const findQuestionId = (questionMap, aliases) => {
   return null;
 };
 
+const guessNameFromRow = (row) => {
+  const aliases = ['이름', '성명', 'name', 'fullname', 'studentname'];
+  const keys = Object.keys(row || {});
+  const targetKey = keys.find((key) => aliases.includes(norm(key)));
+  return targetKey ? String(row[targetKey] || '').trim() : '';
+};
+
+const guessIntroFromRow = (row) => {
+  const aliases = ['자기소개', '소개', 'intro', 'introduction'];
+  const keys = Object.keys(row || {});
+  const targetKey = keys.find((key) => aliases.includes(norm(key)));
+  return targetKey ? String(row[targetKey] || '').trim() : '';
+};
+
+const mapRowsToParticipants = (rows, source) => {
+  const list = Array.isArray(rows) ? rows : [];
+  let skipped = 0;
+
+  const participants = list
+    .map((row, i) => {
+      const raw = row && typeof row === 'object' ? row : {};
+      const features = {};
+      for (const [key, value] of Object.entries(raw)) {
+        const normalizedKey = String(key || '').trim();
+        const normalizedValue = String(value ?? '').trim();
+        if (!normalizedKey || !normalizedValue) continue;
+        features[normalizedKey] = normalizedValue;
+      }
+
+      if (Object.keys(features).length === 0) {
+        skipped += 1;
+        return null;
+      }
+
+      const guessedName = guessNameFromRow(raw);
+      const intro = guessIntroFromRow(raw);
+      const fallbackName = guessedName || `참가자-${i + 1}`;
+
+      return {
+        id: Date.now() + i,
+        name: fallbackName,
+        originalName: fallbackName,
+        intro,
+        source,
+        features
+      };
+    })
+    .filter(Boolean);
+
+  return { participants, mapped: participants.length, skipped };
+};
+
 const extractAnswerValue = (answerObj) => {
   if (!answerObj) return '';
 
@@ -349,27 +401,53 @@ function App() {
     }
   };
 
-  const onUploadCsv = (e) => {
+  const mergeImportedParticipants = (imported) => {
+    const featureKeys = Array.from(
+      new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
+    );
+    setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
+    setShowAllParticipants(false);
+
+    setParticipants((prev) => {
+      const existing = prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0);
+      const keySet = new Set(existing.map((p) => `${p.name}||${p.intro}`));
+      const merged = [...existing];
+
+      for (const p of imported) {
+        const key = `${p.name}||${p.intro}`;
+        if (!keySet.has(key)) {
+          keySet.add(key);
+          merged.push(p);
+        }
+      }
+      return merged;
+    });
+  };
+
+  const onUploadCsv = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const list = results.data
-          .map((r, i) => ({
-            id: Date.now() + i,
-            name: r['이름'] || r.name || '',
-            intro: r['자기소개'] || r.intro || '',
-            source: 'csv',
-            features: {}
-          }))
-          .filter((p) => p.name || Object.keys(p.features || {}).length > 0);
-
-        setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...list]);
-      }
-    });
+    try {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const { participants: imported, mapped, skipped } = mapRowsToParticipants(results.data, 'csv');
+          if (!imported.length) {
+            setMessage('CSV에서 가져올 데이터가 없습니다.');
+            return;
+          }
+          mergeImportedParticipants(imported);
+          setMessage(`CSV 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`);
+        },
+        error: () => setMessage('CSV 파싱 중 오류가 발생했습니다.')
+      });
+    } catch (error) {
+      setMessage(error.message || '파일 업로드 처리 중 오류가 발생했습니다.');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const validParticipants = useMemo(
@@ -775,7 +853,7 @@ function App() {
               </label>
 
               <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">참가자 데이터 미리보기 (엑셀 형태)</div>
+              <div className="px-3 py-2 bg-slate-100 text-sm font-semibold">참가자 데이터 미리보기 (테이블 형태)</div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
                 <div className="flex items-center gap-2">
                   <Search size={14} className="text-slate-500" />
@@ -931,6 +1009,13 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
 
 
 
