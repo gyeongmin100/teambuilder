@@ -35,6 +35,13 @@ const compactParticipant = (p) => {
   };
 };
 
+const pickRandomIndex = (length) => Math.floor(Math.random() * Math.max(1, length));
+
+const createSpreadTeams = (total, teamSize) => {
+  const fullTeamCount = Math.floor(total / teamSize);
+  return Math.max(1, fullTeamCount);
+};
+
 const buildBaseTeams = (participants, teamSize, remainderMode) => {
   if (participants.length === 0) return [];
 
@@ -67,16 +74,23 @@ const buildBaseTeams = (participants, teamSize, remainderMode) => {
     return teams;
   }
 
-  const numTeams = Math.ceil(participants.length / teamSize);
-  const teams = Array.from({ length: Math.max(1, numTeams) }, (_, i) => ({
+  const total = participants.length;
+  const fullTeamCount = createSpreadTeams(total, teamSize);
+  const teams = Array.from({ length: fullTeamCount }, (_, i) => ({
     id: i + 1,
     members: [],
     analysis: ''
   }));
 
-  participants.forEach((participant, index) => {
-    teams[index % teams.length].members.push(participant);
-  });
+  const fullCapacity = fullTeamCount * teamSize;
+  for (let i = 0; i < fullCapacity && i < total; i += 1) {
+    teams[i % fullTeamCount].members.push(participants[i]);
+  }
+
+  for (let i = fullCapacity; i < total; i += 1) {
+    const randomTeam = teams[pickRandomIndex(teams.length)];
+    randomTeam.members.push(participants[i]);
+  }
 
   return teams;
 };
@@ -111,6 +125,8 @@ const buildPrompt = ({ participants, teamSize, remainderMode, customPrompt }) =>
     '- 모든 id를 정확히 한 번씩만 사용',
     '- 존재하지 않는 id 사용 금지',
     '- 사용자 요청사항을 최대한 반영',
+    "- remainderMode가 spread면 팀 개수는 floor(전체인원/teamSize)로 유지하고, 나머지 인원만 기존 팀에 추가 배정 (새 팀 생성 금지)",
+    "- remainderMode가 keep_partial이면 마지막 부족 팀 1개 생성 허용",
     '',
     'participants(JSON):',
     JSON.stringify(participants),
@@ -182,19 +198,41 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode }) => {
     return { valid: false, teams: [], unassigned: Array.from(memberById.keys()) };
   }
 
-  for (const id of unassigned) {
-    let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
-    if (target.memberIds.length >= teamSize) {
-      target = null;
+  if (remainderMode === 'spread') {
+    const expectedTeams = createSpreadTeams(memberById.size, teamSize);
+
+    while (normalized.length < expectedTeams) {
+      normalized.push({
+        id: normalized.length + 1,
+        memberIds: [],
+        analysis: ''
+      });
     }
 
-    if (target) {
+    if (normalized.length > expectedTeams) {
+      const overflow = normalized.splice(expectedTeams);
+      const overflowIds = overflow.flatMap((t) => t.memberIds);
+      for (const id of overflowIds) {
+        const randomTeam = normalized[pickRandomIndex(normalized.length)];
+        randomTeam.memberIds.push(id);
+      }
+    }
+  }
+
+  for (const id of unassigned) {
+    if (remainderMode === 'spread') {
+      const underCapacity = normalized.filter((t) => t.memberIds.length < teamSize);
+      const targetPool = underCapacity.length > 0 ? underCapacity : normalized;
+      const target = targetPool[pickRandomIndex(targetPool.length)];
       target.memberIds.push(id);
-    } else if (remainderMode === 'spread') {
-      normalized.sort((a, b) => a.memberIds.length - b.memberIds.length);
-      normalized[0].memberIds.push(id);
     } else {
-      normalized.push({ id: normalized.length + 1, memberIds: [id], analysis: '' });
+      let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
+      if (target.memberIds.length >= teamSize) target = null;
+      if (target) {
+        target.memberIds.push(id);
+      } else {
+        normalized.push({ id: normalized.length + 1, memberIds: [id], analysis: '' });
+      }
     }
   }
 

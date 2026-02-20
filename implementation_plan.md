@@ -96,3 +96,14 @@
   - npm run build succeeds
   - /api/assign response includes teams[].members[].name
   - Result page renders participant names consistently
+
+## 11. 2026-02-20 Remainder Distribution Policy Fix
+- Goal: spread 모드는 팀 수를 loor(total/teamSize)로 고정하고 나머지만 기존 팀에 추가한다.
+- Why: 기존 로직의 ceil 기반 분배는 사용자가 의도한 기존 팀에만 나머지 배분과 다름.
+- Changes:
+  - Fallback 배정에서 spread 전용 팀 생성 규칙 분리
+  - AI 결과 정규화에서 spread 모드 시 초과 팀 제거 후 멤버 재분배
+  - 누락 인원 보정 시 spread는 항상 기존 팀 랜덤 추가
+  - 프롬프트에 spread/keep_partial 정책을 명확히 전달
+- Verification:
+  - 예시 50명, 4명 => 12개 팀 + 2명 랜덤 추가(새 팀 없음)
