@@ -270,6 +270,7 @@ function App() {
   const [participantQuery, setParticipantQuery] = useState('');
   const [manualIdentifier, setManualIdentifier] = useState('');
   const [newFeatureName, setNewFeatureName] = useState('');
+  const [draggingColumnKey, setDraggingColumnKey] = useState('');
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
@@ -345,7 +346,10 @@ function App() {
         const res = await fetch('/api/assign', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pending.payload)
+          body: JSON.stringify({
+            ...pending.payload,
+            checkout_id: checkoutId
+          })
         });
         const data = await res.json();
         if (!data.teams) throw new Error(data.error || '배정 실패');
@@ -444,8 +448,7 @@ function App() {
       const featureKeys = Array.from(
         new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
       );
-      setAvailableIdentifierKeys(featureKeys);
-      setSelectedIdentifierKey('');
+      setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
       setShowAllParticipants(false);
 
       setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
@@ -476,6 +479,19 @@ function App() {
       if (target < 0 || target >= prev.length) return prev;
       const next = [...prev];
       [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const moveColumnByDrop = (dragKey, dropKey) => {
+    if (!dragKey || !dropKey || dragKey === dropKey) return;
+    setColumnOrder((prev) => {
+      const from = prev.indexOf(dragKey);
+      const to = prev.indexOf(dropKey);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
       return next;
     });
   };
@@ -619,14 +635,14 @@ function App() {
 
   const runAssign = async () => {
     if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
-    if (!selectedIdentifierKey) return alert('식별 기준을 먼저 선택해 주세요.');
+    if (!selectedIdentifierKey) return alert('식별열이 필요합니다. 열을 추가하거나 순서를 조정해 주세요.');
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
-      return alert(`선택한 식별 기준 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
+      return alert(`식별열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
     }
     if (useFeatureExclusion && excludedFeatureKeys.includes(selectedIdentifierKey)) {
-      return alert('식별 기준은 제외할 수 없습니다. 제외 목록에서 식별 기준을 해제해 주세요.');
+      return alert('식별열은 제외할 수 없습니다. 제외 목록에서 식별열을 해제해 주세요.');
     }
 
     const payloadParticipants = validParticipants.map((p) => ({
@@ -795,7 +811,7 @@ function App() {
                 <p className="text-2xl font-black text-slate-900">{validParticipants.length}</p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">식별 기준</p>
+                <p className="text-xs text-slate-500">식별열</p>
                 <p className="text-sm font-bold truncate">{selectedIdentifierKey || '미선택'}</p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -804,7 +820,7 @@ function App() {
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
                 <p className="text-xs text-slate-500">진행 상태</p>
-                <p className="text-sm font-bold">{selectedIdentifierKey ? '배정 준비 완료' : '식별 기준 선택 필요'}</p>
+                <p className="text-sm font-bold">{selectedIdentifierKey ? '배정 준비 완료' : '식별열 확인 필요'}</p>
               </div>
             </div>
 
@@ -911,49 +927,9 @@ function App() {
 
               {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
 
-              <div className="rounded-xl border border-slate-200 p-3">
-              <p className="text-sm font-bold mb-2">2) 식별 기준 선택 (필수)</p>
-              <p className="text-xs text-slate-500 mb-2">첫 번째 열이 자동으로 식별 기준이 됩니다. 좌/우 버튼으로 열 순서를 바꾸세요.</p>
-              <div className="flex flex-wrap gap-2">
-                {columnOrder.length === 0 && (
-                  <p className="text-xs text-slate-500">폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.</p>
-                )}
-                {columnOrder.map((key, idx) => (
-                  <div key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${idx === 0 ? 'border-cyan-600 bg-cyan-50' : ''}`}>
-                    <span className="max-w-40 truncate" title={key}>{key}</span>
-                    {idx === 0 && <span className="text-[11px] text-cyan-700 font-bold">식별</span>}
-                    <div className="inline-flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => moveColumn(key, 'left')}
-                        disabled={idx === 0}
-                        className="px-1 border rounded disabled:opacity-40"
-                      >
-                        ←
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveColumn(key, 'right')}
-                        disabled={idx === columnOrder.length - 1}
-                        className="px-1 border rounded disabled:opacity-40"
-                      >
-                        →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {!selectedIdentifierKey && (
-                <p className="text-xs text-rose-600 mt-2">식별 기준을 선택하지 않으면 분석이 시작되지 않습니다.</p>
-              )}
-              {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
-                <p className="text-xs text-amber-700 mt-2">
-                  중복 식별값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능하며, 시스템 내부 고유 ID로 안전하게 배정합니다.
-                </p>
-              )}
-              </div>
-
               <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <p className="text-sm font-bold">열 관리</p>
+                <p className="text-xs text-slate-500">맨 앞 열이 식별열입니다. 칩을 드래그해서 순서를 바꾸세요.</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     value={newFeatureName}
@@ -970,9 +946,42 @@ function App() {
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {columnOrder.length === 0 && (
+                    <p className="text-xs text-slate-500">폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.</p>
+                  )}
                   {columnOrder.map((key) => (
-                    <div key={`feature-remove-${key}`} className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm bg-slate-50">
+                    <div
+                      key={`feature-remove-${key}`}
+                      draggable
+                      onDragStart={() => setDraggingColumnKey(key)}
+                      onDragEnd={() => setDraggingColumnKey('')}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => {
+                        moveColumnByDrop(draggingColumnKey, key);
+                        setDraggingColumnKey('');
+                      }}
+                      className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm cursor-move ${
+                        columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-slate-50'
+                      }`}
+                    >
                       <span className="max-w-36 truncate" title={key}>{key}</span>
+                      {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">식별열</span>}
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(key, 'left')}
+                        className="px-1 border rounded"
+                        aria-label={`${key} 왼쪽 이동`}
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(key, 'right')}
+                        className="px-1 border rounded"
+                        aria-label={`${key} 오른쪽 이동`}
+                      >
+                        →
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeFeatureColumn(key)}
@@ -983,6 +992,14 @@ function App() {
                     </div>
                   ))}
                 </div>
+                {!selectedIdentifierKey && (
+                  <p className="text-xs text-rose-600 mt-1">열이 없으면 분석을 시작할 수 없습니다.</p>
+                )}
+                {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    중복 식별값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능하며, 내부 고유 ID로 배정됩니다.
+                  </p>
+                )}
                 <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
                   <input
                     type="checkbox"
@@ -1039,8 +1056,8 @@ function App() {
                     <tr>
                       <th className="px-3 py-2 text-left w-14">No</th>
                       <th className="px-3 py-2 text-left min-w-44">
-                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || '식별 기준 미선택'}>
-                          {selectedIdentifierKey || '식별 기준 선택 필요'}
+                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || '식별열 없음'}>
+                          {selectedIdentifierKey || '식별열 없음'}
                         </span>
                       </th>
                       {tableFeatureKeys.map((key) => (
@@ -1119,7 +1136,7 @@ function App() {
               <input
                 value={manualIdentifier}
                 onChange={(e) => setManualIdentifier(e.target.value)}
-                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별값 입력 (식별 기준 선택 전에도 추가 가능)'}
+                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별값 입력 (열 추가 전에도 가능)'}
                 className="px-3 py-2 border rounded w-56"
               />
               <button
@@ -1185,13 +1202,6 @@ function App() {
 }
 
 export default App;
-
-
-
-
-
-
-
 
 
 

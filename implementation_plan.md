@@ -160,3 +160,12 @@
   - BOM이 없으면 UTF-8과 EUC-KR 디코딩 결과를 품질 점수로 비교
   - 더 자연스러운 결과를 자동 채택하고 보정 여부를 안내 메시지로 표시
 - Effect: 한국어 CSV 업로드 시 깨짐 가능성을 크게 낮춤
+
+## 18. 2026-02-20 Paid Guard + Seeded Allocation + Drag UX
+- Payment Guard: assign API가 checkout_id를 서버에서 Polar 재검증 후에만 실행되도록 변경.
+- Deterministic Random: spread 모드 랜덤 배분을 seed 기반 RNG로 전환해 재현 가능성 확보.
+- Data Merge: Google Form 추가 import 시 식별/특성 열 목록을 덮어쓰지 않고 병합.
+- UX Simplification:
+  - 식별 기준 선택 별도 카드 제거
+  - 열 관리 카드에서 첫 열=식별열 규칙 + 드래그 재정렬 + 좌우 이동 + 삭제 통합
+- Effect: 결제 우회 차단, 운영 디버깅 용이성 향상, 사용자 조작 흐름 단순화.

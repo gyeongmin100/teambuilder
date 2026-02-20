@@ -35,6 +35,44 @@ const compactParticipant = (p, index) => {
   };
 };
 
+const getPolarBaseUrl = (env) => {
+  const mode = String(env.POLAR_ENV || 'production').toLowerCase();
+  return mode === 'sandbox' ? 'https://sandbox-api.polar.sh/v1' : 'https://api.polar.sh/v1';
+};
+
+const getPolarToken = (env) => env.POLAR_ACCESS_TOKEN || env.POLAR_API_KEY;
+
+const isPaidStatus = (status) => {
+  const s = String(status || '').toLowerCase();
+  return s === 'succeeded' || s === 'paid';
+};
+
+const normalizeCheckout = (data) => {
+  if (!data || typeof data !== 'object') return null;
+  if (data.id || data.status) return data;
+  if (data.data && (data.data.id || data.data.status)) return data.data;
+  return data;
+};
+
+const verifyPaidCheckout = async ({ checkoutId, env }) => {
+  const token = getPolarToken(env);
+  if (!token) throw new Error('POLAR_ACCESS_TOKEN이 없습니다.');
+  if (!checkoutId) throw new Error('checkout_id가 필요합니다.');
+
+  const res = await fetch(`${getPolarBaseUrl(env)}/checkouts/${encodeURIComponent(checkoutId)}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.detail || data?.error || '결제 상태 조회 실패');
+  const checkout = normalizeCheckout(data);
+  if (!isPaidStatus(checkout?.status)) throw new Error('결제가 완료되지 않았습니다.');
+  return checkout;
+};
+
 const ensureUniqueIds = (participants) => {
   const seen = new Map();
   return participants.map((p) => {
@@ -46,14 +84,44 @@ const ensureUniqueIds = (participants) => {
   });
 };
 
-const pickRandomIndex = (length) => Math.floor(Math.random() * Math.max(1, length));
+const xmur3 = (str) => {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i += 1) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return () => {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return h >>> 0;
+  };
+};
+
+const mulberry32 = (a) => () => {
+  let t = (a += 0x6d2b79f5);
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const createSeededRandom = (seedText) => {
+  const seedFn = xmur3(String(seedText || 'seed-default'));
+  return mulberry32(seedFn());
+};
+
+const pickRandomIndex = (length, rand) => {
+  const safeLength = Math.max(1, length);
+  const n = typeof rand === 'function' ? rand() : Math.random();
+  return Math.floor(n * safeLength);
+};
 
 const createSpreadTeams = (total, teamSize) => {
   const fullTeamCount = Math.floor(total / teamSize);
   return Math.max(1, fullTeamCount);
 };
 
-const buildBaseTeams = (participants, teamSize, remainderMode) => {
+const buildBaseTeams = (participants, teamSize, remainderMode, rand) => {
   if (participants.length === 0) return [];
 
   if (remainderMode === 'keep_partial') {
@@ -99,7 +167,7 @@ const buildBaseTeams = (participants, teamSize, remainderMode) => {
   }
 
   for (let i = fullCapacity; i < total; i += 1) {
-    const randomTeam = teams[pickRandomIndex(teams.length)];
+    const randomTeam = teams[pickRandomIndex(teams.length, rand)];
     randomTeam.members.push(participants[i]);
   }
 
@@ -136,8 +204,8 @@ const buildPrompt = ({ participants, teamSize, remainderMode, customPrompt }) =>
     '- 모든 id를 정확히 한 번씩만 사용',
     '- 존재하지 않는 id 사용 금지',
     '- 사용자 요청사항을 최대한 반영',
-    "- remainderMode가 spread면 팀 개수는 floor(전체인원/teamSize)로 유지하고, 나머지 인원만 기존 팀에 추가 배정 (새 팀 생성 금지)",
-    "- remainderMode가 keep_partial이면 마지막 부족 팀 1개 생성 허용",
+    '- remainderMode가 spread면 팀 개수는 floor(전체인원/teamSize)로 유지하고, 나머지 인원만 기존 팀에 추가 배정 (새 팀 생성 금지)',
+    '- remainderMode가 keep_partial이면 마지막 부족 팀 1개 생성 허용',
     '',
     'participants(JSON):',
     JSON.stringify(participants),
@@ -182,7 +250,7 @@ const callOpenAIOnce = async ({ participants, teamSize, remainderMode, customPro
   return parseJsonSafe(raw, null);
 };
 
-const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode }) => {
+const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand }) => {
   const used = new Set();
   const normalized = [];
 
@@ -224,7 +292,7 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode }) => {
       const overflow = normalized.splice(expectedTeams);
       const overflowIds = overflow.flatMap((t) => t.memberIds);
       for (const id of overflowIds) {
-        const randomTeam = normalized[pickRandomIndex(normalized.length)];
+        const randomTeam = normalized[pickRandomIndex(normalized.length, rand)];
         randomTeam.memberIds.push(id);
       }
     }
@@ -234,7 +302,7 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode }) => {
     if (remainderMode === 'spread') {
       const underCapacity = normalized.filter((t) => t.memberIds.length < teamSize);
       const targetPool = underCapacity.length > 0 ? underCapacity : normalized;
-      const target = targetPool[pickRandomIndex(targetPool.length)];
+      const target = targetPool[pickRandomIndex(targetPool.length, rand)];
       target.memberIds.push(id);
     } else {
       let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
@@ -255,7 +323,7 @@ export async function onRequestPost(context) {
 
   try {
     const body = await request.json();
-    const { participants = [], config = {}, customPrompt = '' } = body;
+    const { participants = [], config = {}, customPrompt = '', checkout_id: checkoutId = '' } = body;
 
     if (!Array.isArray(participants) || participants.length < 2) {
       return json({ error: '최소 2명 이상의 참가자가 필요합니다.' }, 400);
@@ -265,6 +333,8 @@ export async function onRequestPost(context) {
       return json({ error: 'OPENAI_API_KEY가 없습니다.' }, 500);
     }
 
+    await verifyPaidCheckout({ checkoutId, env });
+
     const teamSize = Number(config.teamSize) > 0 ? Number(config.teamSize) : 4;
     const remainderMode = config.remainderMode === 'keep_partial' ? 'keep_partial' : 'spread';
 
@@ -272,6 +342,9 @@ export async function onRequestPost(context) {
     if (compact.length < 2) {
       return json({ error: '배정 가능한 참가자가 2명 미만입니다.' }, 400);
     }
+
+    const seedInput = `${checkoutId}|${teamSize}|${remainderMode}|${compact.map((p) => p.id).join(',')}`;
+    const rand = createSeededRandom(seedInput);
 
     const memberById = new Map(
       compact.map((p) => [
@@ -307,7 +380,8 @@ export async function onRequestPost(context) {
         aiTeams: ai.teams,
         memberById,
         teamSize,
-        remainderMode
+        remainderMode,
+        rand
       });
 
       if (normalized.valid) {
@@ -320,7 +394,7 @@ export async function onRequestPost(context) {
     }
 
     if (!teams || teams.length === 0) {
-      const fallback = buildBaseTeams(Array.from(memberById.values()), teamSize, remainderMode);
+      const fallback = buildBaseTeams(Array.from(memberById.values()), teamSize, remainderMode, rand);
       teams = fallback;
       reason = 'AI 배정 실패로 기본 규칙 배정';
     }
