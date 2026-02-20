@@ -230,6 +230,7 @@ function App() {
   const [participantQuery, setParticipantQuery] = useState('');
   const [manualIdentifier, setManualIdentifier] = useState('');
   const [manualIntro, setManualIntro] = useState('');
+  const [newFeatureName, setNewFeatureName] = useState('');
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
@@ -438,6 +439,55 @@ function App() {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
+
+  const addFeatureColumn = () => {
+    const key = String(newFeatureName || '').trim();
+    if (!key) return alert('추가할 특성명을 입력하세요.');
+    if (availableIdentifierKeys.includes(key)) return alert('이미 존재하는 특성명입니다.');
+
+    setAvailableIdentifierKeys((prev) => [...prev, key]);
+    setParticipants((prev) =>
+      prev.map((p) => ({
+        ...p,
+        features: { ...(p.features || {}), [key]: String(p?.features?.[key] ?? '') }
+      }))
+    );
+    setNewFeatureName('');
+  };
+
+  const removeFeatureColumn = (key) => {
+    if (availableIdentifierKeys.length <= 1) {
+      alert('특성은 최소 1개 이상 필요합니다.');
+      return;
+    }
+
+    setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
+    setExcludedFeatureKeys((prev) => prev.filter((k) => k !== key));
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const next = { ...(p.features || {}) };
+        delete next[key];
+        return { ...p, features: next };
+      })
+    );
+  };
+
+  const updateParticipantFeature = (participant, key, value) => {
+    const rowKey = participant.internalId || participant.id;
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const currentKey = p.internalId || p.id;
+        if (currentKey !== rowKey) return p;
+        return {
+          ...p,
+          features: {
+            ...(p.features || {}),
+            [key]: String(value ?? '')
+          }
+        };
+      })
+    );
   };
 
   const onUploadCsv = async (e) => {
@@ -865,6 +915,35 @@ function App() {
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={newFeatureName}
+                    onChange={(e) => setNewFeatureName(e.target.value)}
+                    placeholder="새 특성명 입력 (예: MBTI, 성별, 희망역할)"
+                    className="px-3 py-2 border rounded text-sm w-72"
+                  />
+                  <button
+                    type="button"
+                    onClick={addFeatureColumn}
+                    className="px-3 py-2 border rounded text-sm bg-white"
+                  >
+                    특성(열) 추가
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {columnOrder.map((key) => (
+                    <div key={`feature-remove-${key}`} className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm bg-slate-50">
+                      <span className="max-w-36 truncate" title={key}>{key}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFeatureColumn(key)}
+                        className="text-rose-600"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  ))}
+                </div>
                 <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
                   <input
                     type="checkbox"
@@ -935,23 +1014,37 @@ function App() {
                   </thead>
                   <tbody>
                     {shownParticipants.map((p, idx) => (
-                      <tr key={p.id} className="border-b hover:bg-slate-50">
+                      <tr key={p.internalId || p.id} className="border-b hover:bg-slate-50">
                         <td className="px-3 py-2 text-slate-500">{idx + 1}</td>
                         <td className="px-3 py-2">
-                          <span className="inline-block max-w-52 truncate" title={getParticipantIdentifier(p) || '-'}>
-                            {getParticipantIdentifier(p) || '-'}
-                          </span>
+                          {selectedIdentifierKey ? (
+                            <input
+                              value={String(p?.features?.[selectedIdentifierKey] || '')}
+                              onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
+                              className="w-full border rounded px-2 py-1 text-sm"
+                              placeholder="식별값 입력"
+                            />
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
                         </td>
                         {tableFeatureKeys.map((key) => (
-                          <td key={`${p.id}-${key}`} className="px-3 py-2">
-                            <span className="inline-block max-w-52 truncate" title={String(applyFeatureExclusion(p?.features || {})?.[key] || '-')}>
-                              {String(applyFeatureExclusion(p?.features || {})?.[key] || '-')}
-                            </span>
+                          <td key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
+                            <input
+                              value={String(p?.features?.[key] || '')}
+                              onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
+                              className="w-full border rounded px-2 py-1 text-sm"
+                              placeholder={`${key} 값 입력`}
+                            />
                           </td>
                         ))}
                         <td className="px-3 py-2">
                           <button
-                            onClick={() => setParticipants(participants.filter((x) => x.id !== p.id))}
+                            onClick={() =>
+                              setParticipants(
+                                participants.filter((x) => (x.internalId || x.id) !== (p.internalId || p.id))
+                              )
+                            }
                             className="text-slate-500"
                           >
                             <Trash2 size={16} />

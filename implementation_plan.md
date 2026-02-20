@@ -138,3 +138,12 @@
   - 식별 기준 UI를 라디오 선택 -> 열 이동 컨트롤로 전환
   - 제외 특성 및 테이블 컬럼 계산도 columnOrder 기반으로 전환
 - Effect: 사용자가 직관적으로 맨 앞 열=식별기준 규칙을 제어 가능
+
+## 15. 2026-02-20 Feature Column CRUD Plan
+- Goal: 행(참가자)뿐 아니라 열(특성)도 사용자가 직접 추가/삭제/편집 가능하게 확장.
+- Applied:
+  - 새 특성명 입력 후 열 추가(addFeatureColumn)
+  - 기존 열 삭제(removeFeatureColumn), 참가자 feature 객체에서도 동기 삭제
+  - 테이블 셀 인라인 편집(updateParticipantFeature) 도입
+  - 식별열(첫 열)도 입력 셀로 편집 가능
+- Coverage: 구글폼/CSV/수기 입력 후 동일한 열 관리 인터페이스에서 후편집 가능
