@@ -268,7 +268,6 @@ function App() {
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
-  const [manualIdentifier, setManualIdentifier] = useState('');
   const [newFeatureName, setNewFeatureName] = useState('');
   const [draggingColumnKey, setDraggingColumnKey] = useState('');
 
@@ -635,14 +634,14 @@ function App() {
 
   const runAssign = async () => {
     if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
-    if (!selectedIdentifierKey) return alert('식별열이 필요합니다. 열을 추가하거나 순서를 조정해 주세요.');
+    if (!selectedIdentifierKey) return alert('맨 앞 열이 필요합니다. 열을 추가해 주세요.');
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
-      return alert(`식별열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
+      return alert(`맨 앞 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
     }
     if (useFeatureExclusion && excludedFeatureKeys.includes(selectedIdentifierKey)) {
-      return alert('식별열은 제외할 수 없습니다. 제외 목록에서 식별열을 해제해 주세요.');
+      return alert('맨 앞 열은 제외할 수 없습니다.');
     }
 
     const payloadParticipants = validParticipants.map((p) => ({
@@ -715,28 +714,24 @@ function App() {
     a.click();
   };
 
-  const addManualParticipant = () => {
-    const idValue = String(manualIdentifier || '').trim();
-    if (!idValue) return alert('인원추가를 위해 식별값을 입력하세요.');
-
-    const manualKey = selectedIdentifierKey || '수기 식별값';
-    const features = { [manualKey]: idValue };
-
-    setAvailableIdentifierKeys((prev) => (prev.includes(manualKey) ? prev : [...prev, manualKey]));
-
+  const addEmptyParticipantRow = () => {
+    const baseColumns = columnOrder.length > 0 ? columnOrder : ['이름'];
+    if (columnOrder.length === 0) {
+      setAvailableIdentifierKeys((prev) => (prev.includes('이름') ? prev : [...prev, '이름']));
+    }
+    const features = Object.fromEntries(baseColumns.map((k) => [k, '']));
     setParticipants((prev) => [
       ...prev,
       {
         id: Date.now(),
         internalId: createInternalId(),
-        name: idValue,
-        originalName: idValue,
+        name: '새 참여자',
+        originalName: '새 참여자',
         intro: '',
         source: 'manual',
         features
       }
     ]);
-    setManualIdentifier('');
   };
 
   const currentPage = step === 'loading' ? 'loading' : step === 'result' ? 'result' : uiPage;
@@ -811,7 +806,7 @@ function App() {
                 <p className="text-2xl font-black text-slate-900">{validParticipants.length}</p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <p className="text-xs text-slate-500">식별열</p>
+                <p className="text-xs text-slate-500">맨 앞 열</p>
                 <p className="text-sm font-bold truncate">{selectedIdentifierKey || '미선택'}</p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
@@ -820,7 +815,7 @@ function App() {
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
                 <p className="text-xs text-slate-500">진행 상태</p>
-                <p className="text-sm font-bold">{selectedIdentifierKey ? '배정 준비 완료' : '식별열 확인 필요'}</p>
+                <p className="text-sm font-bold">{selectedIdentifierKey ? '배정 준비 완료' : '맨 앞 열 확인 필요'}</p>
               </div>
             </div>
 
@@ -929,7 +924,7 @@ function App() {
 
               <div className="rounded-xl border border-slate-200 p-3 space-y-2">
                 <p className="text-sm font-bold">열 관리</p>
-                <p className="text-xs text-slate-500">맨 앞 열이 식별열입니다. 칩을 드래그해서 순서를 바꾸세요.</p>
+                <p className="text-xs text-slate-500">맨 앞 열을 기준으로 팀을 나눕니다.</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     value={newFeatureName}
@@ -965,7 +960,7 @@ function App() {
                       }`}
                     >
                       <span className="max-w-36 truncate" title={key}>{key}</span>
-                      {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">식별열</span>}
+                      {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">기준</span>}
                       <button
                         type="button"
                         onClick={() => moveColumn(key, 'left')}
@@ -997,7 +992,7 @@ function App() {
                 )}
                 {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
                   <p className="text-xs text-amber-700 mt-1">
-                    중복 식별값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능하며, 내부 고유 ID로 배정됩니다.
+                    중복 값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능합니다.
                   </p>
                 )}
                 <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
@@ -1056,8 +1051,8 @@ function App() {
                     <tr>
                       <th className="px-3 py-2 text-left w-14">No</th>
                       <th className="px-3 py-2 text-left min-w-44">
-                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || '식별열 없음'}>
-                          {selectedIdentifierKey || '식별열 없음'}
+                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || '맨 앞 열 없음'}>
+                          {selectedIdentifierKey || '맨 앞 열 없음'}
                         </span>
                       </th>
                       {tableFeatureKeys.map((key) => (
@@ -1078,7 +1073,7 @@ function App() {
                               value={String(p?.features?.[selectedIdentifierKey] || '')}
                               onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
                               className="w-full border rounded px-2 py-1 text-sm"
-                              placeholder="식별값 입력"
+                              placeholder="값 입력"
                             />
                           ) : (
                             <span className="text-slate-400">-</span>
@@ -1133,14 +1128,8 @@ function App() {
               )}
 
               <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl p-3 flex gap-2">
-              <input
-                value={manualIdentifier}
-                onChange={(e) => setManualIdentifier(e.target.value)}
-                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별값 입력 (열 추가 전에도 가능)'}
-                className="px-3 py-2 border rounded w-56"
-              />
               <button
-                onClick={addManualParticipant}
+                onClick={addEmptyParticipantRow}
                 className="px-3 py-2 border rounded"
               >
                 인원추가
@@ -1202,8 +1191,6 @@ function App() {
 }
 
 export default App;
-
-
 
 
 
