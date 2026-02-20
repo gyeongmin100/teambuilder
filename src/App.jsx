@@ -229,7 +229,6 @@ function App() {
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
   const [manualIdentifier, setManualIdentifier] = useState('');
-  const [manualIntro, setManualIntro] = useState('');
   const [newFeatureName, setNewFeatureName] = useState('');
 
   const maxInitialRows = 20;
@@ -661,10 +660,8 @@ function App() {
     const idValue = String(manualIdentifier || '').trim();
     if (!idValue) return alert('인원추가를 위해 식별값을 입력하세요.');
 
-    const introText = String(manualIntro || '').trim();
     const manualKey = selectedIdentifierKey || '수기 식별값';
     const features = { [manualKey]: idValue };
-    if (introText) features['수동메모'] = introText;
 
     setAvailableIdentifierKeys((prev) => (prev.includes(manualKey) ? prev : [...prev, manualKey]));
 
@@ -675,13 +672,12 @@ function App() {
         internalId: createInternalId(),
         name: idValue,
         originalName: idValue,
-        intro: introText,
+        intro: '',
         source: 'manual',
         features
       }
     ]);
     setManualIdentifier('');
-    setManualIntro('');
   };
 
   const currentPage = step === 'loading' ? 'loading' : step === 'result' ? 'result' : uiPage;
@@ -1082,12 +1078,6 @@ function App() {
                 onChange={(e) => setManualIdentifier(e.target.value)}
                 placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별값 입력 (식별 기준 선택 전에도 추가 가능)'}
                 className="px-3 py-2 border rounded w-56"
-              />
-              <input
-                value={manualIntro}
-                onChange={(e) => setManualIntro(e.target.value)}
-                placeholder="메모(선택)"
-                className="px-3 py-2 border rounded flex-1"
               />
               <button
                 onClick={addManualParticipant}

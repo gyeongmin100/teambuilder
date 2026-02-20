@@ -147,3 +147,8 @@
   - 테이블 셀 인라인 편집(updateParticipantFeature) 도입
   - 식별열(첫 열)도 입력 셀로 편집 가능
 - Coverage: 구글폼/CSV/수기 입력 후 동일한 열 관리 인터페이스에서 후편집 가능
+
+## 16. 2026-02-20 Manual Input Simplification
+- Goal: 수기 등록에서 불필요한 메모 입력을 제거해 입력 부담과 혼란을 줄임.
+- Applied: manualIdentifier 단일 입력만 유지, manualIntro/수동메모 관련 상태 및 저장 제거.
+- Effect: 수기 등록 흐름이 핵심값 입력 중심으로 단순화됨.
