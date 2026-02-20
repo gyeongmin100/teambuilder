@@ -24,8 +24,8 @@ const compactFeatures = (features) => {
   return Object.fromEntries(entries.map(([k, v]) => [trimText(k, 80), trimText(v, MAX_FEATURE_VALUE)]));
 };
 
-const compactParticipant = (p) => {
-  const id = String(p.name || p.identifierValue || '').trim();
+const compactParticipant = (p, index) => {
+  const id = String(p.internalId || p.id || `participant-${index + 1}`).trim();
   return {
     id,
     displayName: trimText(p.originalName || p.name || id, 120),
@@ -33,6 +33,17 @@ const compactParticipant = (p) => {
     features: compactFeatures(p.features || {}),
     identifierKey: trimText(p.identifierKey || '', 80)
   };
+};
+
+const ensureUniqueIds = (participants) => {
+  const seen = new Map();
+  return participants.map((p) => {
+    const base = String(p.id || '').trim() || `participant-${seen.size + 1}`;
+    const next = (seen.get(base) || 0) + 1;
+    seen.set(base, next);
+    if (next === 1) return { ...p, id: base };
+    return { ...p, id: `${base}__${next}` };
+  });
 };
 
 const pickRandomIndex = (length) => Math.floor(Math.random() * Math.max(1, length));
@@ -257,10 +268,9 @@ export async function onRequestPost(context) {
     const teamSize = Number(config.teamSize) > 0 ? Number(config.teamSize) : 4;
     const remainderMode = config.remainderMode === 'keep_partial' ? 'keep_partial' : 'spread';
 
-    const compact = participants.map(compactParticipant).filter((p) => p.id);
-    const idSet = new Set(compact.map((p) => p.id));
-    if (compact.length < 2 || idSet.size !== compact.length) {
-      return json({ error: '식별 id가 비어있거나 중복되어 배정할 수 없습니다.' }, 400);
+    const compact = ensureUniqueIds(participants.map(compactParticipant).filter((p) => p.id));
+    if (compact.length < 2) {
+      return json({ error: '배정 가능한 참가자가 2명 미만입니다.' }, 400);
     }
 
     const memberById = new Map(

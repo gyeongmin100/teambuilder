@@ -25,6 +25,12 @@ const parseFormId = (urlOrId) => {
 };
 
 const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+const createInternalId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `pid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
 
 const normalizeQuestionMap = (form) => {
   const items = Array.isArray(form?.items) ? form.items : [];
@@ -85,6 +91,7 @@ const mapRowsToParticipants = (rows, source) => {
 
       return {
         id: Date.now() + i,
+        internalId: createInternalId(),
         name: fallbackName,
         originalName: fallbackName,
         intro,
@@ -175,6 +182,7 @@ const mapFormResponsesToParticipants = (form, responses) => {
       mapped += 1;
       return {
         id: Date.now() + i,
+        internalId: createInternalId(),
         name: guessedName,
         originalName: guessedName,
         source: 'google-form',
@@ -378,20 +386,7 @@ function App() {
       setSelectedIdentifierKey('');
       setShowAllParticipants(false);
 
-      setParticipants((prev) => {
-        const existing = prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0);
-        const keySet = new Set(existing.map((p) => `${p.name}||${p.intro}`));
-        const merged = [...existing];
-
-        for (const p of imported) {
-          const key = `${p.name}||${p.intro}`;
-          if (!keySet.has(key)) {
-            keySet.add(key);
-            merged.push(p);
-          }
-        }
-        return merged;
-      });
+      setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
 
       setMessage(`구글폼 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`);
     } catch (e) {
@@ -408,20 +403,7 @@ function App() {
     setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
     setShowAllParticipants(false);
 
-    setParticipants((prev) => {
-      const existing = prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0);
-      const keySet = new Set(existing.map((p) => `${p.name}||${p.intro}`));
-      const merged = [...existing];
-
-      for (const p of imported) {
-        const key = `${p.name}||${p.intro}`;
-        if (!keySet.has(key)) {
-          keySet.add(key);
-          merged.push(p);
-        }
-      }
-      return merged;
-    });
+    setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
 
   const onUploadCsv = async (e) => {
@@ -498,6 +480,17 @@ function App() {
     return filteredParticipants.slice(0, maxInitialRows);
   }, [filteredParticipants, showAllParticipants]);
 
+  const duplicateIdentifierCount = useMemo(() => {
+    if (!selectedIdentifierKey) return 0;
+    const counts = new Map();
+    validParticipants.forEach((p) => {
+      const key = getParticipantIdentifier(p);
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return Array.from(counts.values()).filter((n) => n > 1).length;
+  }, [selectedIdentifierKey, validParticipants]);
+
   const runAssign = async () => {
     if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
     if (!selectedIdentifierKey) return alert('식별 기준을 먼저 선택해 주세요.');
@@ -512,6 +505,7 @@ function App() {
 
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
+      internalId: String(p.internalId || p.id || createInternalId()),
       originalName: p.originalName || p.name,
       name: getParticipantIdentifier(p),
       identifierKey: selectedIdentifierKey,
@@ -580,18 +574,21 @@ function App() {
   };
 
   const addManualParticipant = () => {
-    if (!selectedIdentifierKey) return alert('먼저 식별 기준을 선택하세요.');
     const idValue = String(manualIdentifier || '').trim();
     if (!idValue) return alert('인원추가를 위해 식별값을 입력하세요.');
 
     const introText = String(manualIntro || '').trim();
-    const features = { [selectedIdentifierKey]: idValue };
+    const manualKey = selectedIdentifierKey || '수기 식별값';
+    const features = { [manualKey]: idValue };
     if (introText) features['수동메모'] = introText;
+
+    setAvailableIdentifierKeys((prev) => (prev.includes(manualKey) ? prev : [...prev, manualKey]));
 
     setParticipants((prev) => [
       ...prev,
       {
         id: Date.now(),
+        internalId: createInternalId(),
         name: idValue,
         originalName: idValue,
         intro: introText,
@@ -812,6 +809,11 @@ function App() {
               {!selectedIdentifierKey && (
                 <p className="text-xs text-rose-600 mt-2">식별 기준을 선택하지 않으면 분석이 시작되지 않습니다.</p>
               )}
+              {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
+                <p className="text-xs text-amber-700 mt-2">
+                  중복 식별값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능하며, 시스템 내부 고유 ID로 안전하게 배정합니다.
+                </p>
+              )}
               </div>
 
               <div className="rounded-xl border border-slate-200 p-3 space-y-2">
@@ -937,7 +939,7 @@ function App() {
               <input
                 value={manualIdentifier}
                 onChange={(e) => setManualIdentifier(e.target.value)}
-                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별 기준 먼저 선택'}
+                placeholder={selectedIdentifierKey ? `${selectedIdentifierKey} 값 입력` : '식별값 입력 (식별 기준 선택 전에도 추가 가능)'}
                 className="px-3 py-2 border rounded w-56"
               />
               <input

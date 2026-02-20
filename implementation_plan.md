@@ -118,3 +118,13 @@
   - xlsx 의존 제거
   - 업로드 핸들러를 CSV 전용으로 단순화
   - 행 데이터를 features 중심 구조로 변환해 기존 팀빌딩 플로우와 동일하게 연결
+
+## 13. 2026-02-20 Identifier Collision Safe Plan
+- Problem: 이름/학번/사번 등 사용자 식별값은 중복될 수 있어 기존 id=식별값 모델과 충돌.
+- Principle: 표시용 식별값과 시스템 배정용 키를 분리.
+- Applied Design:
+  - 입력 단계에서 각 참가자에 internalId(고유값) 생성
+  - assign API는 internalId로만 팀 배정
+  - 사용자 식별값 중복은 허용, UI에서 경고만 표시
+  - 수기 참가자 추가는 식별 기준 선택 이전에도 허용
+- Effect: 실데이터 중복 상황에서도 배정 실패 없이 안정적으로 처리
