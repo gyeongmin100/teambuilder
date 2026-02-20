@@ -244,7 +244,6 @@ const mapFormResponsesToParticipants = (form, responses) => {
 };
 
 function App() {
-  const [lang, setLang] = useState('ko');
   const [step, setStep] = useState('input');
   const [uiPage, setUiPage] = useState('landing');
   const [legalView, setLegalView] = useState(null);
@@ -371,9 +370,9 @@ function App() {
     runAfterPayment();
   }, []);
 
-  if (legalView === 'terms') return <TermsOfService lang={lang} onBack={() => setLegalView(null)} />;
-  if (legalView === 'privacy') return <PrivacyPolicy lang={lang} onBack={() => setLegalView(null)} />;
-  if (legalView === 'refund') return <RefundPolicy lang={lang} onBack={() => setLegalView(null)} />;
+  if (legalView === 'terms') return <TermsOfService lang="ko" onBack={() => setLegalView(null)} />;
+  if (legalView === 'privacy') return <PrivacyPolicy lang="ko" onBack={() => setLegalView(null)} />;
+  if (legalView === 'refund') return <RefundPolicy lang="ko" onBack={() => setLegalView(null)} />;
 
   const login = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -385,12 +384,12 @@ function App() {
         queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
       }
     });
-    if (error) alert(`로그인 실패: ${error.message}`);
+    if (error) setMessage(`로그인 실패: ${error.message}`);
   };
 
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) alert(`로그아웃 실패: ${error.message}`);
+    if (error) setMessage(`로그아웃 실패: ${error.message}`);
   };
 
   const openSheets = async () => {
@@ -470,18 +469,6 @@ function App() {
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
 
-  const moveColumn = (key, direction) => {
-    setColumnOrder((prev) => {
-      const index = prev.indexOf(key);
-      if (index < 0) return prev;
-      const target = direction === 'left' ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  };
-
   const moveColumnByDrop = (dragKey, dropKey) => {
     if (!dragKey || !dropKey || dragKey === dropKey) return;
     setColumnOrder((prev) => {
@@ -497,8 +484,8 @@ function App() {
 
   const addFeatureColumn = () => {
     const key = String(newFeatureName || '').trim();
-    if (!key) return alert('추가할 특성명을 입력하세요.');
-    if (availableIdentifierKeys.includes(key)) return alert('이미 존재하는 특성명입니다.');
+    if (!key) return setMessage('추가할 특성명을 입력하세요.');
+    if (availableIdentifierKeys.includes(key)) return setMessage('이미 존재하는 특성명입니다.');
 
     setAvailableIdentifierKeys((prev) => [...prev, key]);
     setParticipants((prev) =>
@@ -512,7 +499,7 @@ function App() {
 
   const removeFeatureColumn = (key) => {
     if (availableIdentifierKeys.length <= 1) {
-      alert('특성은 최소 1개 이상 필요합니다.');
+      setMessage('특성은 최소 1개 이상 필요합니다.');
       return;
     }
 
@@ -588,12 +575,10 @@ function App() {
     });
   }, [participantQuery, validParticipants, selectedIdentifierKey]);
 
-  const [useFeatureExclusion, setUseFeatureExclusion] = useState(false);
   const [excludedFeatureKeys, setExcludedFeatureKeys] = useState([]);
 
   const applyFeatureExclusion = (features) => {
     const base = features || {};
-    if (!useFeatureExclusion) return base;
     const blocked = new Set(excludedFeatureKeys);
     return Object.fromEntries(Object.entries(base).filter(([k]) => !blocked.has(k)));
   };
@@ -612,9 +597,9 @@ function App() {
   const tableFeatureKeys = useMemo(() => {
     const candidates = columnOrder
       .filter((k) => k !== (columnOrder[0] || ''))
-      .filter((k) => !useFeatureExclusion || !excludedFeatureKeys.includes(k));
+      .filter((k) => !excludedFeatureKeys.includes(k));
     return candidates.slice(0, maxFeatureColumns);
-  }, [columnOrder, useFeatureExclusion, excludedFeatureKeys]);
+  }, [columnOrder, excludedFeatureKeys]);
 
   const shownParticipants = useMemo(() => {
     if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
@@ -633,15 +618,15 @@ function App() {
   }, [selectedIdentifierKey, validParticipants]);
 
   const runAssign = async () => {
-    if (validParticipants.length < 2) return alert('최소 2명 이상 입력해 주세요.');
-    if (!selectedIdentifierKey) return alert('맨 앞 열이 필요합니다. 열을 추가해 주세요.');
+    if (validParticipants.length < 2) return setMessage('최소 2명 이상 입력해 주세요.');
+    if (!selectedIdentifierKey) return setMessage('맨 앞 열이 필요합니다. 열을 추가해 주세요.');
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
-      return alert(`맨 앞 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
+      return setMessage(`맨 앞 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`);
     }
-    if (useFeatureExclusion && excludedFeatureKeys.includes(selectedIdentifierKey)) {
-      return alert('맨 앞 열은 제외할 수 없습니다.');
+    if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
+      return setMessage('맨 앞 열은 제외할 수 없습니다.');
     }
 
     const payloadParticipants = validParticipants.map((p) => ({
@@ -690,7 +675,7 @@ function App() {
 
       window.location.href = checkoutData.url;
     } catch (error) {
-      alert(error.message || '결제 연결 중 오류가 발생했습니다.');
+      setMessage(error.message || '결제 연결 중 오류가 발생했습니다.');
       setStep('input');
     } finally {
       setPaymentLoading(false);
@@ -744,8 +729,6 @@ function App() {
             <Users className="size-5" /> TeamBuilder AI
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setLang('ko')} className="text-sm">KR</button>
-            <button onClick={() => setLang('en')} className="text-sm">EN</button>
             {!user ? (
               <button onClick={() => setUiPage('login')} className="px-3 py-1 bg-slate-900 text-white rounded">로그인</button>
             ) : (
@@ -963,22 +946,6 @@ function App() {
                       {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">기준</span>}
                       <button
                         type="button"
-                        onClick={() => moveColumn(key, 'left')}
-                        className="px-1 border rounded"
-                        aria-label={`${key} 왼쪽 이동`}
-                      >
-                        ←
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveColumn(key, 'right')}
-                        className="px-1 border rounded"
-                        aria-label={`${key} 오른쪽 이동`}
-                      >
-                        →
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => removeFeatureColumn(key)}
                         className="text-rose-600"
                       >
@@ -995,36 +962,27 @@ function App() {
                     중복 값 {duplicateIdentifierCount}건이 있습니다. 진행은 가능합니다.
                   </p>
                 )}
-                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
-                  <input
-                    type="checkbox"
-                    checked={useFeatureExclusion}
-                    onChange={(e) => setUseFeatureExclusion(e.target.checked)}
-                  />
-                  제외할 특성 선택 사용
-                </label>
-                {useFeatureExclusion && (
-                  <div className="flex flex-wrap gap-2">
-                    {columnOrder.length === 0 && (
-                      <p className="text-xs text-slate-500">폼을 먼저 불러오면 특성 목록이 표시됩니다.</p>
-                    )}
-                    {columnOrder.map((key) => {
-                      const isIdentifier = key === selectedIdentifierKey;
-                      const checked = excludedFeatureKeys.includes(key);
-                      return (
-                        <label key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            disabled={isIdentifier}
-                            onChange={() => toggleExcludedFeature(key)}
-                          />
-                          <span className="max-w-44 truncate" title={key}>{key}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
+                <p className="text-xs text-slate-500">분석에서 제외할 열을 선택할 수 있습니다.</p>
+                <div className="flex flex-wrap gap-2">
+                  {columnOrder.length === 0 && (
+                    <p className="text-xs text-slate-500">폼을 먼저 불러오면 특성 목록이 표시됩니다.</p>
+                  )}
+                  {columnOrder.map((key) => {
+                    const isIdentifier = key === selectedIdentifierKey;
+                    const checked = excludedFeatureKeys.includes(key);
+                    return (
+                      <label key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isIdentifier}
+                          onChange={() => toggleExcludedFeature(key)}
+                        />
+                        <span className="max-w-44 truncate" title={key}>{key}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <label className="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 rounded cursor-pointer">
@@ -1132,7 +1090,7 @@ function App() {
                 onClick={addEmptyParticipantRow}
                 className="px-3 py-2 border rounded"
               >
-                인원추가
+                빈 행 추가
               </button>
               <button onClick={runAssign} disabled={paymentLoading} className="px-4 py-2 bg-cyan-700 text-white rounded disabled:opacity-60">
                 {paymentLoading ? '결제창 이동 중...' : '결제 후 팀 배정 실행'}
@@ -1191,6 +1149,3 @@ function App() {
 }
 
 export default App;
-
-
-
