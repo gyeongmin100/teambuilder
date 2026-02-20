@@ -225,6 +225,7 @@ function App() {
 
   const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
+  const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
   const [manualIdentifier, setManualIdentifier] = useState('');
@@ -232,6 +233,27 @@ function App() {
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
+
+  useEffect(() => {
+    setColumnOrder((prev) => {
+      const filtered = prev.filter((k) => availableIdentifierKeys.includes(k));
+      const next = [...filtered];
+      availableIdentifierKeys.forEach((k) => {
+        if (!next.includes(k)) next.push(k);
+      });
+      return next;
+    });
+  }, [availableIdentifierKeys]);
+
+  useEffect(() => {
+    if (columnOrder.length === 0) {
+      if (selectedIdentifierKey) setSelectedIdentifierKey('');
+      return;
+    }
+    if (selectedIdentifierKey !== columnOrder[0]) {
+      setSelectedIdentifierKey(columnOrder[0]);
+    }
+  }, [columnOrder, selectedIdentifierKey]);
 
   useEffect(() => {
     let alive = true;
@@ -406,6 +428,18 @@ function App() {
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
 
+  const moveColumn = (key, direction) => {
+    setColumnOrder((prev) => {
+      const index = prev.indexOf(key);
+      if (index < 0) return prev;
+      const target = direction === 'left' ? index - 1 : index + 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   const onUploadCsv = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -469,11 +503,11 @@ function App() {
   };
 
   const tableFeatureKeys = useMemo(() => {
-    const candidates = availableIdentifierKeys
-      .filter((k) => k !== selectedIdentifierKey)
+    const candidates = columnOrder
+      .filter((k) => k !== (columnOrder[0] || ''))
       .filter((k) => !useFeatureExclusion || !excludedFeatureKeys.includes(k));
     return candidates.slice(0, maxFeatureColumns);
-  }, [availableIdentifierKeys, selectedIdentifierKey, useFeatureExclusion, excludedFeatureKeys]);
+  }, [columnOrder, useFeatureExclusion, excludedFeatureKeys]);
 
   const shownParticipants = useMemo(() => {
     if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
@@ -790,20 +824,34 @@ function App() {
 
               <div className="rounded-xl border border-slate-200 p-3">
               <p className="text-sm font-bold mb-2">2) 식별 기준 선택 (필수)</p>
-              <p className="text-xs text-slate-500 mb-2">기본 이름은 제거했습니다. 폼 질문 중 1개를 선택하세요.</p>
+              <p className="text-xs text-slate-500 mb-2">첫 번째 열이 자동으로 식별 기준이 됩니다. 좌/우 버튼으로 열 순서를 바꾸세요.</p>
               <div className="flex flex-wrap gap-2">
-                {availableIdentifierKeys.length === 0 && (
-                  <p className="text-xs text-slate-500">폼을 불러오면 질문 목록이 여기 표시됩니다.</p>
+                {columnOrder.length === 0 && (
+                  <p className="text-xs text-slate-500">폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.</p>
                 )}
-                {availableIdentifierKeys.map((key) => (
-                  <label key={key} className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
-                    <input
-                      type="radio"
-                      checked={selectedIdentifierKey === key}
-                      onChange={() => setSelectedIdentifierKey(key)}
-                    />
-                    <span className="max-w-44 truncate" title={key}>{key}</span>
-                  </label>
+                {columnOrder.map((key, idx) => (
+                  <div key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${idx === 0 ? 'border-cyan-600 bg-cyan-50' : ''}`}>
+                    <span className="max-w-40 truncate" title={key}>{key}</span>
+                    {idx === 0 && <span className="text-[11px] text-cyan-700 font-bold">식별</span>}
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(key, 'left')}
+                        disabled={idx === 0}
+                        className="px-1 border rounded disabled:opacity-40"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveColumn(key, 'right')}
+                        disabled={idx === columnOrder.length - 1}
+                        className="px-1 border rounded disabled:opacity-40"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
               {!selectedIdentifierKey && (
@@ -827,10 +875,10 @@ function App() {
                 </label>
                 {useFeatureExclusion && (
                   <div className="flex flex-wrap gap-2">
-                    {availableIdentifierKeys.length === 0 && (
+                    {columnOrder.length === 0 && (
                       <p className="text-xs text-slate-500">폼을 먼저 불러오면 특성 목록이 표시됩니다.</p>
                     )}
-                    {availableIdentifierKeys.map((key) => {
+                    {columnOrder.map((key) => {
                       const isIdentifier = key === selectedIdentifierKey;
                       const checked = excludedFeatureKeys.includes(key);
                       return (

@@ -128,3 +128,13 @@
   - 사용자 식별값 중복은 허용, UI에서 경고만 표시
   - 수기 참가자 추가는 식별 기준 선택 이전에도 허용
 - Effect: 실데이터 중복 상황에서도 배정 실패 없이 안정적으로 처리
+
+## 14. 2026-02-20 Column-first Identifier UX
+- Goal: 첫 번째 열을 식별기준으로 자동 인식하고, 사용자가 열 이동으로 기준을 결정할 수 있게 함.
+- Applied:
+  - columnOrder 상태 도입
+  - 데이터 키 변경 시 columnOrder 자동 동기화
+  - selectedIdentifierKey를 columnOrder[0]으로 강제 동기화
+  - 식별 기준 UI를 라디오 선택 -> 열 이동 컨트롤로 전환
+  - 제외 특성 및 테이블 컬럼 계산도 columnOrder 기반으로 전환
+- Effect: 사용자가 직관적으로 맨 앞 열=식별기준 규칙을 제어 가능
