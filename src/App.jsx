@@ -252,6 +252,7 @@ function App() {
   const [participants, setParticipants] = useState([]);
   const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: false });
   const [teams, setTeams] = useState([]);
+  const [assignmentReport, setAssignmentReport] = useState(null);
   const [customPrompt, setCustomPrompt] = useState('');
 
   const [formUrl, setFormUrl] = useState('');
@@ -354,6 +355,7 @@ function App() {
 
         sessionStorage.removeItem(PENDING_ASSIGN_KEY);
         setTeams(data.teams);
+        setAssignmentReport(data.report || null);
         setMessage('결제 완료 확인 후 팀 배정이 완료되었습니다.');
         setStep('result');
       } catch (error) {
@@ -606,6 +608,11 @@ function App() {
     return filteredParticipants.slice(0, maxInitialRows);
   }, [filteredParticipants, showAllParticipants]);
 
+  const teamReportMap = useMemo(() => {
+    const reports = Array.isArray(assignmentReport?.teamReports) ? assignmentReport.teamReports : [];
+    return new Map(reports.map((r) => [Number(r.teamId) || r.teamId, r]));
+  }, [assignmentReport]);
+
   const duplicateIdentifierCount = useMemo(() => {
     if (!selectedIdentifierKey) return 0;
     const counts = new Map();
@@ -628,7 +635,6 @@ function App() {
     if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
       return setMessage('맨 앞 열은 제외할 수 없습니다.');
     }
-
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
       internalId: String(p.internalId || p.id || createInternalId()),
@@ -683,12 +689,14 @@ function App() {
   };
 
   const exportCSV = () => {
-    let csv = '\uFEFFTeam,Identifier,Analysis\n';
+    let csv = '\uFEFFTeam,Identifier,Analysis,TeamReason\n';
     teams.forEach((t) =>
       t.members.forEach((m) => {
         const identifier = String(m.name || m.id || '').replaceAll('"', '""');
         const analysis = String(t.analysis || '').replaceAll('"', '""');
-        csv += `${t.id},"${identifier}","${analysis}"\n`;
+        const teamReport = teamReportMap.get(Number(t.id) || t.id);
+        const teamReason = String(teamReport?.reason || '').replaceAll('"', '""');
+        csv += `${t.id},"${identifier}","${analysis}","${teamReason}"\n`;
       })
     );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -848,12 +856,14 @@ function App() {
                   사용자 맞춤 프롬프트 사용
                 </label>
                 {config.useCustomPrompt && (
-                  <textarea
-                    value={customPrompt}
-                    onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기"
-                    className="w-full min-h-24 border rounded px-3 py-2 text-sm"
-                  />
+                  <div className="space-y-2">
+                    <textarea
+                      value={customPrompt}
+                      onChange={(e) => setCustomPrompt(e.target.value)}
+                      placeholder="예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기"
+                      className="w-full min-h-24 border rounded px-3 py-2 text-sm"
+                    />
+                  </div>
                 )}
               </div>
               </div>
@@ -1119,20 +1129,101 @@ function App() {
               >
                 <Download size={16} /> CSV 다운로드
               </button>
-              <button onClick={() => { setStep('input'); setUiPage('input'); }} className="px-4 py-2 border rounded">다시 배정</button>
+              <button onClick={() => { setStep('input'); setUiPage('input'); setAssignmentReport(null); }} className="px-4 py-2 border rounded">프롬프트 수정 후 다시 배정</button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teams.map((t) => (
-                <div key={t.id} className="bg-white border rounded-2xl p-4">
-                  <h3 className="font-black mb-2">Team {t.id}</h3>
-                  {t.members.map((m, i) => (
-                    <div key={i} className="text-sm border rounded p-2 mb-2">
-                      <div className="font-bold">{m.name || m.id || '-'}</div>
+            {assignmentReport && (
+              <div className="bg-white border rounded-2xl p-4 space-y-3">
+                <h3 className="font-black">전체 결과 보고서</h3>
+                <p className="text-sm text-slate-700">{assignmentReport.summary}</p>
+                {assignmentReport.meta && (
+                  <p className="text-[11px] text-slate-500">
+                    제약 파싱 소스: {assignmentReport.meta.constraintSource || '-'} / 해석된 제약 {assignmentReport.meta.parsedConstraintCount || 0}건 / 미지원 {assignmentReport.meta.unsupportedConstraintCount || 0}건
+                  </p>
+                )}
+                {(assignmentReport.conflicts || []).length > 0 && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-1">
+                    <p className="text-xs font-bold text-rose-700">요청 충돌</p>
+                    {(assignmentReport.conflicts || []).map((w, idx) => (
+                      <p key={`conflict-${idx}`} className="text-xs text-rose-700">- {w}</p>
+                    ))}
+                  </div>
+                )}
+                {(assignmentReport.ambiguities || []).length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1">
+                    <p className="text-xs font-bold text-amber-800">모호/정성 요청 처리</p>
+                    {(assignmentReport.ambiguities || []).map((w, idx) => (
+                      <p key={`ambiguity-${idx}`} className="text-xs text-amber-800">- {w}</p>
+                    ))}
+                  </div>
+                )}
+                {assignmentReport.actionHint && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    {assignmentReport.actionHint}
+                  </div>
+                )}
+                {(assignmentReport.warnings || []).length > 0 && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-1">
+                    <p className="text-xs font-bold text-rose-700">불가능/제약 경고</p>
+                    {(assignmentReport.warnings || []).map((w, idx) => (
+                      <p key={`warning-${idx}`} className="text-xs text-rose-700">- {w}</p>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {(assignmentReport.checklist || []).map((item, i) => (
+                    <div key={`${item.item || 'item'}-${i}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">{item.item || '체크 항목'}</p>
+                      <p className="text-sm font-bold mt-1">{item.status || '-'}</p>
+                      <p className="text-xs text-slate-600 mt-1">{item.requested ? '요청됨' : '요청되지 않음'}</p>
                     </div>
                   ))}
-                  <div className="text-xs text-slate-600">{t.analysis}</div>
                 </div>
-              ))}
+                {(assignmentReport.constraints || []).length > 0 && (
+                  <div className="rounded-xl border border-slate-200 p-3 space-y-1">
+                    <p className="text-xs font-bold text-slate-700">제약 상세 판정</p>
+                    {(assignmentReport.constraints || []).map((c, idx) => (
+                      <p key={`constraint-${idx}`} className="text-xs text-slate-600">
+                        - {c.type}: {c.status} {c.detail ? ` / ${c.detail}` : ''}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {(assignmentReport.decisionLog || []).length > 0 && (
+                  <div className="rounded-xl border border-slate-200 p-3 space-y-1">
+                    <p className="text-xs font-bold text-slate-700">자동 판단 로그</p>
+                    {(assignmentReport.decisionLog || []).map((line, idx) => (
+                      <p key={`decision-${idx}`} className="text-xs text-slate-600">- {line}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {teams.map((t) => {
+                const teamReport = teamReportMap.get(Number(t.id) || t.id);
+                const evidence = Array.isArray(teamReport?.evidence) ? teamReport.evidence : [];
+                return (
+                  <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
+                    <h3 className="font-black mb-2">Team {t.id}</h3>
+                    {t.members.map((m, i) => (
+                      <div key={i} className="text-sm border rounded p-2 mb-2">
+                        <div className="font-bold">{m.name || m.id || '-'}</div>
+                      </div>
+                    ))}
+                    <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
+                      <p className="text-xs text-cyan-800 font-bold">팀 편성 근거</p>
+                      <p className="text-xs text-slate-700 mt-1">{teamReport?.reason || t.analysis}</p>
+                      {evidence.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {evidence.map((line, idx) => (
+                            <p key={`${t.id}-evidence-${idx}`} className="text-[11px] text-slate-600">- {line}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
         )}
