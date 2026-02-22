@@ -1309,56 +1309,93 @@ function App() {
   };
 
   const captureResultAsBlob = async () => {
-    const target = resultCaptureRef.current;
-    if (!target) throw new Error(tr('결과 영역을 찾을 수 없습니다.', 'Result area not found.'));
+    const width = 1400;
+    const padding = 52;
+    const lineHeight = 28;
+    const teamGap = 30;
 
-    const rect = target.getBoundingClientRect();
-    const clonedNode = target.cloneNode(true);
-    clonedNode.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    const wrapText = (ctx, text, maxWidth) => {
+      const words = String(text || '').split(/\s+/).filter(Boolean);
+      if (words.length === 0) return [''];
+      const lines = [];
+      let line = words[0];
+      for (let i = 1; i < words.length; i += 1) {
+        const candidate = `${line} ${words[i]}`;
+        if (ctx.measureText(candidate).width <= maxWidth) line = candidate;
+        else {
+          lines.push(line);
+          line = words[i];
+        }
+      }
+      lines.push(line);
+      return lines;
+    };
 
-    const style = window.getComputedStyle(target);
-    const width = Math.max(960, Math.ceil(rect.width));
-    const height = Math.max(540, Math.ceil(rect.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = 2400;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
 
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <foreignObject width="100%" height="100%">
-          <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;background:${style.backgroundColor || '#ffffff'};">
-            ${new XMLSerializer().serializeToString(clonedNode)}
-          </div>
-        </foreignObject>
-      </svg>
-    `;
-    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    try {
-      const img = new Image();
-      img.decoding = 'async';
-      img.crossOrigin = 'anonymous';
-
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = svgUrl;
+    let y = padding;
+    const drawLines = (lines, font = '18px Pretendard, sans-serif', color = '#0f172a') => {
+      ctx.font = font;
+      ctx.fillStyle = color;
+      lines.forEach((line) => {
+        ctx.fillText(line, padding, y);
+        y += lineHeight;
       });
+    };
 
-      const canvas = document.createElement('canvas');
-      canvas.width = width * 2;
-      canvas.height = height * 2;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
-      ctx.scale(2, 2);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
+    drawLines([tr('TeamBuilder 결과 요약', 'TeamBuilder Result Summary')], 'bold 34px Pretendard, sans-serif', '#0f172a');
+    y += 12;
 
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    const summaryLines = wrapText(ctx, assignmentReport?.summary || tr('요약 정보가 없습니다.', 'No summary available.'), width - padding * 2);
+    drawLines(summaryLines, '18px Pretendard, sans-serif', '#1e293b');
+    y += 8;
+
+    teams.forEach((team, idx) => {
+      const teamReport = teamReportMap.get(Number(team.id) || team.id);
+      const memberNames = (team.members || []).map((m) => String(m?.name || m?.id || '-')).join(', ');
+      const reason = teamReport?.reason || team.analysis || '';
+
+      drawLines([`Team ${team.id}`], 'bold 24px Pretendard, sans-serif', '#0f172a');
+      const memberLines = wrapText(ctx, `${tr('구성원', 'Members')}: ${memberNames}`, width - padding * 2);
+      drawLines(memberLines, '16px Pretendard, sans-serif', '#334155');
+      const reasonLines = wrapText(ctx, `${tr('구성 설명', 'Reason')}: ${reason}`, width - padding * 2);
+      drawLines(reasonLines, '16px Pretendard, sans-serif', '#334155');
+
+      if (idx < teams.length - 1) {
+        y += 8;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+        y += teamGap;
+      }
+    });
+
+    if (y + padding > canvas.height) {
+      const resized = document.createElement('canvas');
+      resized.width = width;
+      resized.height = y + padding;
+      const rctx = resized.getContext('2d');
+      if (!rctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
+      rctx.fillStyle = '#f8fafc';
+      rctx.fillRect(0, 0, resized.width, resized.height);
+      rctx.drawImage(canvas, 0, 0);
+      const blob = await new Promise((resolve) => resized.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error(tr('이미지 변환에 실패했습니다.', 'Failed to convert image.'));
       return blob;
-    } finally {
-      URL.revokeObjectURL(svgUrl);
     }
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error(tr('이미지 변환에 실패했습니다.', 'Failed to convert image.'));
+    return blob;
   };
 
   const saveResultImage = async () => {

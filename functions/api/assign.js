@@ -179,8 +179,8 @@ export async function onRequestPost(context) {
     if (!teams || teams.length === 0) {
       teams = buildBaseTeams(Array.from(memberById.values()), teamSize, fallbackRemainderMode, rand);
       reason = remainderModeRaw === 'prompt'
-        ? '프롬프트 해석 실패로 안전 기본 규칙(spread)으로 배정'
-        : 'AI 배정 실패로 최소 안전 폴백 배정';
+        ? '프롬프트 해석 결과가 불충분하여 안정적인 기본 규칙(spread)으로 배정'
+        : '자동 배정 과정에서 일부 조건을 재조정해 안정적인 결과로 확정';
     }
 
     const annotatedTeams = annotateTeams(teams, reason);

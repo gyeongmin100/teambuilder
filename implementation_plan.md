@@ -688,3 +688,21 @@ pm run build)
     - keep_partial: `13/4 -> [4,4,4,1]`
     - AI 정규화 재균등화: 비정상 AI 입력에서도 `[5,5,4]` 보정 확인
   - `npm run build` 성공
+
+## 34. 2026-02-22 Report Narrative Upgrade + Image Save Reliability
+- Goal:
+  - 결과 페이지 텍스트를 사용자 관점의 해설형 보고서로 개선하고, 이미지 저장 기능 실패를 구조적으로 제거.
+- Applied:
+  - `functions/domain/constraints/reporter.js`
+    - 전체 보고서를 `요청사항 / 반영된 항목 / 미충족 항목 / 미충족 사유 / 최선안 판단` 구조로 재작성
+    - 팀 보고서에 `반영 내용`과 `완전 충족 어려운 부분`을 문장형으로 포함
+    - MBTI 요청 감지 시 팀별 MBTI 조합 해설 자동 추가
+    - 성비 요청이 있는 상황에서 데이터 부족 시 불가피 사유 멘트 자동 추가
+    - 기술 용어 정리(`폴백`, `fallback`, 내부 모드 표기 완화)
+  - `functions/api/assign.js`
+    - 자동 보정 사유 문구를 사용자 친화 표현으로 정리
+  - `src/App.jsx`
+    - 이미지 저장 로직을 `foreignObject DOM 캡처` 방식에서 `캔버스 직접 렌더` 방식으로 교체
+    - 결과 요약/팀 사유를 캔버스에 텍스트로 렌더한 PNG 생성
+- Verification:
+  - `npm run build` 성공
