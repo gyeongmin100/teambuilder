@@ -1215,7 +1215,6 @@ function App() {
 
     runAssignLockRef.current = true;
     setStep('loading');
-    goPage('polar');
     setPaymentLoading(true);
     try {
       const checkoutRes = await fetch('/api/checkout', {
@@ -1301,7 +1300,7 @@ function App() {
   const hasCheckoutReturn = Boolean(routeParams.get('checkout_id') && routeParams.get('checkout_success') === 'true');
   const currentPage =
     routePage === 'polar'
-      ? (paymentLoading || hasCheckoutReturn ? 'loading' : 'polar_wait')
+      ? 'polar_wait'
       : routePage === 'report'
         ? 'result'
         : routePage;
@@ -1358,6 +1357,7 @@ function App() {
     analyzingDesc: isEn ? 'Verifying payment and calculating team composition.' : '결제 확인 후 팀 구성 결과를 계산하고 있습니다.',
     pendingTitle: isEn ? 'Checkout pending state' : '결제 대기 상태',
     pendingDesc: isEn ? 'No valid checkout return found, so auto verification cannot start.' : '결제 복귀 정보가 없어서 자동 검증을 시작할 수 없습니다.',
+    pendingVerifying: isEn ? 'Payment verified. Running assignment...' : '결제 확인 후 팀 배정 분석을 진행 중입니다...',
     goPayment: isEn ? 'Go to checkout' : '결제 페이지로 이동',
     verifyPayment: isEn ? 'I paid, continue' : '결제 완료 확인',
     goInput: isEn ? 'Go to input' : '입력 화면으로 이동',
@@ -1902,7 +1902,18 @@ function App() {
           <motion.div key="polar-wait" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
             <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center space-y-4">
               <h3 className="text-2xl font-black">{tx.pendingTitle}</h3>
-              <p className="text-[#4b556b]">{tx.pendingDesc}</p>
+              {paymentLoading ? (
+                <div className="space-y-3">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
+                    className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
+                  />
+                  <p className="text-[#4b556b]">{tx.pendingVerifying}</p>
+                </div>
+              ) : (
+                <p className="text-[#4b556b]">{tx.pendingDesc}</p>
+              )}
               <div className="flex justify-center gap-2">
                 <Button
                   onClick={() => {
