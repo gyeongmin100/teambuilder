@@ -407,3 +407,93 @@ pm run build)
 - Added persistent brand click behavior to route back to landing from any page
 - Validation: local production build pass (
 pm run build)
+
+## 16. 2026-02-22 Legal Standardization + Route Hardening
+- Goal:
+  - 정책 페이지가 "클릭해도 아무 화면이 안 뜨는" 체감 문제를 제거하고, 글로벌 서비스 기준의 정책 문서 본문을 제공.
+- Applied:
+  - `src/LegalPages.jsx` 전면 교체
+    - 이용약관/개인정보처리방침/환불정책 KO/EN 전문 작성
+    - Last Updated 및 법률 문의 이메일 명시
+    - 언어 전환/뒤로가기 버튼 `type="button"` 명시
+  - `src/App.jsx` 라우트 정규화 보강
+    - `normalizeRoutePath()` 추가로 trailing slash 및 `/en/*` 경로 인식 일관화
+    - `goPage`, `goPolicy`의 현재 경로 비교도 동일 정규화 적용
+    - 푸터 정책 버튼 `type="button"` 지정 및 호버 상태 보강
+- Verification:
+  - 정책 라우팅 매핑 확인: `/legal/*`, `/en/legal/*`
+  - 빌드 검증 예정
+
+## 17. 2026-02-22 shadcn/ui Installation-Guide 기반 적용
+- Skill usage:
+  - `shadcn-ui` 스킬 사용. 공식 설치 흐름(init -> add components)을 그대로 적용.
+- Setup:
+  - `npx shadcn@latest init -d` 성공
+  - `components.json` 생성, `@` alias 경로(`jsconfig.json`, `vite.config.js`) 구성
+  - 생성 파일: `src/lib/utils.js`, `src/components/ui/*`
+- Installed components:
+  - button, card, input, badge, table, tabs, separator
+- Integration changes:
+  - `src/App.jsx`에 Button/Card/Input/Badge/Table 적용해 핵심 화면의 디자인 언어 통일
+  - header, landing hero CTA, login actions, input form controls, participant table, result actions, footer legal links 반영
+- Stability fixes:
+  - `tailwind.config.js`의 ESM + plugin import 정비
+  - `vite.config.js`에서 `fileURLToPath(import.meta.url)`로 alias 안정화
+- Verification:
+  - `npm run build` 성공
+
+## 18. 2026-02-22 Information Architecture Optimization
+- Goal:
+  - "문서형 나열 UI"를 작업 단계형 UI로 전환하고, 중복/불필요 노출을 축소.
+- Applied:
+  - `src/App.jsx`
+    - 랜딩 CTA를 단일 primary 액션으로 정리
+    - input 화면에 `Tabs` 도입 (`data`, `rules`, `review`, `run`)
+    - 섹션 노출을 탭별로 분리
+    - `reviewItems` + `canRunAssignment` 기반 사전 점검/실행 가드 추가
+    - 실행 미충족 시 데이터 탭 이동 액션 제공
+- Verification:
+  - `npm run build` 성공
+
+## 19. 2026-02-22 Login Screen Compression
+- Goal:
+  - 로그인 페이지를 "설명형"에서 "즉시 행동형"으로 축소.
+- Applied:
+  - `src/App.jsx`
+    - login 영역을 단일 카드(제목/짧은 안내/Google 로그인/랜딩 복귀)로 교체
+    - 사용하지 않는 workspace 설명 텍스트 키 제거
+    - input 상단 summary 카드 4개 -> 3개로 축소(불필요 상태 제거)
+- Verification:
+  - `npm run build` 성공
+
+## 20. 2026-02-22 UX Hardening (Auto Navigation + Guard)
+- Applied:
+  - `src/App.jsx`
+    - `toUserFacingError()` 추가: OAuth/token/권한 오류를 재로그인 유도 문구로 표준화
+    - import 성공 시 `setInputTab('rules')`
+    - run assign 검증 실패/checkout 실패 시 `setInputTab('review')`
+    - `runAssignLockRef`로 중복 실행 차단
+    - review 카드의 비정상 항목에 `Open tab` 액션 추가
+- Verification:
+  - `npm run build` 성공
+
+## 21. 2026-02-22 Bulk Paste + Undo/Redo
+- Applied in `src/App.jsx`:
+  - History core:
+    - `historyRef`, `isApplyingHistoryRef`, `buildDataSnapshot`, `recordHistorySnapshot`, `undoDataChange`, `redoDataChange`
+  - Keyboard shortcuts:
+    - Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y
+  - Bulk paste:
+    - `handleTablePaste(event, startRowIndex, startColumnKey)`
+    - tab/newline 포함 클립보드만 인터셉트
+    - 테이블 시작 셀 기준으로 다중 값 반영
+    - 표시 행 초과 시 새 participant 행 자동 생성
+  - UI integration:
+    - 테이블 툴바 `Undo/Redo` 버튼 추가
+    - 각 셀 Input에 `onPaste` 연결
+    - 행 삭제를 `removeParticipantRow`로 분리하여 히스토리 반영
+- Safety notes:
+  - 단일값 paste는 기본 브라우저 입력 동작 유지
+  - 실행 로직(run/checkout)은 기존과 충돌 없음
+- Verification:
+  - `npm run build` 성공

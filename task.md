@@ -318,3 +318,53 @@ pm run build)
 - [x] 로고 클릭 랜딩 이동 고정
 - [x] 빌드 검증 통과 (
 pm run build)
+
+## 16. 2026-02-22 정책 문서 글로벌 스탠다드 정비 + 정책 링크 동작 안정화
+- [x] 이용약관 KO/EN 전문 확장 (적용범위, 금지행위, 책임제한, 준거법, 문의)
+- [x] 개인정보처리방침 KO/EN 전문 확장 (처리항목/목적/보관기간/국외이전/권리)
+- [x] 환불정책 KO/EN 전문 확장 (환불 가능/불가 사유, 기한, 처리기간)
+- [x] 정책 화면 언어 토글/뒤로가기 버튼 type 지정으로 폼 오작동 방지
+- [x] 정책 라우트 인식 로직에 trailing slash 정규화 반영
+- [ ] 배포 검증
+
+## 17. 2026-02-22 shadcn/ui 도입 및 UI 고도화
+- [x] `npx shadcn@latest init -d`로 Vite 프로젝트 초기화
+- [x] `components.json`, `src/lib/utils.js`, `jsconfig.json` 생성 및 `@/*` alias 구성
+- [x] `npx shadcn@latest add button card input badge table tabs separator` 적용
+- [x] `tailwind.config.js`를 ESM 기준으로 정비(`tailwindcss-animate` 플러그인)
+- [x] `vite.config.js` alias + ESM 경로 계산(fileURLToPath) 보강
+- [x] `src/App.jsx`에 shadcn 컴포넌트 적용(헤더/랜딩 CTA/로그인/입력 폼/참가자 테이블/결과 버튼/푸터 링크)
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 18. 2026-02-22 입력 화면 정보구조 최적화 (App-like)
+- [x] 랜딩 중복 CTA 제거(시작하기 단일화)
+- [x] 입력 화면을 탭 구조로 분리 (데이터/규칙/검토/실행)
+- [x] 검토 탭에 실행 전 체크 요약(참가자 수, 기준 열, 중복 식별값) 추가
+- [x] 실행 탭에서 실행 가능 조건 가드(열/참가자 미충족 시 실행 비활성화)
+- [x] 미충족 상태에서 데이터 탭 이동 버튼 제공
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 19. 2026-02-22 로그인 화면 1스크린 최적화
+- [x] 로그인 2패널 레이아웃 제거
+- [x] 행동 중심 단일 카드(로그인 버튼 + 랜딩 복귀)로 재구성
+- [x] 로그인에서 사용하지 않는 설명 텍스트 키 제거
+- [x] 입력 상단 요약 카드에서 불필요 항목(맞춤프롬프트 ON/OFF) 제거
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 20. 2026-02-22 추가 UX 안정화 (자동 탭 이동 + 실행 가드)
+- [x] Google Form/CSV import 성공 시 `rules` 탭 자동 이동
+- [x] 실행 전 검증 실패 시 `review` 탭 자동 이동
+- [x] 검토 탭 체크 카드에 문제 항목별 탭 이동 버튼 추가
+- [x] 실행 중복 클릭 방지 락(`runAssignLockRef`) 추가
+- [x] OAuth/권한 오류를 사용자 친화 문구로 정규화
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 21. 2026-02-22 대량 붙여넣기 + Undo/Redo 구현
+- [x] 테이블 셀에서 TSV(엑셀/시트 복사값) 대량 붙여넣기 지원
+- [x] 시작 셀 기준으로 행/열 매핑하여 다중 셀 반영
+- [x] 붙여넣기 범위가 현재 표시 행을 넘으면 새 참여자 행 자동 생성
+- [x] Undo/Redo 스냅샷 히스토리 엔진 추가
+- [x] 단축키 지원: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y
+- [x] UI 버튼 지원: Undo/Redo
+- [x] 주요 데이터 변경 액션을 히스토리 대상에 포함(행 편집/삭제, 열 추가/삭제, import, 제외 토글 등)
+- [x] 빌드 검증 통과 (`npm run build`)

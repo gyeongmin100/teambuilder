@@ -1,10 +1,16 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
 const REPORT_CACHE_KEY = 'teambuilder_report_cache_v1';
@@ -20,15 +26,29 @@ const APP_ROUTES = {
   refund: '/legal/refund'
 };
 
+const normalizeRoutePath = (pathname) => {
+  const withoutEnPrefix = pathname.startsWith('/en/') ? pathname.slice(3) : pathname;
+  if (withoutEnPrefix.length > 1) return withoutEnPrefix.replace(/\/+$/, '');
+  return withoutEnPrefix;
+};
+
 const resolvePageByPathname = (pathname) => {
-  const normalizedPath = pathname.startsWith('/en/') ? pathname.slice(3) : pathname;
-  if (pathname === APP_ROUTES.login) return 'login';
-  if (pathname === APP_ROUTES.input) return 'input';
-  if (pathname === APP_ROUTES.polar) return 'polar';
-  if (pathname === APP_ROUTES.report) return 'report';
-  if (normalizedPath === APP_ROUTES.terms) return 'terms';
-  if (normalizedPath === APP_ROUTES.privacy) return 'privacy';
-  if (normalizedPath === APP_ROUTES.refund) return 'refund';
+  const normalizedPath = normalizeRoutePath(pathname);
+  const normalizedLogin = normalizeRoutePath(APP_ROUTES.login);
+  const normalizedInput = normalizeRoutePath(APP_ROUTES.input);
+  const normalizedPolar = normalizeRoutePath(APP_ROUTES.polar);
+  const normalizedReport = normalizeRoutePath(APP_ROUTES.report);
+  const normalizedTerms = normalizeRoutePath(APP_ROUTES.terms);
+  const normalizedPrivacy = normalizeRoutePath(APP_ROUTES.privacy);
+  const normalizedRefund = normalizeRoutePath(APP_ROUTES.refund);
+
+  if (normalizedPath === normalizedLogin) return 'login';
+  if (normalizedPath === normalizedInput) return 'input';
+  if (normalizedPath === normalizedPolar) return 'polar';
+  if (normalizedPath === normalizedReport) return 'report';
+  if (normalizedPath === normalizedTerms) return 'terms';
+  if (normalizedPath === normalizedPrivacy) return 'privacy';
+  if (normalizedPath === normalizedRefund) return 'refund';
   return 'landing';
 };
 const pageVariants = {
@@ -54,7 +74,7 @@ const countMatches = (text, regex) => (text.match(regex) || []).length;
 const scoreDecodedText = (text) => {
   if (!text) return -9999;
   const replacement = countMatches(text, /\uFFFD/g);
-  const badPattern = countMatches(text, /[ÃÂÐØ]/g);
+  const badPattern = countMatches(text, /[AAÐØ]/g);
   const hangul = countMatches(text, /[가-힣]/g);
   return hangul * 2 - replacement * 8 - badPattern * 3;
 };
@@ -292,13 +312,13 @@ function App() {
 
   const goPage = (page, options = {}) => {
     const targetPath = APP_ROUTES[page] || APP_ROUTES.landing;
-    if (window.location.pathname === targetPath) return;
+    if (normalizeRoutePath(window.location.pathname) === normalizeRoutePath(targetPath)) return;
     navigate(targetPath, options);
   };
   const goPolicy = (policyPage, lang = uiLang, options = {}) => {
     const basePath = APP_ROUTES[policyPage] || APP_ROUTES.terms;
     const targetPath = lang === 'en' ? `/en${basePath}` : basePath;
-    if (window.location.pathname === targetPath) return;
+    if (normalizeRoutePath(window.location.pathname) === normalizeRoutePath(targetPath)) return;
     navigate(targetPath, options);
   };
   const updateLang = (nextLang) => {
@@ -338,11 +358,71 @@ function App() {
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
+  const [inputTab, setInputTab] = useState('data');
+  const runAssignLockRef = useRef(false);
+  const historyRef = useRef({ past: [], future: [] });
+  const isApplyingHistoryRef = useRef(false);
+  const [historyTick, setHistoryTick] = useState(0);
   const [newFeatureName, setNewFeatureName] = useState('');
   const [draggingColumnKey, setDraggingColumnKey] = useState('');
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
+  const historyLimit = 60;
+
+  const cloneSnapshot = (snapshot) => {
+    try {
+      return structuredClone(snapshot);
+    } catch {
+      return JSON.parse(JSON.stringify(snapshot));
+    }
+  };
+
+  const buildDataSnapshot = () => ({
+    participants,
+    availableIdentifierKeys,
+    columnOrder,
+    excludedFeatureKeys
+  });
+
+  const applyDataSnapshot = (snapshot) => {
+    if (!snapshot) return;
+    isApplyingHistoryRef.current = true;
+    setParticipants(snapshot.participants || []);
+    setAvailableIdentifierKeys(snapshot.availableIdentifierKeys || []);
+    setColumnOrder(snapshot.columnOrder || []);
+    setExcludedFeatureKeys(snapshot.excludedFeatureKeys || []);
+    queueMicrotask(() => {
+      isApplyingHistoryRef.current = false;
+    });
+  };
+
+  const recordHistorySnapshot = () => {
+    if (isApplyingHistoryRef.current) return;
+    const current = cloneSnapshot(buildDataSnapshot());
+    historyRef.current.past.push(current);
+    if (historyRef.current.past.length > historyLimit) {
+      historyRef.current.past.shift();
+    }
+    historyRef.current.future = [];
+    setHistoryTick((v) => v + 1);
+  };
+
+  const undoDataChange = () => {
+    if (historyRef.current.past.length === 0) return;
+    const previous = historyRef.current.past.pop();
+    historyRef.current.future.push(cloneSnapshot(buildDataSnapshot()));
+    applyDataSnapshot(previous);
+    setHistoryTick((v) => v + 1);
+  };
+
+  const redoDataChange = () => {
+    if (historyRef.current.future.length === 0) return;
+    const next = historyRef.current.future.pop();
+    historyRef.current.past.push(cloneSnapshot(buildDataSnapshot()));
+    applyDataSnapshot(next);
+    setHistoryTick((v) => v + 1);
+  };
 
   const clearAllReportCaches = () => {
     const keysToRemove = [];
@@ -477,6 +557,40 @@ function App() {
   }, [routePage, paymentLoading]);
 
   useEffect(() => {
+    const onKeyDown = (event) => {
+      const target = event.target;
+      const isEditable =
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      if (!isEditable) return;
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return;
+
+      const key = String(event.key || '').toLowerCase();
+      if (key === 'z' && event.shiftKey) {
+        event.preventDefault();
+        redoDataChange();
+        return;
+      }
+      if (key === 'z') {
+        event.preventDefault();
+        undoDataChange();
+        return;
+      }
+      if (key === 'y') {
+        event.preventDefault();
+        redoDataChange();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undoDataChange, redoDataChange]);
+
+  useEffect(() => {
     const runAfterPayment = async () => {
       const params = new URLSearchParams(window.location.search);
       const checkoutId = params.get('checkout_id');
@@ -559,6 +673,19 @@ function App() {
     );
   }
 
+  const toUserFacingError = (error, fallbackKo, fallbackEn) => {
+    const raw = String(error?.message || error || '').trim();
+    if (!raw) return tr(fallbackKo, fallbackEn);
+    const isAuthIssue = /(401|403|unauthorized|forbidden|token|oauth|permission|scope)/i.test(raw);
+    if (isAuthIssue) {
+      return tr(
+        '권한 또는 세션이 만료되었습니다. 다시 로그인 후 시도해 주세요.',
+        'Your permission/session has expired. Please sign in again and retry.'
+      );
+    }
+    return raw;
+  };
+
   const login = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -569,7 +696,7 @@ function App() {
         queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
       }
     });
-    if (error) setMessage(tr(`로그인 실패: ${error.message}`, `Sign-in failed: ${error.message}`));
+    if (error) setMessage(toUserFacingError(error, '로그인 중 오류가 발생했습니다.', 'An error occurred during sign-in.'));
   };
 
   const logout = async () => {
@@ -603,7 +730,7 @@ function App() {
       setDriveForms(Array.isArray(data?.files) ? data.files : []);
       setSheetListOpen(true);
     } catch (e) {
-      setMessage(e.message);
+      setMessage(toUserFacingError(e, '구글폼 목록 조회 중 오류가 발생했습니다.', 'An error occurred while loading Google Form list.'));
     } finally {
       setSheetListLoading(false);
     }
@@ -633,6 +760,7 @@ function App() {
       const { participants: imported, mapped, skipped } = mapFormResponsesToParticipants(formData, responses);
       if (!imported.length) throw new Error(tr('가져올 참가자 데이터가 없습니다.', 'No participant data to import.'));
 
+      recordHistorySnapshot();
       const featureKeys = Array.from(
         new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
       );
@@ -642,25 +770,29 @@ function App() {
       setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
 
       setMessage(tr(`구글폼 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`, `Google Form import completed: ${mapped} mapped, ${skipped} skipped`));
+      setInputTab('rules');
     } catch (e) {
-      setMessage(e.message);
+      setMessage(toUserFacingError(e, '구글폼 데이터 불러오기 중 오류가 발생했습니다.', 'An error occurred while importing Google Form data.'));
     } finally {
       setSheetImportLoading(false);
     }
   };
 
   const mergeImportedParticipants = (imported) => {
+    recordHistorySnapshot();
     const featureKeys = Array.from(
       new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
     );
     setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
     setShowAllParticipants(false);
+    setInputTab('rules');
 
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
 
   const moveColumnByDrop = (dragKey, dropKey) => {
     if (!dragKey || !dropKey || dragKey === dropKey) return;
+    recordHistorySnapshot();
     setColumnOrder((prev) => {
       const from = prev.indexOf(dragKey);
       const to = prev.indexOf(dropKey);
@@ -677,6 +809,7 @@ function App() {
     if (!key) return setMessage(tr('추가할 특성명을 입력하세요.', 'Enter a new column name.'));
     if (availableIdentifierKeys.includes(key)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
 
+    recordHistorySnapshot();
     setAvailableIdentifierKeys((prev) => [...prev, key]);
     setParticipants((prev) =>
       prev.map((p) => ({
@@ -693,6 +826,7 @@ function App() {
       return;
     }
 
+    recordHistorySnapshot();
     setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
     setExcludedFeatureKeys((prev) => prev.filter((k) => k !== key));
     setParticipants((prev) =>
@@ -706,6 +840,7 @@ function App() {
 
   const updateParticipantFeature = (participant, key, value) => {
     const rowKey = participant.internalId || participant.id;
+    recordHistorySnapshot();
     setParticipants((prev) =>
       prev.map((p) => {
         const currentKey = p.internalId || p.id;
@@ -719,6 +854,76 @@ function App() {
         };
       })
     );
+  };
+
+  const removeParticipantRow = (participant) => {
+    recordHistorySnapshot();
+    const rowKey = participant.internalId || participant.id;
+    setParticipants((prev) => prev.filter((p) => (p.internalId || p.id) !== rowKey));
+  };
+
+  const handleTablePaste = (event, startRowIndex, startColumnKey) => {
+    const rawText = event.clipboardData?.getData('text/plain') || '';
+    if (!rawText || (!rawText.includes('\t') && !rawText.includes('\n'))) return;
+    if (!selectedIdentifierKey) return;
+
+    event.preventDefault();
+    const rows = rawText
+      .replace(/\r/g, '')
+      .split('\n')
+      .filter((line, index, list) => !(index === list.length - 1 && line === ''))
+      .map((line) => line.split('\t'));
+    if (rows.length === 0) return;
+
+    const columnKeys = [selectedIdentifierKey, ...tableFeatureKeys];
+    const startColIndex = columnKeys.indexOf(startColumnKey);
+    if (startColIndex < 0) return;
+
+    recordHistorySnapshot();
+    const visibleKeys = shownParticipants.map((p) => p.internalId || p.id);
+    const fallbackColumns = columnOrder.length > 0 ? columnOrder : [selectedIdentifierKey];
+
+    setParticipants((prev) => {
+      const next = prev.map((p) => ({ ...p, features: { ...(p.features || {}) } }));
+      const keyToIndex = new Map(next.map((p, idx) => [p.internalId || p.id, idx]));
+      const workingVisibleKeys = [...visibleKeys];
+
+      const ensureRowKeyByVisibleIndex = (visibleIndex) => {
+        while (visibleIndex >= workingVisibleKeys.length) {
+          const features = Object.fromEntries(fallbackColumns.map((k) => [k, '']));
+          const created = {
+            id: Date.now() + workingVisibleKeys.length,
+            internalId: createInternalId(),
+            name: tr('새 참여자', 'New participant'),
+            originalName: tr('새 참여자', 'New participant'),
+            intro: '',
+            source: 'manual',
+            features
+          };
+          next.push(created);
+          const key = created.internalId || created.id;
+          keyToIndex.set(key, next.length - 1);
+          workingVisibleKeys.push(key);
+        }
+        return workingVisibleKeys[visibleIndex];
+      };
+
+      rows.forEach((cells, rowOffset) => {
+        const rowKey = ensureRowKeyByVisibleIndex(startRowIndex + rowOffset);
+        const targetIndex = keyToIndex.get(rowKey);
+        if (targetIndex === undefined) return;
+
+        cells.forEach((cell, colOffset) => {
+          const columnKey = columnKeys[startColIndex + colOffset];
+          if (!columnKey) return;
+          next[targetIndex].features[columnKey] = String(cell ?? '');
+        });
+      });
+
+      return next;
+    });
+    setShowAllParticipants(true);
+    setMessage(tr('대량 붙여넣기를 적용했습니다.', 'Bulk paste applied.'));
   };
 
   const onUploadCsv = async (e) => {
@@ -747,7 +952,7 @@ function App() {
         error: () => setMessage(tr('CSV 파싱 중 오류가 발생했습니다.', 'CSV parsing error occurred.'))
       });
     } catch (error) {
-      setMessage(error.message || tr('파일 업로드 처리 중 오류가 발생했습니다.', 'Error occurred while handling file upload.'));
+      setMessage(toUserFacingError(error, '파일 업로드 처리 중 오류가 발생했습니다.', 'Error occurred while handling file upload.'));
     } finally {
       e.target.value = '';
     }
@@ -777,6 +982,7 @@ function App() {
   };
 
   const toggleExcludedFeature = (key) => {
+    recordHistorySnapshot();
     setExcludedFeatureKeys((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
@@ -816,14 +1022,23 @@ function App() {
   }, [selectedIdentifierKey, validParticipants]);
 
   const runAssign = async () => {
-    if (validParticipants.length < 2) return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
-    if (!selectedIdentifierKey) return setMessage(tr('맨 앞 열이 필요합니다. 열을 추가해 주세요.', 'Primary column is required. Please add a column.'));
+    if (runAssignLockRef.current) return;
+    if (validParticipants.length < 2) {
+      setInputTab('review');
+      return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
+    }
+    if (!selectedIdentifierKey) {
+      setInputTab('review');
+      return setMessage(tr('맨 앞 열이 필요합니다. 열을 추가해 주세요.', 'Primary column is required. Please add a column.'));
+    }
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
+      setInputTab('review');
       return setMessage(tr(`맨 앞 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`, `${missingIdentifier.length} participants have empty primary-column values.`));
     }
     if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
+      setInputTab('review');
       return setMessage(tr('맨 앞 열은 제외할 수 없습니다.', 'Primary column cannot be excluded.'));
     }
     const payloadParticipants = validParticipants.map((p) => ({
@@ -842,6 +1057,7 @@ function App() {
       customPrompt: config.useCustomPrompt ? String(customPrompt || '').trim() : ''
     };
 
+    runAssignLockRef.current = true;
     setStep('loading');
     goPage('polar');
     setPaymentLoading(true);
@@ -874,10 +1090,12 @@ function App() {
 
       window.location.href = checkoutData.url;
     } catch (error) {
-      setMessage(error.message || tr('결제 연결 중 오류가 발생했습니다.', 'Error occurred while opening checkout.'));
+      setMessage(toUserFacingError(error, '결제 연결 중 오류가 발생했습니다.', 'Error occurred while opening checkout.'));
       setStep('input');
       goPage('input');
+      setInputTab('review');
     } finally {
+      runAssignLockRef.current = false;
       setPaymentLoading(false);
     }
   };
@@ -902,6 +1120,7 @@ function App() {
   };
 
   const addEmptyParticipantRow = () => {
+    recordHistorySnapshot();
     const baseColumns = columnOrder.length > 0 ? columnOrder : ['이름'];
     if (columnOrder.length === 0) {
       setAvailableIdentifierKeys((prev) => (prev.includes('이름') ? prev : [...prev, '이름']));
@@ -939,7 +1158,6 @@ function App() {
       ? 'Import responses, set simple rules, and confirm teams.'
       : '응답을 불러오고, 규칙을 정한 뒤, 팀을 확정하세요.',
     start: isEn ? 'Get started' : '시작하기',
-    demo: isEn ? 'Try with sample data' : '샘플로 바로 시작',
     quickFlowTitle: isEn ? 'How it works' : '사용 방법',
     flowStep1: isEn ? 'Import data' : '데이터 불러오기',
     flowStep2: isEn ? 'Set rules' : '규칙 설정',
@@ -947,11 +1165,6 @@ function App() {
     flowStep1Desc: isEn ? 'Google Form or CSV' : 'Google Form 또는 CSV',
     flowStep2Desc: isEn ? 'team size and constraints' : '팀 인원과 조건 선택',
     flowStep3Desc: isEn ? 'download and share result' : '결과 확인 후 다운로드',
-    workspaceAccess: isEn ? 'Workspace Access' : '워크스페이스 접속',
-    workspaceTitle: isEn ? 'Instructor Ops Console' : '교수자 운영 콘솔',
-    workspaceBody: isEn
-      ? 'After sign-in, form list, payment verification, and reports run in one operational flow.'
-      : '로그인하면 폼 목록 조회, 결제 검증, 결과 리포트 관리가 하나의 흐름으로 연결됩니다.',
     connectOAuth: isEn ? 'Connect with Google OAuth' : 'Google OAuth로 계정을 연결하세요.',
     googleLogin: isEn ? 'Continue with Google' : 'Google 로그인',
     backToLanding: isEn ? 'Back to landing' : '랜딩으로 돌아가기',
@@ -1017,46 +1230,85 @@ function App() {
     requested: isEn ? 'Requested' : '요청됨',
     notRequested: isEn ? 'Not requested' : '요청되지 않음',
     constraintDetail: isEn ? 'Constraint detail status' : '제약 상세 판정',
-    decisionLog: isEn ? 'Decision log' : '자동 판단 로그'
+    decisionLog: isEn ? 'Decision log' : '자동 판단 로그',
+    tabData: isEn ? 'Data' : '데이터',
+    tabRules: isEn ? 'Rules' : '규칙',
+    tabReview: isEn ? 'Review' : '검토',
+    tabRun: isEn ? 'Run' : '실행',
+    reviewSummary: isEn ? 'Readiness Summary' : '실행 전 점검 요약',
+    runReady: isEn ? 'Ready to run assignment' : '팀 배정 실행 가능',
+    runBlocked: isEn ? 'Fix required items first' : '먼저 필수 항목을 해결하세요',
+    openDataTabHint: isEn ? 'Go to Data tab and complete import/columns.' : '데이터 탭에서 불러오기와 열 구성을 먼저 완료하세요.',
+    goDataTab: isEn ? 'Go to Data tab' : '데이터 탭으로 이동'
   };
+
+  const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const canUndo = historyTick >= 0 && historyRef.current.past.length > 0;
+  const canRedo = historyTick >= 0 && historyRef.current.future.length > 0;
+  const reviewItems = [
+    {
+      label: tx.participants,
+      value: validParticipants.length,
+      ok: validParticipants.length > 0,
+      tab: 'data'
+    },
+    {
+      label: tx.primaryColumn,
+      value: selectedIdentifierKey || tx.noPrimaryColumn,
+      ok: Boolean(selectedIdentifierKey),
+      tab: 'data'
+    },
+    {
+      label: isEn ? 'Duplicate identifiers' : '중복 식별값',
+      value: duplicateIdentifierCount,
+      ok: duplicateIdentifierCount === 0,
+      tab: 'data'
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-[#f5f6f1] text-[#1a1f2e] p-4 md:p-6">
       <div className="max-w-[1280px] mx-auto">
-        <div className="sticky top-4 z-20 flex justify-between items-center py-3 px-4 md:px-5 rounded-2xl border border-[#d9deea] bg-white/85 backdrop-blur-md shadow-[0_8px_25px_rgba(18,24,40,0.06)]">
-          <button
+        <Card className="sticky top-4 z-20 rounded-2xl border-[#d9deea] bg-white/90 backdrop-blur-md shadow-[0_8px_25px_rgba(18,24,40,0.06)]">
+          <CardContent className="flex justify-between items-center py-3 px-4 md:px-5">
+            <button
             type="button"
             onClick={() => goPage('landing')}
             className="inline-flex items-center gap-2 font-extrabold text-lg text-[#141b2d] tracking-tight"
-          >
-            <Users className="size-5 text-[#1570ef]" /> TeamBuilder
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const nextLang = uiLang === 'ko' ? 'en' : 'ko';
-                updateLang(nextLang);
-              }}
-              className="px-3 py-1 border border-[#d9deea] rounded-lg text-xs font-semibold bg-white"
             >
-              {uiLang === 'ko' ? 'EN' : 'KO'}
+              <Users className="size-5 text-[#1570ef]" /> TeamBuilder
             </button>
-            {!user ? (
-              <button onClick={() => goPage('login')} className="px-3 py-1.5 bg-[#1a2138] text-white rounded-lg text-sm font-semibold">{tx.login}</button>
-            ) : (
-              <button onClick={logout} className="px-3 py-1.5 bg-[#eef2f7] rounded-lg text-sm font-semibold">{tx.logout}</button>
-            )}
-          </div>
-        </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const nextLang = uiLang === 'ko' ? 'en' : 'ko';
+                  updateLang(nextLang);
+                }}
+                className="h-8 border-[#d9deea] bg-white px-3 text-xs font-semibold"
+              >
+                {uiLang === 'ko' ? 'EN' : 'KO'}
+              </Button>
+              {!user ? (
+                <Button type="button" size="sm" onClick={() => goPage('login')} className="h-8 rounded-lg bg-[#1a2138] text-white hover:bg-[#12192d]">{tx.login}</Button>
+              ) : (
+                <Button type="button" variant="secondary" size="sm" onClick={logout} className="h-8 rounded-lg">{tx.logout}</Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         <AnimatePresence mode="wait">
         {currentPage === 'landing' && (
           <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-5">
-              <div className="rounded-[28px] border border-[#d9deea] bg-white px-6 py-7 md:px-9 md:py-10 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                <p className="inline-flex items-center gap-2 rounded-full border border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
+              <Card className="rounded-[28px] border-[#d9deea] shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
+                <CardContent className="px-6 py-7 md:px-9 md:py-10">
+                <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
                   <Sparkles size={14} /> {tx.landingBadge}
-                </p>
+                </Badge>
                 <h1 className="mt-5 text-4xl lg:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
                   Data-In, Teams-Out.
                   <br />
@@ -1066,14 +1318,14 @@ function App() {
                   {tx.landingBody}
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
-                  <button onClick={() => (user ? goPage('input') : goPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-[#1a2138] px-5 py-3 text-white font-semibold">
+                  <Button onClick={() => (user ? goPage('input') : goPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-[#1a2138] px-5 py-3 text-white font-semibold hover:bg-[#12192d]">
                     {tx.start} <ArrowRight size={16} />
-                  </button>
-                  <button onClick={() => goPage('input')} className="rounded-xl border border-[#d9deea] bg-white px-5 py-3 font-semibold">{tx.demo}</button>
+                  </Button>
                 </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="rounded-[28px] border border-[#d9deea] bg-white p-5 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
+              <Card className="rounded-[28px] border-[#d9deea] p-5 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
                 <p className="text-[11px] uppercase tracking-[0.16em] text-[#6b7280] font-bold">{tx.quickFlowTitle}</p>
                 <div className="mt-4 space-y-3">
                   <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
@@ -1089,30 +1341,33 @@ function App() {
                     <p className="text-xs text-[#667085] mt-1">{tx.flowStep3Desc}</p>
                   </div>
                 </div>
-              </div>
+              </Card>
             </div>
           </motion.div>
         )}
 
         {currentPage === 'login' && (
-          <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-10 max-w-5xl mx-auto grid md:grid-cols-2 gap-5">
-            <div className="rounded-[28px] border border-[#d9deea] bg-[#1b2137] text-white p-8 shadow-[0_20px_45px_rgba(18,24,40,0.22)]">
-              <p className="text-xs uppercase tracking-[0.18em] text-white/70">{tx.workspaceAccess}</p>
-              <h2 className="mt-4 text-4xl font-black leading-tight">{tx.workspaceTitle}</h2>
-              <p className="mt-4 text-white/80 leading-7">{tx.workspaceBody}</p>
-            </div>
-            <div className="rounded-[28px] border border-[#d9deea] bg-white p-8 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-              <h3 className="text-3xl font-black tracking-tight">{tx.login}</h3>
-              <p className="text-[#667085] mt-3">{tx.connectOAuth}</p>
-              <button onClick={login} className="mt-6 w-full rounded-xl bg-[#1a2138] py-3 text-white font-semibold">{tx.googleLogin}</button>
-              <button onClick={() => goPage('landing')} className="mt-3 w-full rounded-xl border border-[#d9deea] py-3 font-semibold">{tx.backToLanding}</button>
-            </div>
+          <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-14 max-w-md mx-auto">
+            <Card className="rounded-[24px] border-[#d9deea] bg-white p-7 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black tracking-tight">{tx.login}</h3>
+                <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
+              </div>
+              <div className="mt-6 space-y-2">
+                <Button onClick={login} className="h-11 w-full rounded-xl bg-[#1a2138] text-white font-semibold hover:bg-[#12192d]">
+                  {tx.googleLogin}
+                </Button>
+                <Button onClick={() => goPage('landing')} variant="ghost" className="h-10 w-full text-[#667085] hover:text-[#101828]">
+                  {tx.backToLanding}
+                </Button>
+              </div>
+            </Card>
           </motion.div>
         )}
 
         {currentPage === 'input' && (
           <div className="mt-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
                 <p className="text-xs text-[#667085]">{tx.participants}</p>
                 <p className="text-2xl font-black text-slate-900">{validParticipants.length}</p>
@@ -1122,30 +1377,33 @@ function App() {
                 <p className="text-sm font-bold truncate">{selectedIdentifierKey || tx.noPrimaryColumn}</p>
               </div>
               <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
-                <p className="text-xs text-[#667085]">{tx.customPrompt}</p>
-                <p className="text-sm font-bold">{config.useCustomPrompt ? 'ON' : 'OFF'}</p>
-              </div>
-              <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
                 <p className="text-xs text-[#667085]">{tx.progressStatus}</p>
                 <p className="text-sm font-bold">{selectedIdentifierKey ? tx.ready : tx.needPrimary}</p>
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
-              <p className="text-sm font-bold">{tx.dataDrivenAnalysis}</p>
+              <Tabs value={inputTab} onValueChange={setInputTab} className="space-y-4">
+                <TabsList className="w-full justify-start bg-[#f2f5fa]">
+                  <TabsTrigger value="data">{tx.tabData}</TabsTrigger>
+                  <TabsTrigger value="rules">{tx.tabRules}</TabsTrigger>
+                  <TabsTrigger value="review">{tx.tabReview}</TabsTrigger>
+                  <TabsTrigger value="run">{tx.tabRun}</TabsTrigger>
+                </TabsList>
 
+              <TabsContent value="rules" className="mt-0">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
                 <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <label className="inline-flex items-center gap-2">
                   <span>{tx.teamSize}</span>
-                  <input
+                  <Input
                     type="number"
                     min="2"
                     max="10"
                     value={config.teamSize}
                     onChange={(e) => setConfig({ ...config, teamSize: parseInt(e.target.value, 10) || 4 })}
-                    className="w-20 border rounded px-2 py-1"
+                    className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                   />
                 </label>
 
@@ -1188,31 +1446,34 @@ function App() {
                 )}
               </div>
               </div>
+              </TabsContent>
 
+              <TabsContent value="data" className="mt-0 space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3">
                 <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
                 <p className="text-xs text-[#667085]">{tx.importHint}</p>
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     value={formUrl}
                     onChange={(e) => setFormUrl(e.target.value)}
                     placeholder={tx.formUrlPlaceholder}
-                    className="flex-1 border rounded px-3 py-2"
+                    className="h-10 flex-1 border-[#d9deea] bg-white"
                   />
-                  <button
+                  <Button
                     onClick={() => importSheet()}
                     disabled={sheetImportLoading}
-                    className="px-3 py-2 bg-[#1a2138] text-white rounded"
+                    className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
                   >
                       {sheetImportLoading ? tx.loading : tx.load}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={openSheets}
                     disabled={sheetListLoading}
-                    className="px-3 py-2 bg-slate-200 rounded"
+                    variant="secondary"
+                    className="h-10 rounded-md"
                   >
                       {sheetListLoading ? tx.loadingList : tx.myForms}
-                  </button>
+                  </Button>
                 </div>
                 <label className="inline-flex w-fit items-center gap-2 px-3 py-2 bg-[#f2f5fa] rounded cursor-pointer">
                   <Upload size={16} /> {tx.uploadCsv}
@@ -1245,19 +1506,20 @@ function App() {
                 <p className="text-sm font-bold">{tx.columnMgmt}</p>
                 <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
+                  <Input
                     value={newFeatureName}
                     onChange={(e) => setNewFeatureName(e.target.value)}
                     placeholder={tx.addColumnPlaceholder}
-                    className="px-3 py-2 border rounded text-sm w-72"
+                    className="h-10 w-72 border-[#d9deea] bg-white text-sm"
                   />
-                  <button
+                  <Button
                     type="button"
                     onClick={addFeatureColumn}
-                    className="px-3 py-2 border rounded text-sm bg-white"
+                    variant="outline"
+                    className="h-10 border-[#d9deea] bg-white text-sm"
                   >
                     {tx.addColumn}
-                  </button>
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {columnOrder.length === 0 && (
@@ -1326,109 +1588,165 @@ function App() {
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
                 <div className="flex items-center gap-2">
                   <Search size={14} className="text-[#667085]" />
-                  <input
+                  <Input
                     value={participantQuery}
                     onChange={(e) => setParticipantQuery(e.target.value)}
                     placeholder={tx.search}
-                    className="border rounded px-2 py-1 text-sm w-52"
+                    className="h-8 w-52 border-[#d9deea] text-sm"
                   />
                 </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" disabled={!canUndo} onClick={undoDataChange}>
+                    Undo
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={!canRedo} onClick={redoDataChange}>
+                    Redo
+                  </Button>
+                </div>
               </div>
-              <div className="overflow-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[#f7f9fc] border-b">
-                    <tr>
-                      <th className="px-3 py-2 text-left w-14">No</th>
-                      <th className="px-3 py-2 text-left min-w-44">
+              <div className="overflow-auto bg-white">
+                <Table className="min-w-full text-sm">
+                  <TableHeader className="bg-[#f7f9fc]">
+                    <TableRow>
+                      <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">No</TableHead>
+                      <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
                         <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || tx.noPrimaryColumn}>
                           {selectedIdentifierKey || tx.noPrimaryColumn}
                         </span>
-                      </th>
+                      </TableHead>
                       {tableFeatureKeys.map((key) => (
-                        <th key={key} className="px-3 py-2 text-left min-w-44">
+                        <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
                           <span className="inline-block max-w-40 truncate" title={key}>{key}</span>
-                        </th>
+                        </TableHead>
                       ))}
-                      <th className="px-3 py-2 text-left w-16">{tx.deleteLabel}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                      <TableHead className="w-16 px-3 py-2 text-left text-[#4b556b]">{tx.deleteLabel}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {shownParticipants.map((p, idx) => (
-                      <tr key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
-                        <td className="px-3 py-2 text-[#667085]">{idx + 1}</td>
-                        <td className="px-3 py-2">
+                      <TableRow key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
+                        <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
+                        <TableCell className="px-3 py-2">
                           {selectedIdentifierKey ? (
-                            <input
+                            <Input
                               value={String(p?.features?.[selectedIdentifierKey] || '')}
                               onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
-                              className="w-full border rounded px-2 py-1 text-sm"
+                              onPaste={(e) => handleTablePaste(e, idx, selectedIdentifierKey)}
+                              className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={tx.valueInput}
                             />
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
-                        </td>
+                        </TableCell>
                         {tableFeatureKeys.map((key) => (
-                          <td key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
-                            <input
+                          <TableCell key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
+                            <Input
                               value={String(p?.features?.[key] || '')}
                               onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
-                              className="w-full border rounded px-2 py-1 text-sm"
+                              onPaste={(e) => handleTablePaste(e, idx, key)}
+                              className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={isEn ? `${key} value` : `${key} 값 입력`}
                             />
-                          </td>
+                          </TableCell>
                         ))}
-                        <td className="px-3 py-2">
-                          <button
-                            onClick={() =>
-                              setParticipants(
-                                participants.filter((x) => (x.internalId || x.id) !== (p.internalId || p.id))
-                              )
-                            }
-                            className="text-[#667085]"
+                        <TableCell className="px-3 py-2">
+                          <Button
+                            onClick={() => removeParticipantRow(p)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[#667085]"
                           >
                             <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
                     {shownParticipants.length === 0 && (
-                      <tr>
-                        <td colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-[#667085]">
+                      <TableRow>
+                        <TableCell colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-[#667085]">
                           {tx.noResult}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
               </div>
 
               {filteredParticipants.length > maxInitialRows && (
-              <button
+              <Button
                 type="button"
                 onClick={() => setShowAllParticipants((v) => !v)}
-                className="px-3 py-2 border rounded hover:bg-[#f7f9fc]"
+                variant="outline"
+                className="border-[#d9deea] bg-white hover:bg-[#f7f9fc]"
               >
                 {showAllParticipants
                   ? tx.collapse
                   : isEn
                     ? `${tx.moreView} (+${filteredParticipants.length - maxInitialRows})`
                     : `${tx.moreView} (${filteredParticipants.length - maxInitialRows}명 더 보기)`}
-              </button>
+              </Button>
               )}
+              </TabsContent>
 
+              <TabsContent value="review" className="mt-0">
+                <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
+                  <p className="text-sm font-bold">{tx.reviewSummary}</p>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    {reviewItems.map((item) => (
+                      <div key={item.label} className={`rounded-lg border p-3 ${item.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                        <p className="text-xs text-[#667085]">{item.label}</p>
+                        <p className="text-sm font-bold mt-1">{item.value}</p>
+                        {!item.ok && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 h-7 px-2 text-xs"
+                            onClick={() => setInputTab(item.tab)}
+                          >
+                            {tx.reviewFixAction}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {!selectedIdentifierKey && <p className="text-xs text-rose-600">{tx.noColumnToRun}</p>}
+                  {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {isEn ? `${duplicateIdentifierCount} ${tx.duplicateValueNotice}` : `중복 값 ${duplicateIdentifierCount}${tx.duplicateValueNotice}`}
+                    </p>
+                  )}
+                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="run" className="mt-0">
               <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
-              <button
+              <Button
                 onClick={addEmptyParticipantRow}
-                className="px-3 py-2 border rounded"
+                variant="outline"
+                className="border-[#d9deea] bg-white"
               >
                 {tx.addRow}
-              </button>
-              <button onClick={runAssign} disabled={paymentLoading} className="px-4 py-2 bg-cyan-700 text-white rounded disabled:opacity-60">
+              </Button>
+              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
                 {paymentLoading ? tx.moveToPayment : tx.runAssign}
-              </button>
+              </Button>
               </div>
+              {!canRunAssignment && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  {tx.openDataTabHint}
+                  <div className="mt-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setInputTab('data')}>
+                      {tx.goDataTab}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </TabsContent>
+              </Tabs>
             </div>
           </div>
         )}
@@ -1449,7 +1767,7 @@ function App() {
               <h3 className="text-2xl font-black">{tx.pendingTitle}</h3>
               <p className="text-[#4b556b]">{tx.pendingDesc}</p>
               <div className="flex justify-center gap-2">
-                <button
+                <Button
                   onClick={() => {
                     const pendingUrl = sessionStorage.getItem(PENDING_CHECKOUT_URL_KEY);
                     if (!pendingUrl) {
@@ -1459,13 +1777,13 @@ function App() {
                     }
                     window.location.href = pendingUrl;
                   }}
-                  className="px-4 py-2 bg-[#1a2138] text-white rounded"
+                  className="bg-[#1a2138] text-white hover:bg-[#12192d]"
                 >
                   {tx.goPayment}
-                </button>
-                <button onClick={() => goPage('input')} className="px-4 py-2 border rounded">
+                </Button>
+                <Button onClick={() => goPage('input')} variant="outline" className="border-[#d9deea] bg-white">
                   {tx.goInput}
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -1474,13 +1792,13 @@ function App() {
         {currentPage === 'result' && (
           <motion.div key="result" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-6 space-y-4">
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={exportCSV}
-                className="px-4 py-2 bg-emerald-600 text-white rounded inline-flex items-center gap-2"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-2"
               >
                 <Download size={16} /> {tx.downloadCsv}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setStep('input');
                   goPage('input');
@@ -1488,10 +1806,11 @@ function App() {
                   setAssignmentReport(null);
                   sessionStorage.removeItem(reportCacheKey);
                 }}
-                className="px-4 py-2 border rounded"
+                variant="outline"
+                className="border-[#d9deea] bg-white"
               >
                 {tx.rerunAssign}
-              </button>
+              </Button>
             </div>
             {assignmentReport && (
               <div className="bg-white border rounded-2xl p-4 space-y-3">
@@ -1592,9 +1911,9 @@ function App() {
         </AnimatePresence>
 
         <footer className="mt-10 pt-6 border-t text-center text-sm text-[#667085]">
-          <button onClick={() => goPolicy('terms', uiLang)} className="mx-2">{uiLang === 'en' ? 'Terms' : '이용약관'}</button>
-          <button onClick={() => goPolicy('privacy', uiLang)} className="mx-2">{uiLang === 'en' ? 'Privacy' : '개인정보처리방침'}</button>
-          <button onClick={() => goPolicy('refund', uiLang)} className="mx-2">{uiLang === 'en' ? 'Refund' : '환불정책'}</button>
+          <Button type="button" variant="link" onClick={() => goPolicy('terms', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Terms' : '이용약관'}</Button>
+          <Button type="button" variant="link" onClick={() => goPolicy('privacy', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Privacy' : '개인정보처리방침'}</Button>
+          <Button type="button" variant="link" onClick={() => goPolicy('refund', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Refund' : '환불정책'}</Button>
         </footer>
       </div>
     </div>
@@ -1602,6 +1921,10 @@ function App() {
 }
 
 export default App;
+
+
+
+
 
 
 
