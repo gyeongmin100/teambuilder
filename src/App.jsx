@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -933,17 +933,20 @@ function App() {
   const tx = {
     login: isEn ? 'Sign in' : '로그인',
     logout: isEn ? 'Sign out' : '로그아웃',
-    landingBadge: isEn ? 'Operational CRM-style Team Workflow' : '운영형 CRM 스타일 팀 워크플로우',
-    landingTitleLine2: isEn ? 'Operations Team Console' : '실무형 팀 편성 콘솔',
+    landingBadge: isEn ? 'Team Assignment Assistant' : '팀 편성 어시스턴트',
+    landingTitleLine2: isEn ? 'Make Teams in Minutes' : '몇 분 안에 팀 편성',
     landingBody: isEn
-      ? 'Manage data with dense cards and tables, detect conflicts, and finalize teams in one flow.'
-      : 'Attio처럼 카드와 테이블 중심으로 운영 데이터를 다루고, 조건 충돌을 즉시 확인한 뒤 팀을 확정합니다.',
+      ? 'Import responses, set simple rules, and confirm teams.'
+      : '응답을 불러오고, 규칙을 정한 뒤, 팀을 확정하세요.',
     start: isEn ? 'Get started' : '시작하기',
-    demo: isEn ? 'Open demo' : '데모 보기',
-    liveSnapshot: isEn ? 'Live Snapshot' : '실시간 스냅샷',
-    autoMapping: isEn ? 'Auto mapping' : '응답 자동 매핑',
-    avgProcess: isEn ? 'Avg process time' : '평균 처리시간',
-    reliability: isEn ? 'Reliability' : '신뢰성',
+    demo: isEn ? 'Try with sample data' : '샘플로 바로 시작',
+    quickFlowTitle: isEn ? 'How it works' : '사용 방법',
+    flowStep1: isEn ? 'Import data' : '데이터 불러오기',
+    flowStep2: isEn ? 'Set rules' : '규칙 설정',
+    flowStep3: isEn ? 'Confirm teams' : '팀 확정',
+    flowStep1Desc: isEn ? 'Google Form or CSV' : 'Google Form 또는 CSV',
+    flowStep2Desc: isEn ? 'team size and constraints' : '팀 인원과 조건 선택',
+    flowStep3Desc: isEn ? 'download and share result' : '결과 확인 후 다운로드',
     workspaceAccess: isEn ? 'Workspace Access' : '워크스페이스 접속',
     workspaceTitle: isEn ? 'Instructor Ops Console' : '교수자 운영 콘솔',
     workspaceBody: isEn
@@ -1071,19 +1074,19 @@ function App() {
               </div>
 
               <div className="rounded-[28px] border border-[#d9deea] bg-white p-5 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-[#6b7280] font-bold">{tx.liveSnapshot}</p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-[#6b7280] font-bold">{tx.quickFlowTitle}</p>
+                <div className="mt-4 space-y-3">
                   <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
-                    <p className="text-xs text-[#667085]">{tx.autoMapping}</p>
-                    <p className="text-2xl font-black mt-2">12 Fields</p>
+                    <p className="text-sm font-bold">1. {tx.flowStep1}</p>
+                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep1Desc}</p>
                   </div>
                   <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
-                    <p className="text-xs text-[#667085]">{tx.avgProcess}</p>
-                    <p className="text-2xl font-black mt-2">18s</p>
+                    <p className="text-sm font-bold">2. {tx.flowStep2}</p>
+                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep2Desc}</p>
                   </div>
-                  <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4 col-span-2">
-                    <p className="text-xs text-[#667085]">{tx.reliability}</p>
-                    <p className="text-lg font-bold mt-2 inline-flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-600" /> OAuth + Polar + AI Fail-safe</p>
+                  <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
+                    <p className="text-sm font-bold">3. {tx.flowStep3}</p>
+                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep3Desc}</p>
                   </div>
                 </div>
               </div>

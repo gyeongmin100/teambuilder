@@ -399,3 +399,11 @@ pm run build)
 - Auth session restore navigation refined to avoid forced redirect from non-login/landing routes
 - Validation: local production build pass (
 pm run build)
+
+## 15. 2026-02-22 Attio-style Full UX Refine (Noise Reduction)
+- Removed non-essential landing copy and snapshot blocks that did not contribute to user task completion
+- Replaced landing right panel with a concise 3-step action flow (Import -> Set rules -> Confirm)
+- Expanded language handling to whole UI text and status/error feedback with ?lang=en sync
+- Added persistent brand click behavior to route back to landing from any page
+- Validation: local production build pass (
+pm run build)
