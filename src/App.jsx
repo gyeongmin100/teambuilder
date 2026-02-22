@@ -2,10 +2,35 @@
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
 
 const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
+const REPORT_CACHE_KEY = 'teambuilder_report_cache_v1';
+const PENDING_CHECKOUT_URL_KEY = 'teambuilder_pending_checkout_url_v1';
+const APP_ROUTES = {
+  landing: '/',
+  login: '/login',
+  input: '/input',
+  polar: '/checkout/pending',
+  report: '/report',
+  terms: '/legal/terms',
+  privacy: '/legal/privacy',
+  refund: '/legal/refund'
+};
+
+const resolvePageByPathname = (pathname) => {
+  const normalizedPath = pathname.startsWith('/en/') ? pathname.slice(3) : pathname;
+  if (pathname === APP_ROUTES.login) return 'login';
+  if (pathname === APP_ROUTES.input) return 'input';
+  if (pathname === APP_ROUTES.polar) return 'polar';
+  if (pathname === APP_ROUTES.report) return 'report';
+  if (normalizedPath === APP_ROUTES.terms) return 'terms';
+  if (normalizedPath === APP_ROUTES.privacy) return 'privacy';
+  if (normalizedPath === APP_ROUTES.refund) return 'refund';
+  return 'landing';
+};
 const pageVariants = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } },
@@ -245,14 +270,36 @@ const mapFormResponsesToParticipants = (form, responses) => {
 
 function App() {
   const [step, setStep] = useState('input');
-  const [uiPage, setUiPage] = useState('landing');
-  const [legalView, setLegalView] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const routePage = resolvePageByPathname(location.pathname);
+  const routeLang = location.pathname.startsWith('/en/') ? 'en' : 'ko';
+  const [uiLang, setUiLang] = useState(() => {
+    try {
+      return localStorage.getItem('teambuilder_ui_lang') || 'ko';
+    } catch {
+      return 'ko';
+    }
+  });
+
+  const goPage = (page, options = {}) => {
+    const targetPath = APP_ROUTES[page] || APP_ROUTES.landing;
+    if (window.location.pathname === targetPath) return;
+    navigate(targetPath, options);
+  };
+  const goPolicy = (policyPage, lang = uiLang, options = {}) => {
+    const basePath = APP_ROUTES[policyPage] || APP_ROUTES.terms;
+    const targetPath = lang === 'en' ? `/en${basePath}` : basePath;
+    if (window.location.pathname === targetPath) return;
+    navigate(targetPath, options);
+  };
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: false });
   const [teams, setTeams] = useState([]);
   const [assignmentReport, setAssignmentReport] = useState(null);
+  const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
 
   const [formUrl, setFormUrl] = useState('');
@@ -262,6 +309,7 @@ function App() {
   const [driveForms, setDriveForms] = useState([]);
   const [message, setMessage] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const reportCacheKey = user?.id ? `${REPORT_CACHE_KEY}_${user.id}` : `${REPORT_CACHE_KEY}_anon`;
 
   const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
@@ -273,6 +321,70 @@ function App() {
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
+
+  const clearAllReportCaches = () => {
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith(REPORT_CACHE_KEY)) keysToRemove.push(k);
+    }
+    keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+  };
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(reportCacheKey);
+      if (!raw) {
+        setReportCacheHydrated(true);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed?.teams) && parsed.teams.length > 0) {
+        setTeams(parsed.teams);
+      }
+      if (parsed?.report) {
+        setAssignmentReport(parsed.report);
+      }
+    } catch {
+      sessionStorage.removeItem(reportCacheKey);
+    } finally {
+      setReportCacheHydrated(true);
+    }
+  }, [reportCacheKey]);
+
+  useEffect(() => {
+    if (!reportCacheHydrated) return;
+    if (!Array.isArray(teams) || teams.length === 0) {
+      sessionStorage.removeItem(reportCacheKey);
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        reportCacheKey,
+        JSON.stringify({
+          teams,
+          report: assignmentReport || null,
+          updatedAt: Date.now()
+        })
+      );
+    } catch {
+      // noop
+    }
+  }, [teams, assignmentReport, reportCacheHydrated, reportCacheKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('teambuilder_ui_lang', uiLang);
+    } catch {
+      // noop
+    }
+  }, [uiLang]);
+
+  useEffect(() => {
+    const isPolicyRoute = routePage === 'terms' || routePage === 'privacy' || routePage === 'refund';
+    if (!isPolicyRoute) return;
+    if (routeLang !== uiLang) setUiLang(routeLang);
+  }, [routeLang, routePage, uiLang]);
 
   useEffect(() => {
     setColumnOrder((prev) => {
@@ -301,7 +413,9 @@ function App() {
       if (!alive) return;
       setSession(data?.session ?? null);
       setUser(data?.session?.user ?? null);
-      if (data?.session?.user) setUiPage('input');
+      if (data?.session?.user && (routePage === 'landing' || routePage === 'login')) {
+        goPage('input', { replace: true });
+      }
     });
 
     const {
@@ -310,15 +424,36 @@ function App() {
       if (!alive) return;
       setSession(s ?? null);
       setUser(s?.user ?? null);
-      if (s?.user) setUiPage('input');
-      if (!s?.user) setUiPage('landing');
+      if (s?.user && (routePage === 'landing' || routePage === 'login')) {
+        goPage('input', { replace: true });
+      }
+      if (!s?.user) goPage('landing', { replace: true });
     });
 
     return () => {
       alive = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [routePage]);
+
+  useEffect(() => {
+    if (routePage !== 'report') return;
+    if (!reportCacheHydrated) return;
+    if (Array.isArray(teams) && teams.length > 0) return;
+    setMessage('결과 데이터가 없습니다. 입력 화면에서 먼저 팀 배정을 실행해 주세요.');
+    goPage('input', { replace: true });
+  }, [routePage, teams, reportCacheHydrated]);
+
+  useEffect(() => {
+    if (routePage !== 'polar') return;
+    const params = new URLSearchParams(window.location.search);
+    const hasCheckoutReturn = Boolean(params.get('checkout_id') && params.get('checkout_success') === 'true');
+    if (hasCheckoutReturn) return;
+    const hasPendingAssign = Boolean(sessionStorage.getItem(PENDING_ASSIGN_KEY));
+    if (paymentLoading || hasPendingAssign) return;
+    setMessage('유효한 결제 대기 정보가 없어 입력 화면으로 이동합니다.');
+    goPage('input', { replace: true });
+  }, [routePage, paymentLoading]);
 
   useEffect(() => {
     const runAfterPayment = async () => {
@@ -327,7 +462,7 @@ function App() {
       const checkoutSuccess = params.get('checkout_success');
       if (!checkoutId || checkoutSuccess !== 'true') return;
 
-      setUiPage('input');
+      goPage('polar', { replace: true });
       setStep('loading');
       setMessage('결제 확인 중...');
       try {
@@ -358,10 +493,13 @@ function App() {
         setAssignmentReport(data.report || null);
         setMessage('결제 완료 확인 후 팀 배정이 완료되었습니다.');
         setStep('result');
+        goPage('report', { replace: true });
       } catch (error) {
         setStep('input');
+        goPage('input', { replace: true });
         setMessage(error.message || '결제 확인/팀 배정 중 오류가 발생했습니다.');
       } finally {
+        sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete('checkout_id');
         cleanUrl.searchParams.delete('checkout_success');
@@ -372,15 +510,39 @@ function App() {
     runAfterPayment();
   }, []);
 
-  if (legalView === 'terms') return <TermsOfService lang="ko" onBack={() => setLegalView(null)} />;
-  if (legalView === 'privacy') return <PrivacyPolicy lang="ko" onBack={() => setLegalView(null)} />;
-  if (legalView === 'refund') return <RefundPolicy lang="ko" onBack={() => setLegalView(null)} />;
+  if (routePage === 'terms') {
+    return (
+      <TermsOfService
+        lang={routeLang}
+        onBack={() => goPage('landing')}
+        onSwitchLang={(nextLang) => goPolicy('terms', nextLang, { replace: true })}
+      />
+    );
+  }
+  if (routePage === 'privacy') {
+    return (
+      <PrivacyPolicy
+        lang={routeLang}
+        onBack={() => goPage('landing')}
+        onSwitchLang={(nextLang) => goPolicy('privacy', nextLang, { replace: true })}
+      />
+    );
+  }
+  if (routePage === 'refund') {
+    return (
+      <RefundPolicy
+        lang={routeLang}
+        onBack={() => goPage('landing')}
+        onSwitchLang={(nextLang) => goPolicy('refund', nextLang, { replace: true })}
+      />
+    );
+  }
 
   const login = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}${APP_ROUTES.login}`,
         scopes:
           'openid email profile https://www.googleapis.com/auth/forms.body.readonly https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/drive.readonly',
         queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
@@ -392,6 +554,11 @@ function App() {
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) setMessage(`로그아웃 실패: ${error.message}`);
+    if (!error) {
+      clearAllReportCaches();
+      sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
+      goPage('landing');
+    }
   };
 
   const openSheets = async () => {
@@ -652,6 +819,7 @@ function App() {
     };
 
     setStep('loading');
+    goPage('polar');
     setPaymentLoading(true);
     try {
       const checkoutRes = await fetch('/api/checkout', {
@@ -678,11 +846,13 @@ function App() {
           createdAt: Date.now()
         })
       );
+      sessionStorage.setItem(PENDING_CHECKOUT_URL_KEY, checkoutData.url);
 
       window.location.href = checkoutData.url;
     } catch (error) {
       setMessage(error.message || '결제 연결 중 오류가 발생했습니다.');
       setStep('input');
+      goPage('input');
     } finally {
       setPaymentLoading(false);
     }
@@ -727,7 +897,14 @@ function App() {
     ]);
   };
 
-  const currentPage = step === 'loading' ? 'loading' : step === 'result' ? 'result' : uiPage;
+  const routeParams = new URLSearchParams(window.location.search);
+  const hasCheckoutReturn = Boolean(routeParams.get('checkout_id') && routeParams.get('checkout_success') === 'true');
+  const currentPage =
+    routePage === 'polar'
+      ? (paymentLoading || hasCheckoutReturn ? 'loading' : 'polar_wait')
+      : routePage === 'report'
+        ? 'result'
+        : routePage;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100 via-white to-slate-100 text-slate-900 p-4">
@@ -737,8 +914,20 @@ function App() {
             <Users className="size-5" /> TeamBuilder AI
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const nextLang = uiLang === 'ko' ? 'en' : 'ko';
+                setUiLang(nextLang);
+                if (routePage === 'terms' || routePage === 'privacy' || routePage === 'refund') {
+                  goPolicy(routePage, nextLang);
+                }
+              }}
+              className="px-3 py-1 border border-slate-300 rounded text-xs font-semibold"
+            >
+              {uiLang === 'ko' ? 'EN' : 'KO'}
+            </button>
             {!user ? (
-              <button onClick={() => setUiPage('login')} className="px-3 py-1 bg-slate-900 text-white rounded">로그인</button>
+              <button onClick={() => goPage('login')} className="px-3 py-1 bg-slate-900 text-white rounded">로그인</button>
             ) : (
               <button onClick={logout} className="px-3 py-1 bg-slate-200 rounded">로그아웃</button>
             )}
@@ -761,10 +950,10 @@ function App() {
                   Google Form 응답을 바로 읽고, 결제 완료 후 AI가 역할과 조합을 분석해 팀을 배정합니다.
                 </p>
                 <div className="mt-6 flex gap-3">
-                  <button onClick={() => (user ? setUiPage('input') : setUiPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-white font-semibold">
+                  <button onClick={() => goPage('input')} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-white font-semibold">
                     시작하기 <ArrowRight size={16} />
                   </button>
-                  <button onClick={() => setUiPage('input')} className="rounded-xl border border-slate-300 px-5 py-3 font-semibold">데모 보기</button>
+                  <button onClick={() => goPage('input')} className="rounded-xl border border-slate-300 px-5 py-3 font-semibold">데모 보기</button>
                 </div>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -784,7 +973,7 @@ function App() {
               <h2 className="text-3xl font-black">로그인</h2>
               <p className="text-slate-600 mt-3">교수 계정으로 로그인하면 Google Form 목록을 바로 선택할 수 있습니다.</p>
               <button onClick={login} className="mt-6 w-full rounded-xl bg-slate-900 py-3 text-white font-semibold">Google 로그인</button>
-              <button onClick={() => setUiPage('landing')} className="mt-3 w-full rounded-xl border border-slate-300 py-3 font-semibold">랜딩으로 돌아가기</button>
+              <button onClick={() => goPage('landing')} className="mt-3 w-full rounded-xl border border-slate-300 py-3 font-semibold">랜딩으로 돌아가기</button>
             </div>
           </motion.div>
         )}
@@ -1120,6 +1309,34 @@ function App() {
           </motion.div>
         )}
 
+        {currentPage === 'polar_wait' && (
+          <motion.div key="polar-wait" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center space-y-4">
+              <h3 className="text-2xl font-black">결제 대기 상태</h3>
+              <p className="text-slate-600">결제 복귀 정보가 없어서 자동 검증을 시작할 수 없습니다.</p>
+              <div className="flex justify-center gap-2">
+                <button
+                  onClick={() => {
+                    const pendingUrl = sessionStorage.getItem(PENDING_CHECKOUT_URL_KEY);
+                    if (!pendingUrl) {
+                      setMessage('복구 가능한 결제 링크가 없습니다. 다시 결제를 시작해 주세요.');
+                      goPage('input');
+                      return;
+                    }
+                    window.location.href = pendingUrl;
+                  }}
+                  className="px-4 py-2 bg-slate-900 text-white rounded"
+                >
+                  결제 페이지로 이동
+                </button>
+                <button onClick={() => goPage('input')} className="px-4 py-2 border rounded">
+                  입력 화면으로 이동
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {currentPage === 'result' && (
           <motion.div key="result" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-6 space-y-4">
             <div className="flex gap-2">
@@ -1129,7 +1346,18 @@ function App() {
               >
                 <Download size={16} /> CSV 다운로드
               </button>
-              <button onClick={() => { setStep('input'); setUiPage('input'); setAssignmentReport(null); }} className="px-4 py-2 border rounded">프롬프트 수정 후 다시 배정</button>
+              <button
+                onClick={() => {
+                  setStep('input');
+                  goPage('input');
+                  setTeams([]);
+                  setAssignmentReport(null);
+                  sessionStorage.removeItem(reportCacheKey);
+                }}
+                className="px-4 py-2 border rounded"
+              >
+                프롬프트 수정 후 다시 배정
+              </button>
             </div>
             {assignmentReport && (
               <div className="bg-white border rounded-2xl p-4 space-y-3">
@@ -1230,9 +1458,9 @@ function App() {
         </AnimatePresence>
 
         <footer className="mt-10 pt-6 border-t text-center text-sm text-slate-500">
-          <button onClick={() => setLegalView('terms')} className="mx-2">이용약관</button>
-          <button onClick={() => setLegalView('privacy')} className="mx-2">개인정보처리방침</button>
-          <button onClick={() => setLegalView('refund')} className="mx-2">환불정책</button>
+          <button onClick={() => goPolicy('terms', uiLang)} className="mx-2">{uiLang === 'en' ? 'Terms' : '이용약관'}</button>
+          <button onClick={() => goPolicy('privacy', uiLang)} className="mx-2">{uiLang === 'en' ? 'Privacy' : '개인정보처리방침'}</button>
+          <button onClick={() => goPolicy('refund', uiLang)} className="mx-2">{uiLang === 'en' ? 'Refund' : '환불정책'}</button>
         </footer>
       </div>
     </div>
@@ -1240,3 +1468,12 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+

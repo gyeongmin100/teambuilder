@@ -219,3 +219,92 @@
 - [x] 테스트 실행 통과
 - [ ] 빌드 검증
 - [ ] 배포 검증
+
+## 27. 2026-02-22 DDD 1차 구조 분리 (프론트 도메인/애플리케이션)
+- [x] `src/App.jsx`의 폼 ID 파싱/CSV 디코딩/참가자 매핑 순수 로직 분리
+- [x] `src/domain/*`에 도메인 규칙(`formId`, `internalId`, CSV 참가자 매핑, normalize) 이동
+- [x] `src/application/import/*`에 외부 입력 해석 로직(CSV 디코딩, Google Form 응답 매핑) 이동
+- [x] `App.jsx`를 오케스트레이션(UI + 흐름 제어) 중심으로 정리
+- [ ] 빌드 검증
+
+## 28. 2026-02-22 DDD 2차 구조 분리 (백엔드 assign 계층화)
+- [x] `functions/shared/*` 공통 유틸 분리(`http`, `text`)
+- [x] `functions/domain/participants/participantSanitizer.js`로 참가자 정규화 규칙 분리
+- [x] `functions/domain/teams/teamFormation.js`로 팀 기본 구성/seed 랜덤 규칙 분리
+- [x] `functions/infrastructure/polar/checkoutVerification.js`로 결제 검증 어댑터 분리
+- [x] `functions/api/assign.js`를 import 기반 오케스트레이션 중심으로 정리
+- [x] `node --check functions/api/assign.js` 통과
+- [x] `npm run test:constraints` 통과
+- [ ] 빌드 검증
+
+## 29. 2026-02-22 DDD 3차 구조 분리 (제약 엔진/AI 정규화 모듈화)
+- [x] `functions/domain/constraints/constraintEngine.js`로 제약 파싱/정규화/가능성 판정/리포트/OpenAI 호출 로직 분리
+- [x] `functions/domain/teams/aiNormalization.js`로 AI 팀 결과 정규화/누락 인원 배치 로직 분리
+- [x] `functions/api/assign.js`를 얇은 애플리케이션 오케스트레이터로 재작성
+- [x] `__test__` 공개 인터페이스 유지(회귀 스크립트 호환)
+- [x] `node --check` (constraintEngine, aiNormalization, assign) 통과
+- [x] `npm run test:constraints` 통과
+- [ ] 빌드 검증
+
+## 30. 2026-02-22 DDD 4차 구조 분리 (constraintEngine 내부 세분화)
+- [x] `functions/domain/constraints/common.js`로 공통 제약 유틸/매칭 규칙 분리
+- [x] `functions/domain/constraints/parser.js`로 제약 파싱/정규화 계층 분리
+- [x] `functions/domain/constraints/evaluator.js`로 가능성 판정/패널티/로컬서치 분리
+- [x] `functions/domain/constraints/reporter.js`로 리포트 생성 책임 분리
+- [x] `functions/domain/constraints/openaiClient.js`로 배정 OpenAI 호출 책임 분리
+- [x] `functions/domain/constraints/constraintEngine.js`를 export aggregator로 단순화
+- [x] `node --check` (constraints 하위 모듈 + assign) 통과
+- [x] `npm run test:constraints` 통과
+- [ ] 빌드 검증
+
+## 31. 2026-02-22 빌드 비정상 종료코드 안전 조치
+- [x] 원인 분리: Node 24에서는 `vite build`가 `EXIT_CODE=-1073740791`로 비정상 종료됨
+- [x] 교차 검증: Node 20(`npx -p node@20 node ...`)에서는 빌드 정상 완료(`EXIT_CODE=0`)
+- [x] `package.json` 빌드 스크립트를 Node 20 경로로 고정
+- [x] `package.json`에 `engines.node = 20.x` 명시
+- [x] `npm run build` 재검증 통과 (`EXIT_CODE=0`)
+
+## 10. 2026-02-22 Attio 레퍼런스 디자인 작업
+- [x] 메인 랜딩 페이지 디자인
+- [x] 로그인 페이지 디자인
+- [x] 데이터 입력 페이지 디자인
+- [x] Polar 결제 대기 페이지 디자인
+- [x] 결과 리포트 페이지 디자인
+- [x] 공통 디자인 토큰(index.css) 재정의
+- [ ] 실제 백엔드/결제 플로우와 UI 연결(후속)
+- [ ] 사용자 데이터 기반 실제 리포트 연동(후속)
+
+## 11. 2026-02-22 라우팅/실플로우 재연결
+- [x] eact-router-dom 설치
+- [x] BrowserRouter 적용 (src/main.jsx)
+- [x] URL 경로 기반 페이지 전환(/, /login, /input, /checkout/pending, /report)
+- [x] 로그인/로그아웃 시 경로 동기화
+- [x] 결제 대기 -> 결제 검증 -> 결과 리포트 경로 동기화
+- [x] 보호 경로 인증 가드(미로그인 시 /login 리다이렉트)
+- [x] 빌드 검증 통과 (
+pm run build)
+
+## 12. 2026-02-22 번들 분할/리포트 영속화
+- [x] ite.config.js manualChunks 설정으로 번들 분할
+- [x] 결과 리포트(sessionStorage) 저장/복구
+- [x] 로그아웃 시 리포트 캐시 삭제
+- [x] 재배정 버튼에서 결과/캐시 초기화
+- [x] 빌드 검증 통과 (
+pm run build)
+
+## 13. 2026-02-22 프론트 미동작 요소 정비
+- [x] 정책 페이지 한글 깨짐(인코딩) 수정
+- [x] 정책 페이지 KO/EN 전환 UI 추가
+- [x] 정책 페이지 URL 라우팅(/legal/*, /en/legal/*) 전환
+- [x] 결과 리포트 캐시 사용자 스코프 분리
+- [x] /report 직진입 데이터 없음 가드 추가
+- [x] /checkout/pending 무한 로딩 가드 + 복구 액션 추가
+- [x] 랜딩 CTA 동작과 실제 접근 정책 정합화
+- [x] 빌드 검증 통과 (
+pm run build)
+
+## 14. 2026-02-22 결제/OAuth 복귀 안정화
+- [x] Polar success URL을 /checkout/pending 라우트 기반으로 수정
+- [x] OAuth 세션 복원 시 불필요한 강제 /input 이동 조건 보정
+- [x] 빌드 검증 통과 (
+pm run build)

@@ -35,7 +35,7 @@ export async function onRequestPost(context) {
 
     const body = await request.json();
     const origin = new URL(request.url).origin;
-    const successUrl = `${origin}/?checkout_success=true&checkout_id={CHECKOUT_ID}`;
+    const successUrl = `${origin}/checkout/pending?checkout_success=true&checkout_id={CHECKOUT_ID}`;
 
     const polarRes = await fetch(`${getBaseUrl(env)}/checkouts/`, {
       method: 'POST',

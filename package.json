@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npx -p node@20 node node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "test:constraints": "node scripts/constraints-regression.mjs",
     "test:prompts": "node scripts/prompt-samples-regression.mjs"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
@@ -16,7 +19,8 @@
     "lucide-react": "^0.574.0",
     "papaparse": "^5.5.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
