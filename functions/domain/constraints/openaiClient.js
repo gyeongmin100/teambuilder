@@ -158,4 +158,77 @@ const callOpenAIOnce = async ({
   return parseJsonSafe(raw, null);
 };
 
-export { callOpenAIOnce };
+const callOpenAIRequestVerifier = async ({
+  customPrompt,
+  teams,
+  teamSize,
+  remainderMode,
+  targetTeamCount,
+  targetTeamSizes,
+  env
+}) => {
+  const prompt = [
+    '# TASK',
+    'Check whether team assignment follows the user request.',
+    '',
+    '# USER_PROMPT',
+    String(customPrompt || ''),
+    '',
+    '# CONTEXT',
+    `teamSize: ${teamSize}`,
+    `remainderMode: ${remainderMode}`,
+    `targetTeamCount: ${targetTeamCount}`,
+    `targetTeamSizes: ${JSON.stringify(targetTeamSizes)}`,
+    '',
+    '# TEAMS',
+    JSON.stringify(
+      (teams || []).map((t) => ({
+        id: t.id,
+        size: Array.isArray(t.members) ? t.members.length : 0,
+        member_ids: Array.isArray(t.members) ? t.members.map((m) => m.id) : []
+      }))
+    ),
+    '',
+    '# OUTPUT_JSON_ONLY',
+    JSON.stringify({
+      is_match: true,
+      issues: ['short reason if mismatch']
+    })
+  ].join('\n');
+
+  const res = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a strict assignment validator. Return JSON only. Decide match only by user prompt compliance, not by writing style.'
+        },
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0
+    })
+  });
+
+  if (!res.ok) {
+    const failText = await res.text();
+    throw new Error(`OpenAI request verifier API error: ${failText}`);
+  }
+
+  const data = await res.json();
+  const raw = data?.choices?.[0]?.message?.content;
+  const parsed = parseJsonSafe(raw, {});
+  return {
+    isMatch: parsed?.is_match !== false,
+    issues: Array.isArray(parsed?.issues) ? parsed.issues.map((x) => String(x || '').trim()).filter(Boolean) : []
+  };
+};
+
+export { callOpenAIOnce, callOpenAIRequestVerifier };

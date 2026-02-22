@@ -30,4 +30,4 @@ export {
 } from './evaluator.js';
 
 export { buildAssignmentReport } from './reporter.js';
-export { callOpenAIOnce } from './openaiClient.js';
+export { callOpenAIOnce, callOpenAIRequestVerifier } from './openaiClient.js';
