@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
 const REPORT_CACHE_KEY = 'teambuilder_report_cache_v1';
 const PENDING_CHECKOUT_URL_KEY = 'teambuilder_pending_checkout_url_v1';
+const PENDING_CHECKOUT_ID_KEY = 'teambuilder_pending_checkout_id_v1';
 const APP_ROUTES = {
   landing: '/',
   login: '/login',
@@ -360,6 +361,7 @@ function App() {
   const [participantQuery, setParticipantQuery] = useState('');
   const [importPanelOpen, setImportPanelOpen] = useState(false);
   const runAssignLockRef = useRef(false);
+  const checkoutResumeLockRef = useRef(false);
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
   const [, setHistoryTick] = useState(0);
@@ -552,14 +554,14 @@ function App() {
 
   useEffect(() => {
     if (routePage !== 'polar') return;
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const hasCheckoutReturn = Boolean(params.get('checkout_id') && params.get('checkout_success') === 'true');
     if (hasCheckoutReturn) return;
     const hasPendingAssign = Boolean(sessionStorage.getItem(PENDING_ASSIGN_KEY));
     if (paymentLoading || hasPendingAssign) return;
     setMessage(tr('유효한 결제 대기 정보가 없어 입력 화면으로 이동합니다.', 'No valid pending checkout info. Redirecting to input page.'));
     goPage('input', { replace: true });
-  }, [routePage, paymentLoading]);
+  }, [routePage, paymentLoading, location.search]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -595,60 +597,89 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [undoDataChange, redoDataChange]);
 
-  useEffect(() => {
-    const runAfterPayment = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const checkoutId = params.get('checkout_id');
-      const checkoutSuccess = params.get('checkout_success');
-      if (!checkoutId || checkoutSuccess !== 'true') return;
+  const clearPendingCheckoutState = () => {
+    sessionStorage.removeItem(PENDING_ASSIGN_KEY);
+    sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
+    sessionStorage.removeItem(PENDING_CHECKOUT_ID_KEY);
+  };
 
-      goPage('polar', { replace: true });
-      setStep('loading');
-      setMessage(tr('결제 확인 중...', 'Verifying checkout...'));
-      try {
-        const verifyRes = await fetch(`/api/checkout?checkout_id=${encodeURIComponent(checkoutId)}`);
-        const verifyData = await verifyRes.json();
-        if (!verifyRes.ok || !verifyData?.paid) {
-          throw new Error(verifyData?.error || tr('결제가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.', 'Payment is not completed yet. Please try again shortly.'));
-        }
+  const runPaidAssignment = async ({ checkoutId, cleanReturnQuery = false, redirectOnMissingPayload = false }) => {
+    if (!checkoutId || checkoutResumeLockRef.current) return;
 
-        const raw = sessionStorage.getItem(PENDING_ASSIGN_KEY);
-        if (!raw) throw new Error(tr('결제는 확인됐지만 분석 요청 데이터가 없습니다. 다시 실행해 주세요.', 'Payment was verified but assignment payload is missing. Please run again.'));
-        const pending = JSON.parse(raw);
-        if (!pending?.payload) throw new Error(tr('분석 요청 데이터가 손상되었습니다. 다시 실행해 주세요.', 'Assignment payload is corrupted. Please run again.'));
+    checkoutResumeLockRef.current = true;
+    setStep('loading');
+    setPaymentLoading(true);
+    setMessage(tr('결제 확인 중...', 'Verifying checkout...'));
 
-        const res = await fetch('/api/assign', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...pending.payload,
-            checkout_id: checkoutId
-          })
-        });
-        const data = await res.json();
-        if (!data.teams) throw new Error(data.error || tr('배정 실패', 'Assignment failed'));
+    try {
+      const verifyRes = await fetch(`/api/checkout?checkout_id=${encodeURIComponent(checkoutId)}`);
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok || !verifyData?.paid) {
+        throw new Error(verifyData?.error || tr('결제가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.', 'Payment is not completed yet. Please try again shortly.'));
+      }
 
-        sessionStorage.removeItem(PENDING_ASSIGN_KEY);
-        setTeams(data.teams);
-        setAssignmentReport(data.report || null);
-        setMessage(tr('결제 완료 확인 후 팀 배정이 완료되었습니다.', 'Checkout verified and team assignment completed.'));
-        setStep('result');
-        goPage('report', { replace: true });
-      } catch (error) {
+      const raw = sessionStorage.getItem(PENDING_ASSIGN_KEY);
+      if (!raw) {
+        throw new Error(tr('결제는 확인됐지만 분석 요청 데이터가 없습니다. 다시 실행해 주세요.', 'Payment was verified but assignment payload is missing. Please run again.'));
+      }
+      const pending = JSON.parse(raw);
+      if (!pending?.payload) {
+        throw new Error(tr('분석 요청 데이터가 손상되었습니다. 다시 실행해 주세요.', 'Assignment payload is corrupted. Please run again.'));
+      }
+
+      const res = await fetch('/api/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pending.payload,
+          checkout_id: checkoutId
+        })
+      });
+      const data = await res.json();
+      if (!data.teams) throw new Error(data.error || tr('배정 실패', 'Assignment failed'));
+
+      clearPendingCheckoutState();
+      setTeams(data.teams);
+      setAssignmentReport(data.report || null);
+      setMessage(tr('결제 완료 확인 후 팀 배정이 완료되었습니다.', 'Checkout verified and team assignment completed.'));
+      setStep('result');
+      goPage('report', { replace: true });
+    } catch (error) {
+      const errorMessage =
+        error?.message ||
+        tr('결제 확인/팀 배정 중 오류가 발생했습니다.', 'Error occurred while verifying checkout and assigning teams.');
+      setMessage(errorMessage);
+      if (redirectOnMissingPayload && /요청 데이터|payload|손상/.test(errorMessage)) {
         setStep('input');
         goPage('input', { replace: true });
-        setMessage(error.message || tr('결제 확인/팀 배정 중 오류가 발생했습니다.', 'Error occurred while verifying checkout and assigning teams.'));
-      } finally {
-        sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
+      } else {
+        setStep('input');
+        goPage('polar', { replace: true });
+      }
+    } finally {
+      if (cleanReturnQuery) {
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete('checkout_id');
         cleanUrl.searchParams.delete('checkout_success');
         window.history.replaceState({}, '', cleanUrl.toString());
       }
-    };
+      checkoutResumeLockRef.current = false;
+      setPaymentLoading(false);
+    }
+  };
 
-    runAfterPayment();
-  }, []);
+  useEffect(() => {
+    if (routePage !== 'polar') return;
+    const params = new URLSearchParams(location.search);
+    const checkoutId = params.get('checkout_id');
+    const checkoutSuccess = params.get('checkout_success');
+    if (!checkoutId || checkoutSuccess !== 'true') return;
+    runPaidAssignment({
+      checkoutId,
+      cleanReturnQuery: true,
+      redirectOnMissingPayload: true
+    });
+  }, [routePage, location.search]);
 
   if (routePage === 'terms') {
     return (
@@ -1211,6 +1242,7 @@ function App() {
           createdAt: Date.now()
         })
       );
+      sessionStorage.setItem(PENDING_CHECKOUT_ID_KEY, String(checkoutData.checkout_id || ''));
       sessionStorage.setItem(PENDING_CHECKOUT_URL_KEY, checkoutData.url);
 
       window.location.href = checkoutData.url;
@@ -1327,6 +1359,7 @@ function App() {
     pendingTitle: isEn ? 'Checkout pending state' : '결제 대기 상태',
     pendingDesc: isEn ? 'No valid checkout return found, so auto verification cannot start.' : '결제 복귀 정보가 없어서 자동 검증을 시작할 수 없습니다.',
     goPayment: isEn ? 'Go to checkout' : '결제 페이지로 이동',
+    verifyPayment: isEn ? 'I paid, continue' : '결제 완료 확인',
     goInput: isEn ? 'Go to input' : '입력 화면으로 이동',
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
     rerunAssign: isEn ? 'Edit prompt and re-run' : '프롬프트 수정 후 다시 배정',
@@ -1379,6 +1412,8 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const pendingCheckoutId = String(sessionStorage.getItem(PENDING_CHECKOUT_ID_KEY) || '').trim();
+  const canResumePendingCheckout = Boolean(pendingCheckoutId && sessionStorage.getItem(PENDING_ASSIGN_KEY));
   const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
@@ -1470,6 +1505,7 @@ function App() {
     setSheetListOpen(false);
     setDriveForms([]);
     setImportPanelOpen(false);
+    clearPendingCheckoutState();
     setMessage('');
   };
 
@@ -1881,6 +1917,20 @@ function App() {
                   className="bg-[#1a2138] text-white hover:bg-[#12192d]"
                 >
                   {tx.goPayment}
+                </Button>
+                <Button
+                  onClick={() =>
+                    runPaidAssignment({
+                      checkoutId: pendingCheckoutId,
+                      cleanReturnQuery: false,
+                      redirectOnMissingPayload: true
+                    })
+                  }
+                  disabled={!canResumePendingCheckout || paymentLoading}
+                  variant="outline"
+                  className="border-[#d9deea] bg-white"
+                >
+                  {tx.verifyPayment}
                 </Button>
                 <Button onClick={() => goPage('input')} variant="outline" className="border-[#d9deea] bg-white">
                   {tx.goInput}

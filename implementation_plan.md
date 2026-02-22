@@ -629,3 +629,32 @@ pm run build)
     - 팀인원 Enter 시 `commitTeamSizeInput()` 후 `blur()` 처리
 - Verification:
   - `npm run build` 성공
+
+## 31. 2026-02-22 Add `Set in custom prompt` remainder mode
+- Goal:
+  - 나머지 인원 처리 방식을 사용자 맞춤 프롬프트 지시로 결정할 수 있는 3번째 옵션 제공.
+- Applied:
+  - `src/App.jsx`
+    - remainder mode 라디오에 `맞춤프롬프트에 입력하기` 추가
+    - `config.remainderMode === 'prompt'`일 때 점검 요약에 프롬프트 기반 처리 문구 표시
+  - `functions/api/assign.js`
+    - `remainderModeRaw` 도입(`spread|keep_partial|prompt`)
+    - OpenAI 호출에는 raw mode 전달, 내부 폴백 배정은 안전하게 spread/keep_partial만 사용
+  - `functions/domain/constraints/openaiClient.js`
+    - prompt 모드 규칙 추가(프롬프트 지시 우선, 미명시 시 spread)
+- Verification:
+  - `npm run build` 성공
+
+## 32. 2026-02-22 Checkout Pending Page Recovery + Result Transition Hardening
+- Goal:
+  - 결제대기페이지(`checkout/pending`)에서 결과페이지로 전환이 끊기는 문제를 복구하고, 자동/수동 복귀 경로를 모두 안정화.
+- Applied:
+  - `src/App.jsx`
+    - `PENDING_CHECKOUT_ID_KEY` 추가, 결제 세션 생성 시 `checkout_id` 저장
+    - 결제 후 복귀(`checkout_success=true`) 시 실행되는 로직을 `runPaidAssignment` 공통 함수로 분리
+    - 결제대기페이지에 `결제 완료 확인` 버튼 추가(저장된 `checkout_id` 기반 수동 검증/배정 재개)
+    - 성공 시 pending 데이터(`assign/url/id`)를 일괄 제거하는 `clearPendingCheckoutState` 추가
+    - 결제 확인 실패 시 즉시 `input`으로 강제 이동하지 않고 `polar`에서 재시도 가능하도록 오류 흐름 개선
+    - query 파라미터 기반 자동 복귀 후 URL 정리 로직 유지
+- Verification:
+  - `npm run build` 성공

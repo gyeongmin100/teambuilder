@@ -44,6 +44,7 @@ const buildPrompt = ({ participants, teamSize, remainderMode, customPrompt, cons
     '- 모순되는 요청은 전체 위반 수를 최소화하는 안을 선택하고 warnings에 기록',
     '- remainderMode가 spread면 팀 개수는 floor(전체인원/teamSize)로 유지하고, 나머지 인원만 기존 팀에 추가 배정 (새 팀 생성 금지)',
     '- remainderMode가 keep_partial이면 마지막 부족 팀 1개 생성 허용',
+    '- remainderMode가 prompt면 customRequirements에서 나머지 처리 지시를 우선 적용한다. 명시 지시가 없으면 spread로 처리',
     '',
     'participants(JSON):',
     JSON.stringify(participants),

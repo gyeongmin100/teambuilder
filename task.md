@@ -443,3 +443,19 @@ pm run build)
 - [x] 기준열 `초기화` 버튼을 전체 입력상태 리셋 동작으로 변경
 - [x] 팀인원 Enter 입력 시 commit 후 blur 처리(입력모드 해제)
 - [x] 빌드 검증 통과 (`npm run build`)
+
+## 31. 2026-02-22 나머지 인원 처리 방식 `맞춤프롬프트에 입력하기` 옵션 추가
+- [x] 팀설정에 3번째 옵션(`맞춤프롬프트에 입력하기`) 추가
+- [x] 선택 시 요약에 `맞춤프롬프트 지시 따름` 문구 반영
+- [x] 서버에서 `remainderMode=prompt` 인식 및 OpenAI 호출 파라미터로 전달
+- [x] OpenAI 프롬프트 규칙에 prompt 모드 동작 규칙 추가
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 32. 2026-02-22 결제대기페이지 복구/결과 이동 안정화
+- [x] 결제 세션 생성 시 `checkout_id`를 세션스토리지에 저장(`PENDING_CHECKOUT_ID_KEY`)
+- [x] 결제 복귀 URL(`checkout_success=true&checkout_id=...`) 감지 시 자동 결제검증+팀배정 실행
+- [x] 결제대기페이지에 수동 복구 버튼(`결제 완료 확인`) 추가
+- [x] 자동/수동 검증 공통 로직(`runPaidAssignment`)으로 통합
+- [x] 복구 성공 시 pending state 3종(assign/url/id) 일괄 정리
+- [x] 결제검증 실패 시 즉시 입력페이지로 튕기지 않고 대기페이지 재시도 가능하게 개선
+- [x] 빌드 검증 통과 (`npm run build`)

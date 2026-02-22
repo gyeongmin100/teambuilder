@@ -57,7 +57,13 @@ export async function onRequestPost(context) {
     await verifyPaidCheckout({ checkoutId, env });
 
     const teamSize = Number(config.teamSize) > 0 ? Number(config.teamSize) : 4;
-    const remainderMode = config.remainderMode === 'keep_partial' ? 'keep_partial' : 'spread';
+    const remainderModeRaw =
+      config.remainderMode === 'keep_partial'
+        ? 'keep_partial'
+        : config.remainderMode === 'prompt'
+          ? 'prompt'
+          : 'spread';
+    const remainderMode = remainderModeRaw === 'prompt' ? 'spread' : remainderModeRaw;
 
     const compact = ensureUniqueIds(participants.map(compactParticipant).filter((p) => p.id));
     if (compact.length < 2) {
@@ -142,7 +148,7 @@ export async function onRequestPost(context) {
       ai = await callOpenAIOnce({
         participants: compact,
         teamSize,
-        remainderMode,
+        remainderMode: remainderModeRaw,
         customPrompt: promptText,
         constraints,
         env
