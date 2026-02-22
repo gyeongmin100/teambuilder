@@ -1382,6 +1382,7 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
   const isCustomPromptActive = String(customPrompt || '').trim().length > 0;
@@ -1739,12 +1740,11 @@ function App() {
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
                         {validParticipants.length > 0 ? 'No' : ''}
                       </TableHead>
-                      <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                        {renderEditableHeader(
-                          selectedIdentifierKey,
-                          ''
-                        )}
-                      </TableHead>
+                      {hasIdentifierColumn && (
+                        <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
+                          {renderEditableHeader(selectedIdentifierKey, '')}
+                        </TableHead>
+                      )}
                       {tableFeatureKeys.map((key) => (
                         <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
                           {renderEditableHeader(key, key)}
@@ -1757,8 +1757,8 @@ function App() {
                     {shownParticipants.map((p, idx) => (
                       <TableRow key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
                         <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
-                        <TableCell className="px-3 py-2">
-                          {selectedIdentifierKey ? (
+                        {hasIdentifierColumn && (
+                          <TableCell className="px-3 py-2">
                             <Input
                               value={String(p?.features?.[selectedIdentifierKey] || '')}
                               onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
@@ -1766,10 +1766,8 @@ function App() {
                               className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={tx.valueInput}
                             />
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
-                        </TableCell>
+                          </TableCell>
+                        )}
                         {tableFeatureKeys.map((key) => (
                           <TableCell key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
                             <Input
@@ -1796,7 +1794,7 @@ function App() {
                     ))}
                     {shownParticipants.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-[#667085]">
+                        <TableCell colSpan={tableFeatureKeys.length + (hasIdentifierColumn ? 3 : 2)} className="px-3 py-6 text-center text-[#667085]">
                           {validParticipants.length === 0 ? tx.noData : tx.noResult}
                         </TableCell>
                       </TableRow>
