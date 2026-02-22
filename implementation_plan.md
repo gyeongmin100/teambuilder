@@ -584,3 +584,20 @@ pm run build)
     - 팀 인원 2 미만 실행 차단 가드 추가
 - Verification:
   - `npm run build` 성공
+
+## 28. 2026-02-22 Input UX Tweaks (import panel + identifier reset + team size range)
+- Goal:
+  - 외부데이터 패널의 시각적 위치를 버튼 직하단으로 맞추고, 열/기준열/팀인원 입력 UX를 더 간결하게 개선.
+- Applied:
+  - `src/App.jsx`
+    - 외부데이터 패널 렌더 순서를 제목줄 바로 아래로 이동
+    - import hint에서 `빈 행 추가` 문구 제거
+    - 열 삭제 컨트롤을 소형 `Trash2` 아이콘 버튼으로 변경
+    - 기준 열 섹션에 `초기화` 버튼 추가(참가자 데이터 존재 시에만 표시)
+    - 식별열 자동 재선택 effect를 보정해 수동 초기화 상태 유지
+    - 팀인원 입력 커밋 로직(`commitTeamSizeInput`) 추가
+      - blur/Enter 시 공통 적용
+      - 입력 범위를 `1..validParticipants.length`(데이터 없으면 1)로 제한
+    - 실행 전 팀인원 유효성 가드를 1 이상 기준으로 변경
+- Verification:
+  - `npm run build` 성공

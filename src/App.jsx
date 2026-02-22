@@ -508,7 +508,7 @@ function App() {
       if (selectedIdentifierKey) setSelectedIdentifierKey('');
       return;
     }
-    if (!selectedIdentifierKey || !columnOrder.includes(selectedIdentifierKey)) {
+    if (selectedIdentifierKey && !columnOrder.includes(selectedIdentifierKey)) {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
@@ -1107,10 +1107,11 @@ function App() {
         <button
           type="button"
           onClick={() => removeFeatureColumn(columnKey)}
-          className="text-[11px] text-rose-600 hover:text-rose-700"
+          className="inline-flex items-center text-rose-600 hover:text-rose-700"
           title={tx.deleteColumn}
+          aria-label={tx.deleteColumn}
         >
-          {isEn ? 'Delete' : '삭제'}
+          <Trash2 size={12} />
         </button>
       </span>
     );
@@ -1118,8 +1119,8 @@ function App() {
 
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
-    if (!Number.isFinite(Number(config.teamSize)) || Number(config.teamSize) < 2) {
-      return setMessage(tr('1팀당 인원을 2 이상 입력해 주세요.', 'Please set members per team to at least 2.'));
+    if (!Number.isFinite(Number(config.teamSize)) || Number(config.teamSize) < 1) {
+      return setMessage(tr('1팀당 인원을 1 이상 입력해 주세요.', 'Please set members per team to at least 1.'));
     }
     if (validParticipants.length < 2) {
       return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
@@ -1274,7 +1275,7 @@ function App() {
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
-    importHint: isEn ? 'Google Form, CSV upload, and manual row are supported' : '지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가',
+    importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
     load: isEn ? 'Load' : '불러오기',
     loading: isEn ? 'Loading...' : '불러오는 중...',
     myForms: isEn ? 'My Google Forms' : '내 구글폼 목록',
@@ -1306,6 +1307,7 @@ function App() {
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
     pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
     selectIdentifier: isEn ? 'Choose identifier column' : '기준 열 선택',
+    clearIdentifier: isEn ? 'Clear' : '초기화',
     renameColumn: isEn ? 'Rename column' : '열 이름 수정',
     deleteColumn: isEn ? 'Delete column' : '열 삭제',
     deleteLabel: isEn ? 'Delete' : '삭제',
@@ -1346,6 +1348,7 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
   const isCustomPromptActive = String(customPrompt || '').trim().length > 0;
   const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
@@ -1403,6 +1406,18 @@ function App() {
       value: isCustomPromptActive ? tx.enabled : tx.disabled
     }
   ];
+
+  const commitTeamSizeInput = () => {
+    const parsed = Number(teamSizeInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setConfig({ ...config, teamSize: 0 });
+      setTeamSizeInput('');
+      return;
+    }
+    const nextSize = Math.min(maxTeamSizeInput, Math.max(1, Math.round(parsed)));
+    setConfig({ ...config, teamSize: nextSize });
+    setTeamSizeInput(String(nextSize));
+  };
 
   return (
     <div className="min-h-screen bg-[#f5f6f1] text-[#1a1f2e] p-4 md:p-6">
@@ -1497,23 +1512,19 @@ function App() {
                   <Input
                     type="text"
                     inputMode="numeric"
-                    min="2"
-                    max="50"
+                    min="1"
+                    max={maxTeamSizeInput}
                     value={teamSizeInput}
                     onChange={(e) => {
                       const raw = String(e.target.value || '');
                       if (/^\d*$/.test(raw)) setTeamSizeInput(raw);
                     }}
-                    onBlur={() => {
-                      const parsed = Number(teamSizeInput);
-                      if (!Number.isFinite(parsed) || parsed <= 0) {
-                        setConfig({ ...config, teamSize: 0 });
-                        setTeamSizeInput('');
-                        return;
+                    onBlur={commitTeamSizeInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitTeamSizeInput();
                       }
-                      const nextSize = Math.min(50, Math.max(2, Math.round(parsed)));
-                      setConfig({ ...config, teamSize: nextSize });
-                      setTeamSizeInput(String(nextSize));
                     }}
                     className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                   />
@@ -1571,23 +1582,6 @@ function App() {
                   {importPanelOpen ? tx.hideImportTools : tx.importTools}
                 </Button>
               </div>
-              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
-                <div className="flex items-center gap-2">
-                  <Search size={14} className="text-[#667085]" />
-                  <Input
-                    value={participantQuery}
-                    onChange={(e) => setParticipantQuery(e.target.value)}
-                    placeholder={tx.search}
-                    className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
-                  />
-                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
-                    {tx.addRow}
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
-                    {tx.addColumn}
-                  </Button>
-                </div>
-              </div>
               {importPanelOpen && (
                 <div className="px-3 py-3 border-b bg-[#f8fafc] space-y-3">
                   <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
@@ -1639,20 +1633,49 @@ function App() {
                   )}
                 </div>
               )}
+              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-[#667085]" />
+                  <Input
+                    value={participantQuery}
+                    onChange={(e) => setParticipantQuery(e.target.value)}
+                    placeholder={tx.search}
+                    className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
+                  />
+                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
+                    {tx.addRow}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
+                    {tx.addColumn}
+                  </Button>
+                </div>
+              </div>
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
-                  <select
-                    value={selectedIdentifierKey}
-                    onChange={(e) => pinColumnAsIdentifier(e.target.value)}
-                    className="h-8 rounded-md border border-[#d9deea] bg-white px-2 text-sm"
-                  >
-                    {columnOrder.map((key) => (
-                      <option key={`identifier-${key}`} value={key}>
-                        {key}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
+                    <select
+                      value={selectedIdentifierKey}
+                      onChange={(e) => pinColumnAsIdentifier(e.target.value)}
+                      className="h-8 rounded-md border border-[#d9deea] bg-white px-2 text-sm"
+                    >
+                      {columnOrder.map((key) => (
+                        <option key={`identifier-${key}`} value={key}>
+                          {key}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {validParticipants.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedIdentifierKey('')}
+                    >
+                      {tx.clearIdentifier}
+                    </Button>
+                  )}
                 </div>
               </div>
               <div className="overflow-auto bg-white">
