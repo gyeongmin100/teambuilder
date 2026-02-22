@@ -15,6 +15,48 @@ const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
 const REPORT_CACHE_KEY = 'teambuilder_report_cache_v1';
 const PENDING_CHECKOUT_URL_KEY = 'teambuilder_pending_checkout_url_v1';
 const PENDING_CHECKOUT_ID_KEY = 'teambuilder_pending_checkout_id_v1';
+const safeGetSession = (key) => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const safeSetSession = (key, value) => {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // noop
+  }
+};
+const safeRemoveSession = (key) => {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // noop
+  }
+};
+const safeSessionKeys = () => {
+  try {
+    return Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i)).filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+const safeGetLocal = (key) => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const safeSetLocal = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // noop
+  }
+};
 const APP_ROUTES = {
   landing: '/',
   login: '/login',
@@ -302,11 +344,7 @@ function App() {
       : 'ko';
   const [uiLang, setUiLang] = useState(() => {
     if (queryLang === 'en' || queryLang === 'ko') return queryLang;
-    try {
-      return localStorage.getItem('teambuilder_ui_lang') || initialLang;
-    } catch {
-      return initialLang;
-    }
+    return safeGetLocal('teambuilder_ui_lang') || initialLang;
   });
   const tr = (ko, en) => (uiLang === 'en' ? en : ko);
 
@@ -426,17 +464,13 @@ function App() {
   };
 
   const clearAllReportCaches = () => {
-    const keysToRemove = [];
-    for (let i = 0; i < sessionStorage.length; i += 1) {
-      const k = sessionStorage.key(i);
-      if (k && k.startsWith(REPORT_CACHE_KEY)) keysToRemove.push(k);
-    }
-    keysToRemove.forEach((k) => sessionStorage.removeItem(k));
+    const keysToRemove = safeSessionKeys().filter((k) => k.startsWith(REPORT_CACHE_KEY));
+    keysToRemove.forEach((k) => safeRemoveSession(k));
   };
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(reportCacheKey);
+      const raw = safeGetSession(reportCacheKey);
       if (!raw) {
         setReportCacheHydrated(true);
         return;
@@ -449,7 +483,7 @@ function App() {
         setAssignmentReport(parsed.report);
       }
     } catch {
-      sessionStorage.removeItem(reportCacheKey);
+      safeRemoveSession(reportCacheKey);
     } finally {
       setReportCacheHydrated(true);
     }
@@ -458,29 +492,21 @@ function App() {
   useEffect(() => {
     if (!reportCacheHydrated) return;
     if (!Array.isArray(teams) || teams.length === 0) {
-      sessionStorage.removeItem(reportCacheKey);
+      safeRemoveSession(reportCacheKey);
       return;
     }
-    try {
-      sessionStorage.setItem(
-        reportCacheKey,
-        JSON.stringify({
-          teams,
-          report: assignmentReport || null,
-          updatedAt: Date.now()
-        })
-      );
-    } catch {
-      // noop
-    }
+    safeSetSession(
+      reportCacheKey,
+      JSON.stringify({
+        teams,
+        report: assignmentReport || null,
+        updatedAt: Date.now()
+      })
+    );
   }, [teams, assignmentReport, reportCacheHydrated, reportCacheKey]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('teambuilder_ui_lang', uiLang);
-    } catch {
-      // noop
-    }
+    safeSetLocal('teambuilder_ui_lang', uiLang);
   }, [uiLang]);
 
   useEffect(() => {
@@ -557,7 +583,7 @@ function App() {
     const params = new URLSearchParams(location.search);
     const hasCheckoutReturn = Boolean(params.get('checkout_id') && params.get('checkout_success') === 'true');
     if (hasCheckoutReturn) return;
-    const hasPendingAssign = Boolean(sessionStorage.getItem(PENDING_ASSIGN_KEY));
+    const hasPendingAssign = Boolean(safeGetSession(PENDING_ASSIGN_KEY));
     if (paymentLoading || hasPendingAssign) return;
     setMessage(tr('유효한 결제 대기 정보가 없어 입력 화면으로 이동합니다.', 'No valid pending checkout info. Redirecting to input page.'));
     goPage('input', { replace: true });
@@ -598,9 +624,9 @@ function App() {
   }, [undoDataChange, redoDataChange]);
 
   const clearPendingCheckoutState = () => {
-    sessionStorage.removeItem(PENDING_ASSIGN_KEY);
-    sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
-    sessionStorage.removeItem(PENDING_CHECKOUT_ID_KEY);
+    safeRemoveSession(PENDING_ASSIGN_KEY);
+    safeRemoveSession(PENDING_CHECKOUT_URL_KEY);
+    safeRemoveSession(PENDING_CHECKOUT_ID_KEY);
   };
 
   const runPaidAssignment = async ({ checkoutId, cleanReturnQuery = false, redirectOnMissingPayload = false }) => {
@@ -618,7 +644,7 @@ function App() {
         throw new Error(verifyData?.error || tr('결제가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.', 'Payment is not completed yet. Please try again shortly.'));
       }
 
-      const raw = sessionStorage.getItem(PENDING_ASSIGN_KEY);
+      const raw = safeGetSession(PENDING_ASSIGN_KEY);
       if (!raw) {
         throw new Error(tr('결제는 확인됐지만 분석 요청 데이터가 없습니다. 다시 실행해 주세요.', 'Payment was verified but assignment payload is missing. Please run again.'));
       }
@@ -740,7 +766,7 @@ function App() {
     if (error) setMessage(tr(`로그아웃 실패: ${error.message}`, `Sign-out failed: ${error.message}`));
     if (!error) {
       clearAllReportCaches();
-      sessionStorage.removeItem(PENDING_CHECKOUT_URL_KEY);
+      safeRemoveSession(PENDING_CHECKOUT_URL_KEY);
       goPage('landing');
     }
   };
@@ -1234,15 +1260,15 @@ function App() {
         throw new Error(checkoutData?.error || tr('결제 세션 생성 실패', 'Failed to create checkout session'));
       }
 
-      sessionStorage.setItem(
+      safeSetSession(
         PENDING_ASSIGN_KEY,
         JSON.stringify({
           payload: assignPayload,
           createdAt: Date.now()
         })
       );
-      sessionStorage.setItem(PENDING_CHECKOUT_ID_KEY, String(checkoutData.checkout_id || ''));
-      sessionStorage.setItem(PENDING_CHECKOUT_URL_KEY, checkoutData.url);
+      safeSetSession(PENDING_CHECKOUT_ID_KEY, String(checkoutData.checkout_id || ''));
+      safeSetSession(PENDING_CHECKOUT_URL_KEY, checkoutData.url);
 
       window.location.href = checkoutData.url;
     } catch (error) {
@@ -1412,8 +1438,8 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
-  const pendingCheckoutId = String(sessionStorage.getItem(PENDING_CHECKOUT_ID_KEY) || '').trim();
-  const canResumePendingCheckout = Boolean(pendingCheckoutId && sessionStorage.getItem(PENDING_ASSIGN_KEY));
+  const pendingCheckoutId = String(safeGetSession(PENDING_CHECKOUT_ID_KEY) || '').trim();
+  const canResumePendingCheckout = Boolean(pendingCheckoutId && safeGetSession(PENDING_ASSIGN_KEY));
   const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
@@ -1917,7 +1943,7 @@ function App() {
               <div className="flex justify-center gap-2">
                 <Button
                   onClick={() => {
-                    const pendingUrl = sessionStorage.getItem(PENDING_CHECKOUT_URL_KEY);
+                    const pendingUrl = safeGetSession(PENDING_CHECKOUT_URL_KEY);
                     if (!pendingUrl) {
                       setMessage(tx.waitingCheckoutLinkMissing);
                       goPage('input');
@@ -1966,7 +1992,7 @@ function App() {
                   goPage('input');
                   setTeams([]);
                   setAssignmentReport(null);
-                  sessionStorage.removeItem(reportCacheKey);
+                  safeRemoveSession(reportCacheKey);
                 }}
                 variant="outline"
                 className="border-[#d9deea] bg-white"
