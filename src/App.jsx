@@ -361,8 +361,6 @@ function App() {
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
   const [, setHistoryTick] = useState(0);
-  const [newFeatureName, setNewFeatureName] = useState('');
-  const [draggingColumnKey, setDraggingColumnKey] = useState('');
   const [editingColumnKey, setEditingColumnKey] = useState('');
   const [editingColumnName, setEditingColumnName] = useState('');
 
@@ -793,20 +791,6 @@ function App() {
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
 
-  const moveColumnByDrop = (dragKey, dropKey) => {
-    if (!dragKey || !dropKey || dragKey === dropKey) return;
-    recordHistorySnapshot();
-    setColumnOrder((prev) => {
-      const from = prev.indexOf(dragKey);
-      const to = prev.indexOf(dropKey);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
-  };
-
   const pinColumnAsIdentifier = (key) => {
     if (!key) return;
     if (columnOrder[0] === key) return;
@@ -825,16 +809,12 @@ function App() {
   };
 
   const addFeatureColumn = () => {
-    let key = String(newFeatureName || '').trim();
-    if (!key) {
-      const base = tr('새 열', 'New column');
-      let seq = columnOrder.length + 1;
-      let candidate = `${base} ${seq}`;
-      while (hasDuplicateColumnName(candidate)) {
-        seq += 1;
-        candidate = `${base} ${seq}`;
-      }
-      key = candidate;
+    const base = tr('새 열', 'New column');
+    let seq = columnOrder.length + 1;
+    let key = `${base} ${seq}`;
+    while (hasDuplicateColumnName(key)) {
+      seq += 1;
+      key = `${base} ${seq}`;
     }
     if (hasDuplicateColumnName(key)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
 
@@ -847,7 +827,6 @@ function App() {
         features: { ...(p.features || {}), [key]: String(p?.features?.[key] ?? '') }
       }))
     );
-    setNewFeatureName('');
     setMessage(tr(`열 추가 완료: ${key}`, `Column added: ${key}`));
   };
 
@@ -1091,15 +1070,25 @@ function App() {
     }
 
     return (
-      <button
-        type="button"
-        onClick={() => startRenameFeatureColumn(columnKey)}
-        onDoubleClick={() => startRenameFeatureColumn(columnKey)}
-        className="inline-block max-w-40 truncate text-left hover:text-[#1d4ed8]"
-        title={columnKey}
-      >
-        {columnKey}
-      </button>
+      <span className="inline-flex max-w-44 items-center gap-1">
+        <button
+          type="button"
+          onClick={() => startRenameFeatureColumn(columnKey)}
+          onDoubleClick={() => startRenameFeatureColumn(columnKey)}
+          className="inline-block max-w-36 truncate text-left hover:text-[#1d4ed8]"
+          title={columnKey}
+        >
+          {columnKey}
+        </button>
+        <button
+          type="button"
+          onClick={() => pinColumnAsIdentifier(columnKey)}
+          className={`inline-flex items-center ${selectedIdentifierKey === columnKey ? 'text-cyan-700' : 'text-[#475467]'}`}
+          title={tx.pinAsIdentifier}
+        >
+          <Pin size={11} />
+        </button>
+      </span>
     );
   };
 
@@ -1285,14 +1274,8 @@ function App() {
     formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
     leadingColumnRule: isEn ? 'The first column is used as the identifier for team assignment.' : '첫 번째 열을 식별 열로 사용해 팀을 나눕니다.',
-    addColumnPlaceholder: isEn ? 'New column name (e.g., MBTI, gender, preferred role)' : '새 특성명 입력 (예: MBTI, 성별, 희망역할)',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
-    renameColumn: isEn ? 'Rename' : '이름 수정',
     pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
-    save: isEn ? 'Save' : '저장',
-    cancel: isEn ? 'Cancel' : '취소',
-    columnListHint: isEn ? 'Column list appears after importing a form or CSV.' : '폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.',
-    baseLabel: isEn ? 'Base' : '기준',
     deleteLabel: isEn ? 'Delete' : '삭제',
     noColumnToRun: isEn ? 'Cannot start analysis without columns.' : '열이 없으면 분석을 시작할 수 없습니다.',
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
@@ -1546,12 +1529,6 @@ function App() {
                   />
                 </div>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Input
-                    value={newFeatureName}
-                    onChange={(e) => setNewFeatureName(e.target.value)}
-                    placeholder={tx.addColumnPlaceholder}
-                    className="h-8 w-56 border-[#d9deea] bg-white text-sm"
-                  />
                   <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
                     {tx.addColumn}
                   </Button>
@@ -1562,40 +1539,6 @@ function App() {
               </div>
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
                 <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
-                <div className="flex flex-wrap gap-2">
-                  {columnOrder.length === 0 && (
-                    <p className="text-xs text-[#667085]">{tx.columnListHint}</p>
-                  )}
-                  {columnOrder.map((key) => (
-                    <div
-                      key={`table-feature-${key}`}
-                      draggable
-                      onDragStart={() => {
-                        setDraggingColumnKey(key);
-                      }}
-                      onDragEnd={() => setDraggingColumnKey('')}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        moveColumnByDrop(draggingColumnKey, key);
-                        setDraggingColumnKey('');
-                      }}
-                      className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm cursor-move ${
-                        columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-white'
-                      }`}
-                    >
-                      <span className="max-w-36 truncate" title={key}>{key}</span>
-                      {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">{tx.baseLabel}</span>}
-                      <button
-                        type="button"
-                        onClick={() => pinColumnAsIdentifier(key)}
-                        className={`inline-flex items-center gap-1 ${columnOrder[0] === key ? 'text-cyan-700' : 'text-[#475467]'}`}
-                        title={tx.pinAsIdentifier}
-                      >
-                        <Pin size={12} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
                 <p className="text-xs text-[#667085]">{tx.excludeFieldHint}</p>
                 <div className="flex flex-wrap gap-2">
                   {columnOrder.length === 0 && (
