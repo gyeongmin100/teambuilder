@@ -10,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const PENDING_ASSIGN_KEY = 'teambuilder_pending_assign_v1';
 const REPORT_CACHE_KEY = 'teambuilder_report_cache_v1';
@@ -358,7 +357,6 @@ function App() {
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
-  const [inputTab, setInputTab] = useState('data');
   const runAssignLockRef = useRef(false);
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
@@ -776,7 +774,6 @@ function App() {
       setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
 
       setMessage(tr(`구글폼 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`, `Google Form import completed: ${mapped} mapped, ${skipped} skipped`));
-      setInputTab('rules');
     } catch (e) {
       setMessage(toUserFacingError(e, '구글폼 데이터 불러오기 중 오류가 발생했습니다.', 'An error occurred while importing Google Form data.'));
     } finally {
@@ -791,7 +788,6 @@ function App() {
     );
     setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
     setShowAllParticipants(false);
-    setInputTab('rules');
 
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
   };
@@ -1030,22 +1026,18 @@ function App() {
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
     if (validParticipants.length < 2) {
-      setInputTab('review');
       return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
     }
     if (!selectedIdentifierKey) {
-      setInputTab('review');
-      return setMessage(tr('맨 앞 열이 필요합니다. 열을 추가해 주세요.', 'Primary column is required. Please add a column.'));
+      return setMessage(tr('식별 열이 필요합니다. 열을 추가해 주세요.', 'Identifier column is required. Please add a column.'));
     }
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
-      setInputTab('review');
-      return setMessage(tr(`맨 앞 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`, `${missingIdentifier.length} participants have empty primary-column values.`));
+      return setMessage(tr(`식별 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`, `${missingIdentifier.length} participants have empty identifier values.`));
     }
     if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
-      setInputTab('review');
-      return setMessage(tr('맨 앞 열은 제외할 수 없습니다.', 'Primary column cannot be excluded.'));
+      return setMessage(tr('식별 열은 제외할 수 없습니다.', 'Identifier column cannot be excluded.'));
     }
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
@@ -1099,7 +1091,6 @@ function App() {
       setMessage(toUserFacingError(error, '결제 연결 중 오류가 발생했습니다.', 'Error occurred while opening checkout.'));
       setStep('input');
       goPage('input');
-      setInputTab('review');
     } finally {
       runAssignLockRef.current = false;
       setPaymentLoading(false);
@@ -1176,7 +1167,7 @@ function App() {
     participants: isEn ? 'Participants' : '현재 참가자',
     primaryColumn: isEn ? 'Primary column' : '맨 앞 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
-    progressStatus: isEn ? 'Status' : '진행 상태',
+    progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
     needPrimary: isEn ? 'Primary column required' : '맨 앞 열 확인 필요',
     dataDrivenAnalysis: isEn ? '100% data-driven team analysis' : '100% 데이터 기반 팀 분석',
@@ -1222,7 +1213,7 @@ function App() {
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
     excludeFieldHint: isEn ? 'Choose columns to exclude from analysis.' : '분석에서 제외할 열을 선택할 수 있습니다.',
     loadFormFirstHint: isEn ? 'Import a form first to show feature columns.' : '폼을 먼저 불러오면 특성 목록이 표시됩니다.',
-    noPrimaryColumn: isEn ? 'No primary column' : '맨 앞 열 없음',
+    noPrimaryColumn: isEn ? 'Set identifier column' : '식별 열을 설정하세요',
     valueInput: isEn ? 'Enter value' : '값 입력',
     moreView: isEn ? 'Show all' : '전체보기',
     collapse: isEn ? 'Collapse' : '접기',
@@ -1240,13 +1231,13 @@ function App() {
     tabRules: isEn ? 'Rules' : '규칙',
     tabReview: isEn ? 'Review' : '검토',
     tabRun: isEn ? 'Run' : '실행',
-    inputFlowGuide: isEn ? 'Flow: Data -> Rules -> Review -> Run' : '작업순서: 데이터 -> 규칙 -> 검토 -> 실행',
+    inputFlowGuide: isEn ? 'All settings on one page' : '한 페이지에서 바로 설정 후 실행',
     reviewSummary: isEn ? 'Readiness Summary' : '실행 전 점검 요약',
     runReady: isEn ? 'Ready to run assignment' : '팀 배정 실행 가능',
     runBlocked: isEn ? 'Fix required items first' : '먼저 필수 항목을 해결하세요',
-    openDataTabHint: isEn ? 'Go to Data tab and complete import/columns.' : '데이터 탭에서 불러오기와 열 구성을 먼저 완료하세요.',
-    goDataTab: isEn ? 'Go to Data tab' : '데이터 탭으로 이동',
-    reviewFixAction: isEn ? 'Open tab' : '탭 열기'
+    openDataTabHint: isEn ? 'Complete data import and identifier setup first.' : '데이터 불러오기와 식별 열 설정을 먼저 완료하세요.',
+    goDataTab: isEn ? 'Check data section' : '데이터 섹션 확인',
+    reviewFixAction: isEn ? 'Fix in page' : '페이지에서 바로 수정'
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
@@ -1254,20 +1245,17 @@ function App() {
     {
       label: tx.participants,
       value: validParticipants.length,
-      ok: validParticipants.length > 0,
-      tab: 'data'
+      ok: validParticipants.length > 0
     },
     {
       label: tx.primaryColumn,
       value: selectedIdentifierKey || tx.noPrimaryColumn,
-      ok: Boolean(selectedIdentifierKey),
-      tab: 'data'
+      ok: Boolean(selectedIdentifierKey)
     },
     {
       label: isEn ? 'Duplicate identifiers' : '중복 식별값',
       value: duplicateIdentifierCount,
-      ok: duplicateIdentifierCount === 0,
-      tab: 'data'
+      ok: duplicateIdentifierCount === 0
     }
   ];
 
@@ -1369,15 +1357,9 @@ function App() {
 
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
               <p className="text-xs text-[#667085]">{tx.inputFlowGuide}</p>
-              <Tabs value={inputTab} onValueChange={setInputTab} className="space-y-4">
-                <TabsList className="w-full justify-start bg-[#f2f5fa]">
-                  <TabsTrigger value="data">{tx.tabData}</TabsTrigger>
-                  <TabsTrigger value="rules">{tx.tabRules}</TabsTrigger>
-                  <TabsTrigger value="review">{tx.tabReview}</TabsTrigger>
-                  <TabsTrigger value="run">{tx.tabRun}</TabsTrigger>
-                </TabsList>
+              <div className="space-y-4">
 
-              <TabsContent value="rules" className="mt-0">
+              <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
                 <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
               <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -1432,9 +1414,10 @@ function App() {
                 )}
               </div>
               </div>
-              </TabsContent>
+              </div>
 
-              <TabsContent value="data" className="mt-0 space-y-4">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+              <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3">
                 <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
                 <p className="text-xs text-[#667085]">{tx.importHint}</p>
@@ -1569,6 +1552,9 @@ function App() {
                 </div>
               </div>
 
+              </div>
+
+              <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] overflow-hidden">
               <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
@@ -1671,9 +1657,10 @@ function App() {
                     : `${tx.moreView} (${filteredParticipants.length - maxInitialRows}명 더 보기)`}
               </Button>
               )}
-              </TabsContent>
+              </div>
+              </div>
 
-              <TabsContent value="review" className="mt-0">
+              <div className="space-y-4">
                 <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
                   <p className="text-sm font-bold">{tx.reviewSummary}</p>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1681,17 +1668,7 @@ function App() {
                       <div key={item.label} className={`rounded-lg border p-3 ${item.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
                         <p className="text-xs text-[#667085]">{item.label}</p>
                         <p className="text-sm font-bold mt-1">{item.value}</p>
-                        {!item.ok && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="mt-2 h-7 px-2 text-xs"
-                            onClick={() => setInputTab(item.tab)}
-                          >
-                            {tx.reviewFixAction}
-                          </Button>
-                        )}
+                        {!item.ok && <p className="mt-2 text-xs text-rose-700">{tx.reviewFixAction}</p>}
                       </div>
                     ))}
                   </div>
@@ -1703,9 +1680,9 @@ function App() {
                   )}
                   {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
-              </TabsContent>
+              </div>
 
-              <TabsContent value="run" className="mt-0">
+              <div className="space-y-4">
               <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
               <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
                 {paymentLoading ? tx.moveToPayment : tx.runAssign}
@@ -1714,15 +1691,10 @@ function App() {
               {!canRunAssignment && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   {tx.openDataTabHint}
-                  <div className="mt-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={() => setInputTab('data')}>
-                      {tx.goDataTab}
-                    </Button>
-                  </div>
                 </div>
               )}
-              </TabsContent>
-              </Tabs>
+              </div>
+              </div>
             </div>
           </div>
         )}
