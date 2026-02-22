@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin, Trash2 } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -507,7 +507,7 @@ function App() {
       if (selectedIdentifierKey) setSelectedIdentifierKey('');
       return;
     }
-    if (selectedIdentifierKey !== columnOrder[0]) {
+    if (!selectedIdentifierKey || !columnOrder.includes(selectedIdentifierKey)) {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
@@ -794,13 +794,33 @@ function App() {
 
   const pinColumnAsIdentifier = (key) => {
     if (!key) return;
-    if (columnOrder[0] === key) return;
-    recordHistorySnapshot();
-    setColumnOrder((prev) => {
-      const filtered = prev.filter((k) => k !== key);
-      return [key, ...filtered];
-    });
+    if (selectedIdentifierKey === key) return;
+    setSelectedIdentifierKey(key);
     setMessage(tr(`식별 열 지정: ${key}`, `Identifier column set: ${key}`));
+  };
+
+  const removeFeatureColumn = (key) => {
+    if (!key) return;
+    if (columnOrder.length <= 1) {
+      setMessage(tr('최소 1개의 열은 필요합니다.', 'At least one column is required.'));
+      return;
+    }
+    recordHistorySnapshot();
+    setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
+    setColumnOrder((prev) => prev.filter((k) => k !== key));
+    setExcludedFeatureKeys((prev) => prev.filter((k) => k !== key));
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const nextFeatures = { ...(p.features || {}) };
+        delete nextFeatures[key];
+        return { ...p, features: nextFeatures };
+      })
+    );
+    if (selectedIdentifierKey === key) {
+      const nextKey = columnOrder.find((col) => col !== key) || '';
+      setSelectedIdentifierKey(nextKey);
+    }
+    setMessage(tr(`열 삭제 완료: ${key}`, `Column deleted: ${key}`));
   };
 
   const hasDuplicateColumnName = (nextName, exceptKey = '') => {
@@ -1024,10 +1044,10 @@ function App() {
 
   const tableFeatureKeys = useMemo(() => {
     const candidates = columnOrder
-      .filter((k) => k !== (columnOrder[0] || ''))
+      .filter((k) => k !== selectedIdentifierKey)
       .filter((k) => !excludedFeatureKeys.includes(k));
     return candidates;
-  }, [columnOrder, excludedFeatureKeys]);
+  }, [columnOrder, excludedFeatureKeys, selectedIdentifierKey]);
 
   const shownParticipants = useMemo(() => {
     if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
@@ -1057,37 +1077,53 @@ function App() {
 
     if (editingColumnKey === columnKey) {
       return (
-        <Input
-          value={editingColumnName}
-          onChange={(e) => setEditingColumnName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') submitRenameFeatureColumn(columnKey);
-            if (e.key === 'Escape') cancelRenameFeatureColumn();
-          }}
-          className="h-7 w-40 border-[#cfd5e3] bg-white text-xs"
-          autoFocus
-        />
+        <span className="inline-flex items-center gap-1">
+          <Input
+            value={editingColumnName}
+            onChange={(e) => setEditingColumnName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitRenameFeatureColumn(columnKey);
+              if (e.key === 'Escape') cancelRenameFeatureColumn();
+            }}
+            className="h-7 w-32 border-[#cfd5e3] bg-white text-xs"
+            autoFocus
+          />
+          <button type="button" onClick={() => submitRenameFeatureColumn(columnKey)} className="text-[11px] text-[#1d4ed8]">
+            {isEn ? 'Save' : '저장'}
+          </button>
+          <button type="button" onClick={cancelRenameFeatureColumn} className="text-[11px] text-[#667085]">
+            {isEn ? 'Cancel' : '취소'}
+          </button>
+        </span>
       );
     }
 
     return (
-      <span className="inline-flex max-w-44 items-center gap-1">
+      <span className="inline-flex max-w-44 items-center gap-1.5">
         <button
           type="button"
           onClick={() => startRenameFeatureColumn(columnKey)}
           onDoubleClick={() => startRenameFeatureColumn(columnKey)}
-          className="inline-block max-w-36 truncate text-left hover:text-[#1d4ed8]"
+          className="inline-block max-w-28 truncate text-left hover:text-[#1d4ed8]"
           title={columnKey}
         >
           {columnKey}
         </button>
         <button
           type="button"
-          onClick={() => pinColumnAsIdentifier(columnKey)}
-          className={`inline-flex items-center ${selectedIdentifierKey === columnKey ? 'text-cyan-700' : 'text-[#475467]'}`}
-          title={tx.pinAsIdentifier}
+          onClick={() => startRenameFeatureColumn(columnKey)}
+          className="text-[11px] text-[#667085] hover:text-[#1d4ed8]"
+          title={tx.renameColumn}
         >
-          <Pin size={11} />
+          {isEn ? 'Rename' : '이름변경'}
+        </button>
+        <button
+          type="button"
+          onClick={() => removeFeatureColumn(columnKey)}
+          className="text-[11px] text-rose-600 hover:text-rose-700"
+          title={tx.deleteColumn}
+        >
+          {isEn ? 'Delete' : '삭제'}
         </button>
       </span>
     );
@@ -1246,6 +1282,7 @@ function App() {
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
     remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
+    remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
     customPromptToggle: isEn ? 'Use custom prompt' : '사용자 맞춤 프롬프트 사용',
     importData: isEn ? 'Import data' : '데이터 가져오기',
     importHint: isEn ? 'Google Form, CSV upload, and manual row are supported' : '지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가',
@@ -1277,9 +1314,13 @@ function App() {
     ,
     formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
-    leadingColumnRule: isEn ? 'The first column is used as the identifier for team assignment.' : '첫 번째 열을 식별 열로 사용해 팀을 나눕니다.',
+    leadingColumnRule: isEn ? 'Select identifier column directly from the dropdown.' : '기준 열은 아래 드롭다운에서 직접 선택합니다.',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
     pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
+    selectIdentifier: isEn ? 'Choose identifier column' : '기준 열 선택',
+    renameColumn: isEn ? 'Rename column' : '열 이름 수정',
+    deleteColumn: isEn ? 'Delete column' : '열 삭제',
+    renameHint: isEn ? 'Click column title or Rename to edit the header name.' : '열 제목 클릭 또는 이름변경 버튼으로 열 이름을 수정할 수 있습니다.',
     deleteLabel: isEn ? 'Delete' : '삭제',
     noColumnToRun: isEn ? 'Cannot start analysis without columns.' : '열이 없으면 분석을 시작할 수 없습니다.',
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
@@ -1303,8 +1344,13 @@ function App() {
     tabRules: isEn ? 'Rules' : '규칙',
     tabReview: isEn ? 'Review' : '검토',
     tabRun: isEn ? 'Run' : '실행',
-    inputFlowGuide: isEn ? 'All settings on one page' : '한 페이지에서 바로 설정 후 실행',
     reviewSummary: isEn ? 'Readiness Summary' : '실행 전 점검 요약',
+    dataCount: isEn ? 'Data count' : '데이터 수',
+    expectedTeamCount: isEn ? 'Expected team count' : '만들어질 팀 수',
+    teamComposition: isEn ? 'Team composition' : '팀 구성 미리보기',
+    customPromptUsage: isEn ? 'Custom prompt' : '맞춤 프롬프트',
+    enabled: isEn ? 'Enabled' : '사용',
+    disabled: isEn ? 'Disabled' : '미사용',
     runReady: isEn ? 'Ready to run assignment' : '팀 배정 실행 가능',
     runBlocked: isEn ? 'Fix required items first' : '먼저 필수 항목을 해결하세요',
     openDataTabHint: isEn ? 'Complete data import and identifier setup first.' : '데이터 불러오기와 식별 열 설정을 먼저 완료하세요.',
@@ -1313,21 +1359,60 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const normalizedTeamSize = Number(config.teamSize) || 0;
+  const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
+  const remainderCount = normalizedTeamSize > 0 ? validParticipants.length % normalizedTeamSize : 0;
+  const canSelectRemainderMode = normalizedTeamSize > 0 && remainderCount > 0;
+  const expectedTeamCount =
+    normalizedTeamSize <= 0
+      ? 0
+      : remainderCount === 0
+        ? baseTeamCount
+        : config.remainderMode === 'keep_partial'
+          ? baseTeamCount + 1
+          : Math.max(baseTeamCount, 1);
+  const teamCompositionText = (() => {
+    if (validParticipants.length === 0 || normalizedTeamSize <= 0 || expectedTeamCount === 0) return '-';
+    if (remainderCount === 0) return isEn ? `${normalizedTeamSize} members x ${expectedTeamCount} teams` : `${normalizedTeamSize}인 ${expectedTeamCount}팀`;
+    if (config.remainderMode === 'keep_partial') {
+      if (baseTeamCount === 0) return isEn ? `${remainderCount} members x 1 team` : `${remainderCount}인 1팀`;
+      return isEn
+        ? `${normalizedTeamSize} members x ${baseTeamCount} teams, ${remainderCount} members x 1 team`
+        : `${normalizedTeamSize}인 ${baseTeamCount}팀, ${remainderCount}인 1팀`;
+    }
+    const group = new Map();
+    const spreadTeams = Math.max(baseTeamCount, 1);
+    const sizes = Array.from({ length: spreadTeams }, (_, idx) => normalizedTeamSize + (idx < remainderCount ? 1 : 0));
+    sizes.forEach((size) => group.set(size, (group.get(size) || 0) + 1));
+    return Array.from(group.entries())
+      .sort((a, b) => b[0] - a[0])
+      .map(([size, count]) => (isEn ? `${size} members x ${count} teams` : `${size}인 ${count}팀`))
+      .join(', ');
+  })();
   const reviewItems = [
     {
-      label: tx.participants,
+      label: tx.dataCount,
       value: validParticipants.length,
-      ok: validParticipants.length > 0
     },
     {
       label: tx.primaryColumn,
       value: selectedIdentifierKey || tx.noPrimaryColumn,
-      ok: Boolean(selectedIdentifierKey)
     },
     {
       label: isEn ? 'Duplicate identifiers' : '중복 식별값',
       value: duplicateIdentifierCount,
-      ok: duplicateIdentifierCount === 0
+    },
+    {
+      label: tx.expectedTeamCount,
+      value: expectedTeamCount
+    },
+    {
+      label: tx.teamComposition,
+      value: teamCompositionText
+    },
+    {
+      label: tx.customPromptUsage,
+      value: config.useCustomPrompt ? tx.enabled : tx.disabled
     }
   ];
 
@@ -1413,7 +1498,6 @@ function App() {
         {currentPage === 'input' && (
           <div className="mt-6 space-y-4">
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
-              <p className="text-xs text-[#667085]">{tx.inputFlowGuide}</p>
               <div className="flex flex-col gap-4">
 
               <div className="order-2 space-y-4">
@@ -1425,31 +1509,39 @@ function App() {
                   <Input
                     type="number"
                     min="2"
-                    max="10"
+                    max="50"
                     value={config.teamSize}
-                    onChange={(e) => setConfig({ ...config, teamSize: parseInt(e.target.value, 10) || 4 })}
+                    onChange={(e) => {
+                      const parsed = Number(e.target.value);
+                      if (!Number.isFinite(parsed)) return;
+                      const nextSize = Math.min(50, Math.max(2, Math.round(parsed)));
+                      setConfig({ ...config, teamSize: nextSize });
+                    }}
                     className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                   />
                 </label>
-
-                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                  <input
-                    type="radio"
-                    checked={config.remainderMode === 'spread'}
-                    onChange={() => setConfig({ ...config, remainderMode: 'spread' })}
-                  />
-                  {tx.remainderSpread}
-                </label>
-
-                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                  <input
-                    type="radio"
-                    checked={config.remainderMode === 'keep_partial'}
-                    onChange={() => setConfig({ ...config, remainderMode: 'keep_partial' })}
-                  />
-                  {tx.remainderPartial}
-                </label>
               </div>
+              {canSelectRemainderMode && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-[#475467]">{tx.remainderModeTitle}</span>
+                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                    <input
+                      type="radio"
+                      checked={config.remainderMode === 'spread'}
+                      onChange={() => setConfig({ ...config, remainderMode: 'spread' })}
+                    />
+                    {tx.remainderSpread}
+                  </label>
+                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                    <input
+                      type="radio"
+                      checked={config.remainderMode === 'keep_partial'}
+                      onChange={() => setConfig({ ...config, remainderMode: 'keep_partial' })}
+                    />
+                    {tx.remainderPartial}
+                  </label>
+                </div>
+              )}
               <div className="space-y-2">
                 <p className="text-sm font-semibold">{tx.customPrompt}</p>
                 <textarea
@@ -1467,15 +1559,6 @@ function App() {
               <div className="rounded-xl border border-[#d9deea] overflow-hidden">
               <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
-                <div className="flex items-center gap-2">
-                  <Search size={14} className="text-[#667085]" />
-                  <Input
-                    value={participantQuery}
-                    onChange={(e) => setParticipantQuery(e.target.value)}
-                    placeholder={tx.search}
-                    className="h-8 w-52 border-[#d9deea] text-sm"
-                  />
-                </div>
                 <div className="ml-auto flex items-center gap-1">
                   <Button
                     type="button"
@@ -1552,26 +1635,38 @@ function App() {
               )}
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
                 <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
-                <p className="text-xs text-[#667085]">{tx.excludeFieldHint}</p>
-                <div className="flex flex-wrap gap-2">
-                  {columnOrder.length === 0 && (
-                    <p className="text-xs text-[#667085]">{tx.loadFormFirstHint}</p>
-                  )}
-                  {columnOrder.map((key) => {
-                    const isIdentifier = key === selectedIdentifierKey;
-                    const checked = excludedFeatureKeys.includes(key);
-                    return (
-                      <label key={`exclude-${key}`} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
-                        <input type="checkbox" checked={checked} disabled={isIdentifier} onChange={() => toggleExcludedFeature(key)} />
-                        <span className="max-w-44 truncate" title={key}>{key}</span>
-                      </label>
-                    );
-                  })}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
+                  <select
+                    value={selectedIdentifierKey}
+                    onChange={(e) => pinColumnAsIdentifier(e.target.value)}
+                    className="h-8 rounded-md border border-[#d9deea] bg-white px-2 text-sm"
+                  >
+                    {columnOrder.map((key) => (
+                      <option key={`identifier-${key}`} value={key}>
+                        {key}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <p className="text-xs text-[#667085]">{tx.renameHint}</p>
               </div>
               <div className="overflow-auto bg-white">
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
+                    <TableRow>
+                      <TableHead colSpan={tableFeatureKeys.length + 3} className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Search size={14} className="text-[#667085]" />
+                          <Input
+                            value={participantQuery}
+                            onChange={(e) => setParticipantQuery(e.target.value)}
+                            placeholder={tx.search}
+                            className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
+                          />
+                        </div>
+                      </TableHead>
+                    </TableRow>
                     <TableRow>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
                         {validParticipants.length > 0 ? 'No' : ''}
@@ -1665,26 +1760,18 @@ function App() {
                   <p className="text-sm font-bold">{tx.reviewSummary}</p>
                   <div className="grid gap-2 md:grid-cols-3">
                     {reviewItems.map((item) => (
-                      <div key={item.label} className={`rounded-lg border p-3 ${item.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                      <div key={item.label} className="rounded-lg border border-[#d9deea] bg-white p-3">
                         <p className="text-xs text-[#667085]">{item.label}</p>
                         <p className="text-sm font-bold mt-1">{item.value}</p>
                       </div>
                     ))}
                   </div>
-                  {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
-                    <p className="text-xs text-amber-700">
-                      {isEn ? `${duplicateIdentifierCount} ${tx.duplicateValueNotice}` : `중복 값 ${duplicateIdentifierCount}${tx.duplicateValueNotice}`}
-                    </p>
-                  )}
-                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
               </div>
-              <div className="order-3 space-y-4">
-              <div className="border border-[#d9deea] rounded-xl p-3 flex gap-2 bg-white">
+              <div className="order-3 flex justify-end">
               <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
                 {paymentLoading ? tx.moveToPayment : tx.runAssign}
               </Button>
-              </div>
               </div>
               </div>
             </div>
