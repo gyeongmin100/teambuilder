@@ -362,7 +362,7 @@ function App() {
   const runAssignLockRef = useRef(false);
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
-  const [historyTick, setHistoryTick] = useState(0);
+  const [, setHistoryTick] = useState(0);
   const [newFeatureName, setNewFeatureName] = useState('');
   const [draggingColumnKey, setDraggingColumnKey] = useState('');
 
@@ -1250,8 +1250,6 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
-  const canUndo = historyTick >= 0 && historyRef.current.past.length > 0;
-  const canRedo = historyTick >= 0 && historyRef.current.future.length > 0;
   const reviewItems = [
     {
       label: tx.participants,
@@ -1584,11 +1582,8 @@ function App() {
                   />
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" disabled={!canUndo} onClick={undoDataChange}>
-                    Undo
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" disabled={!canRedo} onClick={redoDataChange}>
-                    Redo
+                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
+                    {tx.addRow}
                   </Button>
                 </div>
               </div>
@@ -1712,13 +1707,6 @@ function App() {
 
               <TabsContent value="run" className="mt-0">
               <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
-              <Button
-                onClick={addEmptyParticipantRow}
-                variant="outline"
-                className="border-[#d9deea] bg-white"
-              >
-                {tx.addRow}
-              </Button>
               <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
                 {paymentLoading ? tx.moveToPayment : tx.runAssign}
               </Button>
