@@ -9,7 +9,7 @@ import {
   annotateTeams
 } from '../domain/teams/teamFormation.js';
 import { normalizeAiTeams } from '../domain/teams/aiNormalization.js';
-import { buildAssignmentReport, callOpenAIOnce } from '../domain/constraints/constraintEngine.js';
+import { buildAssignmentReport, callOpenAIOnce, callOpenAIRequestVerifier } from '../domain/constraints/constraintEngine.js';
 import { verifyPaidCheckout } from '../infrastructure/polar/checkoutVerification.js';
 
 const hasExplicitTeamCountChangeIntent = (customPrompt = '') => {
@@ -65,14 +65,31 @@ const validateQuantitative = ({ teams, allIds, targetTeamSizes, remainderMode, a
   const actualTeamSizes = orderedTeams.map((t) => (t.members || []).length);
   const expectedTeamCount = targetTeamSizes.length;
   const actualTeamCount = orderedTeams.length;
-  const teamCountMatch = true;
-  const teamSizeRuleMatch = true;
+  const minTeamCount = expectedTeamCount;
+  const maxTeamCount = expectedTeamCount + (allowTeamCountChange ? Math.max(1, remainderCount) : 0);
+  const teamCountMatch =
+    actualTeamCount >= minTeamCount && actualTeamCount <= maxTeamCount;
+
+  let teamSizeRuleMatch = true;
+  const expectedSorted = [...targetTeamSizes].sort((a, b) => b - a);
+  const actualSorted = [...actualTeamSizes].sort((a, b) => b - a);
+
+  if (remainderMode === 'spread') {
+    teamSizeRuleMatch = JSON.stringify(expectedSorted) === JSON.stringify(actualSorted);
+  } else if (remainderMode === 'keep_partial') {
+    teamSizeRuleMatch = JSON.stringify(targetTeamSizes) === JSON.stringify(actualTeamSizes);
+  } else {
+    teamSizeRuleMatch = allowTeamCountChange
+      ? actualTeamSizes.every((size) => Number(size) > 0)
+      : JSON.stringify(expectedSorted) === JSON.stringify(actualSorted);
+  }
 
   const ok =
     duplicateIds.length === 0 &&
     missingIds.length === 0 &&
     invalidIds.length === 0 &&
-    teamCountMatch;
+    teamCountMatch &&
+    teamSizeRuleMatch;
 
   return {
     ok,
@@ -93,11 +110,20 @@ const validateQuantitative = ({ teams, allIds, targetTeamSizes, remainderMode, a
   };
 };
 
-const buildValidationFeedback = (integrity) => {
+const buildValidationFeedback = (integrity, promptIssues = []) => {
   const messages = [];
+  if (!integrity.teamCountMatch) {
+    messages.push(`팀 개수가 맞지 않습니다. expected=${integrity.expectedTeamCount}, actual=${integrity.actualTeamCount}`);
+  }
+  if (!integrity.teamSizeRuleMatch) {
+    messages.push(`팀 인원 분포가 맞지 않습니다. expected=${JSON.stringify(integrity.expectedTeamSizes)}, actual=${JSON.stringify(integrity.actualTeamSizes)}`);
+  }
   if (integrity.duplicateCount > 0) messages.push(`중복 배정 id 존재: ${integrity.duplicateIds.join(', ')}`);
   if (integrity.missingCount > 0) messages.push(`누락 id 존재: ${integrity.missingIds.join(', ')}`);
   if (integrity.invalidCount > 0) messages.push(`존재하지 않는 id 사용: ${integrity.invalidIds.join(', ')}`);
+  if (Array.isArray(promptIssues) && promptIssues.length > 0) {
+    messages.push(`사용자 요청 미반영: ${promptIssues.slice(0, 3).join(' / ')}`);
+  }
   return messages.join(' | ');
 };
 
@@ -249,12 +275,29 @@ export async function onRequestPost(context) {
         remainderCount
       });
 
-      return { ai, teams, integrity, remainderDecision };
+      let promptCompliance = { ok: true, issues: [] };
+      if (String(customPrompt || '').trim() && integrity?.ok) {
+        const verify = await callOpenAIRequestVerifier({
+          customPrompt,
+          teams,
+          teamSize,
+          remainderMode,
+          targetTeamCount,
+          targetTeamSizes,
+          env
+        });
+        promptCompliance = {
+          ok: Boolean(verify?.isMatch),
+          issues: Array.isArray(verify?.issues) ? verify.issues : []
+        };
+      }
+
+      return { ai, teams, integrity, remainderDecision, promptCompliance };
     };
 
     let attempt = await runOneAttempt('');
 
-    if (!attempt.integrity?.ok) {
+    if (!attempt.integrity?.ok || attempt.promptCompliance?.ok === false) {
       const feedback = buildValidationFeedback(
         attempt.integrity || {
           expectedTeamCount: targetTeamCount,
@@ -269,7 +312,8 @@ export async function onRequestPost(context) {
           invalidIds: [],
           teamCountMatch: false,
           teamSizeRuleMatch: false
-        }
+        },
+        attempt.promptCompliance?.issues || []
       );
       attempt = await runOneAttempt(feedback);
     }
@@ -281,7 +325,7 @@ export async function onRequestPost(context) {
     let usedFallback = false;
     let reason = trimText(ai?.reason || '', 180);
 
-    if (!teams || !integrity?.ok) {
+    if (!teams || !integrity?.ok || attempt.promptCompliance?.ok === false) {
       const fallbackMode = remainderMode === 'keep_partial' ? 'keep_partial' : 'spread';
       teams = buildBaseTeams(Array.from(memberById.values()), teamSize, fallbackMode, rand);
       integrity = validateQuantitative({
@@ -293,11 +337,14 @@ export async function onRequestPost(context) {
         remainderCount
       });
       usedFallback = true;
-      reason = '자동 보정 규칙으로 필수 무결성만 보장해 결과를 확정했습니다.';
+      reason = '자동 보정 규칙으로 정합성과 요청 반영 가능 범위를 우선해 결과를 확정했습니다.';
       remainderDecision = {
         mode: 'existing_teams',
         allowedTeamCountChange: false,
-        reason: '중복/누락/유효성 오류로 자동 보정 규칙을 적용했습니다.'
+        reason:
+          attempt.promptCompliance?.ok === false
+            ? '요청 반영 검증 실패로 자동 보정 규칙을 적용했습니다.'
+            : '정합성 검증 실패로 자동 보정 규칙을 적용했습니다.'
       };
     }
 
@@ -311,7 +358,12 @@ export async function onRequestPost(context) {
       customPrompt,
       integrityReport: integrity,
       requestReview,
-      warnings: Array.isArray(ai?.warnings) ? ai.warnings : [],
+      warnings: [
+        ...(Array.isArray(ai?.warnings) ? ai.warnings : []),
+        ...((attempt.promptCompliance?.ok === false && Array.isArray(attempt.promptCompliance?.issues))
+          ? attempt.promptCompliance.issues
+          : [])
+      ],
       remainderDecision
     });
 
