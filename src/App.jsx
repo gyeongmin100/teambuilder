@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -1561,7 +1561,6 @@ function App() {
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
-                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
                         {validParticipants.length > 0 ? 'No' : ''}
                       </TableHead>
@@ -1576,22 +1575,12 @@ function App() {
                           {renderEditableHeader(key, key)}
                         </TableHead>
                       ))}
+                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {shownParticipants.map((p, idx) => (
                       <TableRow key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
-                        <TableCell className="px-3 py-2">
-                          <Button
-                            onClick={() => removeParticipantRow(p)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50"
-                            aria-label={tx.deleteLabel}
-                          >
-                            -
-                          </Button>
-                        </TableCell>
                         <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
                         <TableCell className="px-3 py-2">
                           {selectedIdentifierKey ? (
@@ -1617,6 +1606,17 @@ function App() {
                             />
                           </TableCell>
                         ))}
+                        <TableCell className="px-3 py-2">
+                          <Button
+                            onClick={() => removeParticipantRow(p)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-rose-600 hover:bg-rose-50"
+                            aria-label={tx.deleteLabel}
+                          >
+                            <Trash2 size={15} />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                     {shownParticipants.length === 0 && (
@@ -1649,6 +1649,18 @@ function App() {
               </div>
 
               <div className="space-y-4">
+              <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
+              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
+                {paymentLoading ? tx.moveToPayment : tx.runAssign}
+              </Button>
+              </div>
+              {!canRunAssignment && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  {tx.openDataTabHint}
+                </div>
+              )}
+              </div>
+              <div className="space-y-4">
                 <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
                   <p className="text-sm font-bold">{tx.reviewSummary}</p>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1668,19 +1680,6 @@ function App() {
                   )}
                   {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
-              </div>
-
-              <div className="space-y-4">
-              <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
-              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
-                {paymentLoading ? tx.moveToPayment : tx.runAssign}
-              </Button>
-              </div>
-              {!canRunAssignment && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  {tx.openDataTabHint}
-                </div>
-              )}
               </div>
               </div>
             </div>
