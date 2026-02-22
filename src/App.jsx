@@ -490,7 +490,7 @@ function App() {
     if (queryLang === 'en' || queryLang === 'ko') {
       if (queryLang !== uiLang) setUiLang(queryLang);
     }
-  }, [routeLang, routePage, uiLang, queryLang]);
+  }, [routeLang, routePage, queryLang]);
 
   useEffect(() => {
     setColumnOrder((prev) => {

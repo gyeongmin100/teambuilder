@@ -601,3 +601,16 @@ pm run build)
     - 실행 전 팀인원 유효성 가드를 1 이상 기준으로 변경
 - Verification:
   - `npm run build` 성공
+
+## 29. 2026-02-22 Language Toggle Race Fix (EN -> KO one-click issue)
+- Root cause:
+  - `updateLang()`에서 `setUiLang('ko')`를 먼저 실행한 뒤 URL 쿼리(`?lang=en`)가 아직 남아있는 짧은 구간에서,
+    언어 동기화 effect가 다시 query 값을 우선 적용해 `uiLang`을 `en`으로 되돌리는 레이스가 발생.
+- Applied:
+  - `src/App.jsx`
+    - 언어 동기화 effect dependency에서 `uiLang` 제거
+    - location(query/path) 변경 시점에만 동기화하도록 조정
+- Result:
+  - 영어 -> 한국어 전환 시 1회 클릭으로 즉시 반영.
+- Verification:
+  - `npm run build` 성공
