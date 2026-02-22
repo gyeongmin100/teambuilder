@@ -21,14 +21,14 @@ const LegalLayout = ({ title, children, onBack, lang = 'ko', onSwitchLang }) => 
             type="button"
             className={`px-3 py-1.5 ${lang === 'ko' ? 'bg-white text-slate-900 font-semibold' : 'bg-slate-800 text-slate-300'}`}
           >
-            KO
+            한글
           </button>
           <button
             onClick={() => onSwitchLang?.('en')}
             type="button"
             className={`px-3 py-1.5 ${lang === 'en' ? 'bg-white text-slate-900 font-semibold' : 'bg-slate-800 text-slate-300'}`}
           >
-            EN
+            English
           </button>
         </div>
       </div>
@@ -43,21 +43,21 @@ export const TermsOfService = ({ onBack, lang = 'ko', onSwitchLang }) => (
       <>
         <p className="text-slate-400">최종 업데이트: {LAST_UPDATED}</p>
         <h3 className="text-xl font-semibold text-white">1. 적용 범위</h3>
-        <p>본 약관은 TeamBuilder 서비스의 웹 접근, 데이터 입력, 자동 팀 배정, 리포트 제공 기능 이용에 적용됩니다.</p>
+        <p>본 약관은 TeamBuilder 서비스의 웹 접근, 데이터 입력, 자동 팀 배정, 결과 리포트 기능 이용에 적용됩니다.</p>
         <h3 className="text-xl font-semibold text-white">2. 계정과 접근</h3>
         <p>사용자는 계정 보안을 유지해야 하며 계정 공유, 무단 접근, 권한 오남용에 대한 책임은 사용자에게 있습니다.</p>
         <h3 className="text-xl font-semibold text-white">3. 서비스 성격</h3>
-        <p>서비스 결과는 의사결정 보조 도구입니다. 최종 배정 결정 및 운영 책임은 사용자 또는 사용자 조직에 있습니다.</p>
+        <p>서비스 결과는 의사결정 보조 도구입니다. 최종 팀 편성 판단과 운영 책임은 사용자 또는 사용자 조직에 있습니다.</p>
         <h3 className="text-xl font-semibold text-white">4. 금지행위</h3>
         <ul className="list-disc pl-6 space-y-1">
-          <li>법령 위반 데이터 업로드 및 제3자 권리 침해</li>
+          <li>법령 위반 데이터 업로드 또는 제3자 권리 침해</li>
           <li>시스템 안정성을 해치는 우회, 남용, 역공학</li>
           <li>허위 결제, 결제 악용, 결과물 불법 유통</li>
         </ul>
         <h3 className="text-xl font-semibold text-white">5. 결제와 제공 시점</h3>
-        <p>유료 기능은 외부 결제대행사를 통해 결제되며 결제 확인 후 분석이 시작됩니다.</p>
+        <p>유료 기능은 외부 결제대행사를 통해 결제되며, 결제 확인 후 분석이 시작됩니다.</p>
         <h3 className="text-xl font-semibold text-white">6. 책임 제한</h3>
-        <p>서비스는 관련 법령이 허용하는 범위 내에서 간접손해, 특별손해, 영업손실에 대한 책임을 제한합니다.</p>
+        <p>관련 법령이 허용하는 범위 내에서 간접손해, 특별손해, 영업손실에 대한 책임을 제한합니다.</p>
         <h3 className="text-xl font-semibold text-white">7. 준거법 및 분쟁</h3>
         <p>본 약관은 대한민국 법령을 준거법으로 하며 분쟁은 관련 법령상 관할 법원에 제기합니다.</p>
         <h3 className="text-xl font-semibold text-white">8. 문의 채널</h3>

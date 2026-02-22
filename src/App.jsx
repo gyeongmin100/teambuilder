@@ -538,6 +538,12 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (routePage !== 'login') return;
+    if (!user) return;
+    goPage('input', { replace: true });
+  }, [routePage, user]);
+
+  useEffect(() => {
     if (routePage !== 'report') return;
     if (!reportCacheHydrated) return;
     if (Array.isArray(teams) && teams.length > 0) return;
@@ -1153,10 +1159,10 @@ function App() {
     login: isEn ? 'Sign in' : '로그인',
     logout: isEn ? 'Sign out' : '로그아웃',
     landingBadge: isEn ? 'Team Assignment Assistant' : '팀 편성 어시스턴트',
-    landingTitleLine2: isEn ? 'Make Teams in Minutes' : '몇 분 안에 팀 편성',
+    landingTitleLine2: isEn ? 'for classes and programs' : '수업·프로그램 팀 편성 자동화',
     landingBody: isEn
-      ? 'Import responses, set simple rules, and confirm teams.'
-      : '응답을 불러오고, 규칙을 정한 뒤, 팀을 확정하세요.',
+      ? 'This service imports participant data and generates balanced teams automatically based on your rules.'
+      : '참여자 데이터를 불러와, 네가 정한 조건대로 균형 잡힌 팀을 자동으로 만들어주는 서비스야.',
     start: isEn ? 'Get started' : '시작하기',
     quickFlowTitle: isEn ? 'How it works' : '사용 방법',
     flowStep1: isEn ? 'Import data' : '데이터 불러오기',
@@ -1165,9 +1171,8 @@ function App() {
     flowStep1Desc: isEn ? 'Google Form or CSV' : 'Google Form 또는 CSV',
     flowStep2Desc: isEn ? 'team size and constraints' : '팀 인원과 조건 선택',
     flowStep3Desc: isEn ? 'download and share result' : '결과 확인 후 다운로드',
-    connectOAuth: isEn ? 'Connect with Google OAuth' : 'Google OAuth로 계정을 연결하세요.',
+    connectOAuth: isEn ? 'Google sign in' : '구글로그인',
     googleLogin: isEn ? 'Continue with Google' : 'Google 로그인',
-    backToLanding: isEn ? 'Back to landing' : '랜딩으로 돌아가기',
     participants: isEn ? 'Participants' : '현재 참가자',
     primaryColumn: isEn ? 'Primary column' : '맨 앞 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
@@ -1235,11 +1240,13 @@ function App() {
     tabRules: isEn ? 'Rules' : '규칙',
     tabReview: isEn ? 'Review' : '검토',
     tabRun: isEn ? 'Run' : '실행',
+    inputFlowGuide: isEn ? 'Flow: Data -> Rules -> Review -> Run' : '작업순서: 데이터 -> 규칙 -> 검토 -> 실행',
     reviewSummary: isEn ? 'Readiness Summary' : '실행 전 점검 요약',
     runReady: isEn ? 'Ready to run assignment' : '팀 배정 실행 가능',
     runBlocked: isEn ? 'Fix required items first' : '먼저 필수 항목을 해결하세요',
     openDataTabHint: isEn ? 'Go to Data tab and complete import/columns.' : '데이터 탭에서 불러오기와 열 구성을 먼저 완료하세요.',
-    goDataTab: isEn ? 'Go to Data tab' : '데이터 탭으로 이동'
+    goDataTab: isEn ? 'Go to Data tab' : '데이터 탭으로 이동',
+    reviewFixAction: isEn ? 'Open tab' : '탭 열기'
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
@@ -1279,18 +1286,19 @@ function App() {
               <Users className="size-5 text-[#1570ef]" /> TeamBuilder
             </button>
             <div className="flex items-center gap-2">
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={() => {
                   const nextLang = uiLang === 'ko' ? 'en' : 'ko';
                   updateLang(nextLang);
                 }}
-                className="h-8 border-[#d9deea] bg-white px-3 text-xs font-semibold"
+                className="inline-flex h-8 items-center rounded-md border border-[#d9deea] bg-white px-2 text-xs"
+                aria-label="language-switch"
               >
-                {uiLang === 'ko' ? 'EN' : 'KO'}
-              </Button>
+                <span className={`px-2 py-0.5 rounded ${uiLang === 'ko' ? 'bg-[#1a2138] text-white font-semibold' : 'text-[#667085]'}`}>한글</span>
+                <span className="px-1 text-[#98a2b3]">|</span>
+                <span className={`px-2 py-0.5 rounded ${uiLang === 'en' ? 'bg-[#1a2138] text-white font-semibold' : 'text-[#667085]'}`}>English</span>
+              </button>
               {!user ? (
                 <Button type="button" size="sm" onClick={() => goPage('login')} className="h-8 rounded-lg bg-[#1a2138] text-white hover:bg-[#12192d]">{tx.login}</Button>
               ) : (
@@ -1303,7 +1311,7 @@ function App() {
         <AnimatePresence mode="wait">
         {currentPage === 'landing' && (
           <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-5">
+            <div className="grid grid-cols-1 gap-5">
               <Card className="rounded-[28px] border-[#d9deea] shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
                 <CardContent className="px-6 py-7 md:px-9 md:py-10">
                 <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
@@ -1324,24 +1332,6 @@ function App() {
                 </div>
                 </CardContent>
               </Card>
-
-              <Card className="rounded-[28px] border-[#d9deea] p-5 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-[#6b7280] font-bold">{tx.quickFlowTitle}</p>
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
-                    <p className="text-sm font-bold">1. {tx.flowStep1}</p>
-                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep1Desc}</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
-                    <p className="text-sm font-bold">2. {tx.flowStep2}</p>
-                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep2Desc}</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#e7ebf3] bg-[#f8fafc] p-4">
-                    <p className="text-sm font-bold">3. {tx.flowStep3}</p>
-                    <p className="text-xs text-[#667085] mt-1">{tx.flowStep3Desc}</p>
-                  </div>
-                </div>
-              </Card>
             </div>
           </motion.div>
         )}
@@ -1353,12 +1343,9 @@ function App() {
                 <h3 className="text-2xl font-black tracking-tight">{tx.login}</h3>
                 <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
               </div>
-              <div className="mt-6 space-y-2">
+              <div className="mt-6">
                 <Button onClick={login} className="h-11 w-full rounded-xl bg-[#1a2138] text-white font-semibold hover:bg-[#12192d]">
                   {tx.googleLogin}
-                </Button>
-                <Button onClick={() => goPage('landing')} variant="ghost" className="h-10 w-full text-[#667085] hover:text-[#101828]">
-                  {tx.backToLanding}
                 </Button>
               </div>
             </Card>
@@ -1383,6 +1370,7 @@ function App() {
             </div>
 
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
+              <p className="text-xs text-[#667085]">{tx.inputFlowGuide}</p>
               <Tabs value={inputTab} onValueChange={setInputTab} className="space-y-4">
                 <TabsList className="w-full justify-start bg-[#f2f5fa]">
                   <TabsTrigger value="data">{tx.tabData}</TabsTrigger>
