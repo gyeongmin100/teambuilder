@@ -1257,6 +1257,7 @@ function App() {
     tableTitle: isEn ? '4) Participant table' : '4) 참가자 데이터 (테이블)',
     search: isEn ? 'Search participant/value' : '참가자/값 검색',
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
+    noData: isEn ? 'Please enter data.' : '데이터를 입력해주세요',
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
     runAssign: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
@@ -1410,9 +1411,9 @@ function App() {
           <div className="mt-6 space-y-4">
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
               <p className="text-xs text-[#667085]">{tx.inputFlowGuide}</p>
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
 
-              <div className="space-y-4">
+              <div className="order-2 space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
                 <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
               <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -1458,7 +1459,7 @@ function App() {
               </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="order-1 space-y-5">
               <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3">
                 <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
@@ -1528,12 +1529,10 @@ function App() {
                     className="h-8 w-52 border-[#d9deea] text-sm"
                   />
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="ml-auto flex items-center gap-1">
                   <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
                     {tx.addRow}
                   </Button>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
                     {tx.addColumn}
                   </Button>
@@ -1558,18 +1557,18 @@ function App() {
                   })}
                 </div>
               </div>
-              <div className="overflow-auto bg-white min-h-[420px]">
+              <div className="overflow-auto bg-white">
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
                       <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
-                        {shownParticipants.length > 0 || selectedIdentifierKey ? 'No' : ''}
+                        {validParticipants.length > 0 ? 'No' : ''}
                       </TableHead>
                       <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
                         {renderEditableHeader(
                           selectedIdentifierKey,
-                          shownParticipants.length > 0 || selectedIdentifierKey ? tx.primaryColumn : ''
+                          validParticipants.length > 0 ? tx.primaryColumn : ''
                         )}
                       </TableHead>
                       {tableFeatureKeys.map((key) => (
@@ -1623,7 +1622,7 @@ function App() {
                     {shownParticipants.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={tableFeatureKeys.length + 3} className="px-3 py-6 text-center text-[#667085]">
-                          {tx.noResult}
+                          {validParticipants.length === 0 ? tx.noData : tx.noResult}
                         </TableCell>
                       </TableRow>
                     )}
