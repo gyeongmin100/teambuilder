@@ -337,7 +337,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: false });
+  const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: true });
   const [teams, setTeams] = useState([]);
   const [assignmentReport, setAssignmentReport] = useState(null);
   const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
@@ -367,7 +367,6 @@ function App() {
   const [editingColumnName, setEditingColumnName] = useState('');
 
   const maxInitialRows = 20;
-  const maxFeatureColumns = 6;
   const historyLimit = 60;
 
   const cloneSnapshot = (snapshot) => {
@@ -826,8 +825,17 @@ function App() {
   };
 
   const addFeatureColumn = () => {
-    const key = String(newFeatureName || '').trim();
-    if (!key) return setMessage(tr('추가할 특성명을 입력하세요.', 'Enter a new column name.'));
+    let key = String(newFeatureName || '').trim();
+    if (!key) {
+      const base = tr('새 열', 'New column');
+      let seq = columnOrder.length + 1;
+      let candidate = `${base} ${seq}`;
+      while (hasDuplicateColumnName(candidate)) {
+        seq += 1;
+        candidate = `${base} ${seq}`;
+      }
+      key = candidate;
+    }
     if (hasDuplicateColumnName(key)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
 
     recordHistorySnapshot();
@@ -1038,7 +1046,7 @@ function App() {
     const candidates = columnOrder
       .filter((k) => k !== (columnOrder[0] || ''))
       .filter((k) => !excludedFeatureKeys.includes(k));
-    return candidates.slice(0, maxFeatureColumns);
+    return candidates;
   }, [columnOrder, excludedFeatureKeys]);
 
   const shownParticipants = useMemo(() => {
@@ -1384,21 +1392,6 @@ function App() {
 
         {currentPage === 'input' && (
           <div className="mt-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
-                <p className="text-xs text-[#667085]">{tx.participants}</p>
-                <p className="text-2xl font-black text-slate-900">{validParticipants.length}</p>
-              </div>
-              <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
-                <p className="text-xs text-[#667085]">{tx.primaryColumn}</p>
-                <p className="text-sm font-bold truncate">{selectedIdentifierKey || tx.noPrimaryColumn}</p>
-              </div>
-              <div className="bg-white border border-[#d9deea] rounded-2xl p-4">
-                <p className="text-xs text-[#667085]">{tx.progressStatus}</p>
-                <p className="text-sm font-bold">{selectedIdentifierKey ? tx.ready : tx.needPrimary}</p>
-              </div>
-            </div>
-
             <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
               <p className="text-xs text-[#667085]">{tx.inputFlowGuide}</p>
               <div className="space-y-4">
@@ -1438,24 +1431,13 @@ function App() {
                 </label>
               </div>
               <div className="space-y-2">
-                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded text-sm">
-                  <input
-                    type="checkbox"
-                    checked={config.useCustomPrompt}
-                    onChange={(e) => setConfig({ ...config, useCustomPrompt: e.target.checked })}
-                  />
-                  {tx.customPromptToggle}
-                </label>
-                {config.useCustomPrompt && (
-                  <div className="space-y-2">
-                    <textarea
-                      value={customPrompt}
-                      onChange={(e) => setCustomPrompt(e.target.value)}
-                      placeholder={tx.promptPlaceholder}
-                      className="w-full min-h-24 border rounded px-3 py-2 text-sm"
-                    />
-                  </div>
-                )}
+                <p className="text-sm font-semibold">{tx.customPrompt}</p>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  placeholder={tx.promptPlaceholder}
+                  className="w-full min-h-24 border rounded px-3 py-2 text-sm"
+                />
               </div>
               </div>
               </div>
@@ -1515,40 +1497,45 @@ function App() {
 
               {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
 
-              <div className="rounded-xl border border-[#d9deea] p-3 space-y-2">
-                <p className="text-sm font-bold">{tx.columnMgmt}</p>
-                <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
-                <div className="flex flex-wrap items-center gap-2">
+              </div>
+
+              <div className="space-y-4">
+              <div className="rounded-xl border border-[#d9deea] overflow-hidden">
+              <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
+              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-[#667085]" />
+                  <Input
+                    value={participantQuery}
+                    onChange={(e) => setParticipantQuery(e.target.value)}
+                    placeholder={tx.search}
+                    className="h-8 w-52 border-[#d9deea] text-sm"
+                  />
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
                   <Input
                     value={newFeatureName}
                     onChange={(e) => setNewFeatureName(e.target.value)}
                     placeholder={tx.addColumnPlaceholder}
-                    className="h-10 w-72 border-[#d9deea] bg-white text-sm"
+                    className="h-8 w-56 border-[#d9deea] bg-white text-sm"
                   />
-                  <Button
-                    type="button"
-                    onClick={addFeatureColumn}
-                    variant="outline"
-                    className="h-10 border-[#d9deea] bg-white text-sm"
-                  >
+                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
                     {tx.addColumn}
                   </Button>
-                  <Button
-                    type="button"
-                    onClick={addEmptyParticipantRow}
-                    variant="outline"
-                    className="h-10 border-[#d9deea] bg-white text-sm"
-                  >
+                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
                     {tx.addRow}
                   </Button>
                 </div>
+              </div>
+              <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
+                <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
                 <div className="flex flex-wrap gap-2">
                   {columnOrder.length === 0 && (
                     <p className="text-xs text-[#667085]">{tx.columnListHint}</p>
                   )}
                   {columnOrder.map((key) => (
                     <div
-                      key={`feature-remove-${key}`}
+                      key={`table-feature-${key}`}
                       draggable={editingColumnKey !== key}
                       onDragStart={() => {
                         if (editingColumnKey === key) return;
@@ -1561,7 +1548,7 @@ function App() {
                         setDraggingColumnKey('');
                       }}
                       className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm cursor-move ${
-                        columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-[#f7f9fc]'
+                        columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-white'
                       }`}
                     >
                       {editingColumnKey === key ? (
@@ -1581,20 +1568,8 @@ function App() {
                       {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">{tx.baseLabel}</span>}
                       {editingColumnKey === key ? (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => submitRenameFeatureColumn(key)}
-                            className="text-cyan-700"
-                          >
-                            {tx.save}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelRenameFeatureColumn}
-                            className="text-[#667085]"
-                          >
-                            {tx.cancel}
-                          </button>
+                          <button type="button" onClick={() => submitRenameFeatureColumn(key)} className="text-cyan-700">{tx.save}</button>
+                          <button type="button" onClick={cancelRenameFeatureColumn} className="text-[#667085]">{tx.cancel}</button>
                         </>
                       ) : (
                         <>
@@ -1606,26 +1581,12 @@ function App() {
                           >
                             <Pin size={12} />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => startRenameFeatureColumn(key)}
-                            className="text-[#1d4ed8]"
-                          >
-                            {tx.renameColumn}
-                          </button>
+                          <button type="button" onClick={() => startRenameFeatureColumn(key)} className="text-[#1d4ed8]">{tx.renameColumn}</button>
                         </>
                       )}
                     </div>
                   ))}
                 </div>
-                {!selectedIdentifierKey && (
-                  <p className="text-xs text-rose-600 mt-1">{tx.noColumnToRun}</p>
-                )}
-                {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
-                  <p className="text-xs text-amber-700 mt-1">
-                    {isEn ? `${duplicateIdentifierCount} ${tx.duplicateValueNotice}` : `중복 값 ${duplicateIdentifierCount}${tx.duplicateValueNotice}`}
-                  </p>
-                )}
                 <p className="text-xs text-[#667085]">{tx.excludeFieldHint}</p>
                 <div className="flex flex-wrap gap-2">
                   {columnOrder.length === 0 && (
@@ -1635,34 +1596,12 @@ function App() {
                     const isIdentifier = key === selectedIdentifierKey;
                     const checked = excludedFeatureKeys.includes(key);
                     return (
-                      <label key={key} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={isIdentifier}
-                          onChange={() => toggleExcludedFeature(key)}
-                        />
+                      <label key={`exclude-${key}`} className={`inline-flex items-center gap-2 px-2 py-1 border rounded text-sm ${isIdentifier ? 'opacity-50' : ''}`}>
+                        <input type="checkbox" checked={checked} disabled={isIdentifier} onChange={() => toggleExcludedFeature(key)} />
                         <span className="max-w-44 truncate" title={key}>{key}</span>
                       </label>
                     );
                   })}
-                </div>
-              </div>
-
-              </div>
-
-              <div className="space-y-4">
-              <div className="rounded-xl border border-[#d9deea] overflow-hidden">
-              <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
-              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
-                <div className="flex items-center gap-2">
-                  <Search size={14} className="text-[#667085]" />
-                  <Input
-                    value={participantQuery}
-                    onChange={(e) => setParticipantQuery(e.target.value)}
-                    placeholder={tx.search}
-                    className="h-8 w-52 border-[#d9deea] text-sm"
-                  />
                 </div>
               </div>
               <div className="overflow-auto bg-white">
