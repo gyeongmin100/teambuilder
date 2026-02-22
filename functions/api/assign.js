@@ -125,6 +125,28 @@ const buildValidationFeedback = (integrity) => {
 };
 
 const extractRequestReview = (aiOutput, customPrompt) => {
+  const intentResults = Array.isArray(aiOutput?.request_reflection?.intent_results)
+    ? aiOutput.request_reflection.intent_results
+    : [];
+  if (intentResults.length > 0) {
+    return intentResults
+      .map((item, idx) => {
+        const rawStatus = String(item?.status || '').toLowerCase();
+        const mappedStatus =
+          rawStatus === 'fulfilled'
+            ? 'satisfied'
+            : rawStatus === 'unfulfilled'
+              ? 'unmet'
+              : 'partially_satisfied';
+        return {
+          request: trimText(item?.original_text || item?.intent_id || `요청 ${idx + 1}`, 140),
+          status: mappedStatus,
+          reason: trimText(item?.reason || '', 260)
+        };
+      })
+      .filter((x) => x.request);
+  }
+
   const list = Array.isArray(aiOutput?.request_status) ? aiOutput.request_status : [];
   if (list.length > 0) {
     return list
