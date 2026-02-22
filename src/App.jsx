@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -1070,6 +1070,39 @@ function App() {
     return Array.from(counts.values()).filter((n) => n > 1).length;
   }, [selectedIdentifierKey, validParticipants]);
 
+  const renderEditableHeader = (columnKey, fallbackLabel) => {
+    if (!columnKey) {
+      return <span className="inline-block max-w-40 truncate">{fallbackLabel}</span>;
+    }
+
+    if (editingColumnKey === columnKey) {
+      return (
+        <Input
+          value={editingColumnName}
+          onChange={(e) => setEditingColumnName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitRenameFeatureColumn(columnKey);
+            if (e.key === 'Escape') cancelRenameFeatureColumn();
+          }}
+          className="h-7 w-40 border-[#cfd5e3] bg-white text-xs"
+          autoFocus
+        />
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => startRenameFeatureColumn(columnKey)}
+        onDoubleClick={() => startRenameFeatureColumn(columnKey)}
+        className="inline-block max-w-40 truncate text-left hover:text-[#1d4ed8]"
+        title={columnKey}
+      >
+        {columnKey}
+      </button>
+    );
+  };
+
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
     if (validParticipants.length < 2) {
@@ -1265,7 +1298,7 @@ function App() {
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
     excludeFieldHint: isEn ? 'Choose columns to exclude from analysis.' : '분석에서 제외할 열을 선택할 수 있습니다.',
     loadFormFirstHint: isEn ? 'Import a form first to show feature columns.' : '폼을 먼저 불러오면 특성 목록이 표시됩니다.',
-    noPrimaryColumn: isEn ? 'Set identifier column' : '식별 열을 설정하세요',
+    noPrimaryColumn: isEn ? 'Not set' : '미설정',
     valueInput: isEn ? 'Enter value' : '값 입력',
     moreView: isEn ? 'Show all' : '전체보기',
     collapse: isEn ? 'Collapse' : '접기',
@@ -1536,9 +1569,8 @@ function App() {
                   {columnOrder.map((key) => (
                     <div
                       key={`table-feature-${key}`}
-                      draggable={editingColumnKey !== key}
+                      draggable
                       onDragStart={() => {
-                        if (editingColumnKey === key) return;
                         setDraggingColumnKey(key);
                       }}
                       onDragEnd={() => setDraggingColumnKey('')}
@@ -1551,39 +1583,16 @@ function App() {
                         columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-white'
                       }`}
                     >
-                      {editingColumnKey === key ? (
-                        <Input
-                          value={editingColumnName}
-                          onChange={(e) => setEditingColumnName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') submitRenameFeatureColumn(key);
-                            if (e.key === 'Escape') cancelRenameFeatureColumn();
-                          }}
-                          className="h-7 w-40 border-[#cfd5e3] bg-white text-xs"
-                          autoFocus
-                        />
-                      ) : (
-                        <span className="max-w-36 truncate" title={key}>{key}</span>
-                      )}
+                      <span className="max-w-36 truncate" title={key}>{key}</span>
                       {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">{tx.baseLabel}</span>}
-                      {editingColumnKey === key ? (
-                        <>
-                          <button type="button" onClick={() => submitRenameFeatureColumn(key)} className="text-cyan-700">{tx.save}</button>
-                          <button type="button" onClick={cancelRenameFeatureColumn} className="text-[#667085]">{tx.cancel}</button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => pinColumnAsIdentifier(key)}
-                            className={`inline-flex items-center gap-1 ${columnOrder[0] === key ? 'text-cyan-700' : 'text-[#475467]'}`}
-                            title={tx.pinAsIdentifier}
-                          >
-                            <Pin size={12} />
-                          </button>
-                          <button type="button" onClick={() => startRenameFeatureColumn(key)} className="text-[#1d4ed8]">{tx.renameColumn}</button>
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => pinColumnAsIdentifier(key)}
+                        className={`inline-flex items-center gap-1 ${columnOrder[0] === key ? 'text-cyan-700' : 'text-[#475467]'}`}
+                        title={tx.pinAsIdentifier}
+                      >
+                        <Pin size={12} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1608,23 +1617,45 @@ function App() {
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
+                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]">
+                        <button
+                          type="button"
+                          disabled={shownParticipants.length === 0}
+                          className={`h-6 w-6 rounded-full border text-center text-sm font-bold ${
+                            shownParticipants.length === 0
+                              ? 'cursor-not-allowed border-[#e4e7ec] text-[#c8ced9]'
+                              : 'border-rose-300 text-rose-600'
+                          }`}
+                          aria-label={tx.deleteLabel}
+                        >
+                          -
+                        </button>
+                      </TableHead>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">No</TableHead>
                       <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                        <span className="inline-block max-w-40 truncate" title={selectedIdentifierKey || tx.noPrimaryColumn}>
-                          {selectedIdentifierKey || tx.noPrimaryColumn}
-                        </span>
+                        {renderEditableHeader(selectedIdentifierKey, tx.primaryColumn)}
                       </TableHead>
                       {tableFeatureKeys.map((key) => (
                         <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                          <span className="inline-block max-w-40 truncate" title={key}>{key}</span>
+                          {renderEditableHeader(key, key)}
                         </TableHead>
                       ))}
-                      <TableHead className="w-16 px-3 py-2 text-left text-[#4b556b]">{tx.deleteLabel}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {shownParticipants.map((p, idx) => (
                       <TableRow key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
+                        <TableCell className="px-3 py-2">
+                          <Button
+                            onClick={() => removeParticipantRow(p)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50"
+                            aria-label={tx.deleteLabel}
+                          >
+                            -
+                          </Button>
+                        </TableCell>
                         <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
                         <TableCell className="px-3 py-2">
                           {selectedIdentifierKey ? (
@@ -1650,16 +1681,6 @@ function App() {
                             />
                           </TableCell>
                         ))}
-                        <TableCell className="px-3 py-2">
-                          <Button
-                            onClick={() => removeParticipantRow(p)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-[#667085]"
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))}
                     {shownParticipants.length === 0 && (
