@@ -554,3 +554,18 @@ pm run build)
     - 실행 버튼 컨테이너 박스 제거, 우측 하단 정렬로 이동
 - Verification:
   - `npm run build` 성공
+
+## 26. 2026-02-22 Input UX Follow-up Fixes (7 items)
+- Goal:
+  - 재요청된 입력 UX 7개 항목을 누락 없이 반영하고, 사용 흐름(가져오기 -> 편집 -> 점검 -> 실행)의 직관성을 강화.
+- Applied:
+  - `src/App.jsx`
+    - `importPanelOpen` 초기값 `false`로 변경(기본 닫힘)
+    - `외부데이터 가져오기` 버튼을 테이블 제목 줄 우측으로 이동
+    - 검색/행추가/열추가를 동일 툴바 행으로 재배치
+    - 열 헤더 `이름변경` 버튼 제거
+    - 열 편집을 `더블클릭 진입 + onBlur 저장`으로 변경
+    - `teamSizeInput` 문자열 상태 도입으로 팀 인원 입력 자유 편집/백스페이스 허용
+    - 맞춤프롬프트 토글 UI 추가 및 `isCustomPromptActive` 기준으로 요약/실행 payload 연동
+- Verification:
+  - `npm run build` 성공

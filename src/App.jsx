@@ -342,6 +342,7 @@ function App() {
   const [assignmentReport, setAssignmentReport] = useState(null);
   const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [teamSizeInput, setTeamSizeInput] = useState('4');
 
   const [formUrl, setFormUrl] = useState('');
   const [sheetImportLoading, setSheetImportLoading] = useState(false);
@@ -357,7 +358,7 @@ function App() {
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
-  const [importPanelOpen, setImportPanelOpen] = useState(true);
+  const [importPanelOpen, setImportPanelOpen] = useState(false);
   const runAssignLockRef = useRef(false);
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
@@ -511,6 +512,10 @@ function App() {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
+
+  useEffect(() => {
+    setTeamSizeInput(String(config.teamSize || ''));
+  }, [config.teamSize]);
 
   useEffect(() => {
     let alive = true;
@@ -1081,6 +1086,7 @@ function App() {
           <Input
             value={editingColumnName}
             onChange={(e) => setEditingColumnName(e.target.value)}
+            onBlur={() => submitRenameFeatureColumn(columnKey)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submitRenameFeatureColumn(columnKey);
               if (e.key === 'Escape') cancelRenameFeatureColumn();
@@ -1088,12 +1094,6 @@ function App() {
             className="h-7 w-32 border-[#cfd5e3] bg-white text-xs"
             autoFocus
           />
-          <button type="button" onClick={() => submitRenameFeatureColumn(columnKey)} className="text-[11px] text-[#1d4ed8]">
-            {isEn ? 'Save' : '저장'}
-          </button>
-          <button type="button" onClick={cancelRenameFeatureColumn} className="text-[11px] text-[#667085]">
-            {isEn ? 'Cancel' : '취소'}
-          </button>
         </span>
       );
     }
@@ -1102,20 +1102,11 @@ function App() {
       <span className="inline-flex max-w-44 items-center gap-1.5">
         <button
           type="button"
-          onClick={() => startRenameFeatureColumn(columnKey)}
           onDoubleClick={() => startRenameFeatureColumn(columnKey)}
           className="inline-block max-w-28 truncate text-left hover:text-[#1d4ed8]"
           title={columnKey}
         >
           {columnKey}
-        </button>
-        <button
-          type="button"
-          onClick={() => startRenameFeatureColumn(columnKey)}
-          className="text-[11px] text-[#667085] hover:text-[#1d4ed8]"
-          title={tx.renameColumn}
-        >
-          {isEn ? 'Rename' : '이름변경'}
         </button>
         <button
           type="button"
@@ -1158,7 +1149,7 @@ function App() {
     const assignPayload = {
       participants: payloadParticipants,
       config,
-      customPrompt: config.useCustomPrompt ? String(customPrompt || '').trim() : ''
+      customPrompt: isCustomPromptActive ? String(customPrompt || '').trim() : ''
     };
 
     runAssignLockRef.current = true;
@@ -1284,7 +1275,7 @@ function App() {
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
     customPromptToggle: isEn ? 'Use custom prompt' : '사용자 맞춤 프롬프트 사용',
-    importData: isEn ? 'Import data' : '데이터 가져오기',
+    importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form, CSV upload, and manual row are supported' : '지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가',
     load: isEn ? 'Load' : '불러오기',
     loading: isEn ? 'Loading...' : '불러오는 중...',
@@ -1297,8 +1288,8 @@ function App() {
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
     noData: isEn ? 'Please enter data.' : '데이터를 입력해주세요',
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
-    importTools: isEn ? 'Import tools' : '데이터 가져오기',
-    hideImportTools: isEn ? 'Hide import tools' : '가져오기 도구 접기',
+    importTools: isEn ? 'Import external data' : '외부데이터 가져오기',
+    hideImportTools: isEn ? 'Close import panel' : '외부데이터 가져오기 닫기',
     runAssign: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
     analyzing: isEn ? 'Analyzing with AI' : 'AI 분석 중',
@@ -1320,7 +1311,7 @@ function App() {
     selectIdentifier: isEn ? 'Choose identifier column' : '기준 열 선택',
     renameColumn: isEn ? 'Rename column' : '열 이름 수정',
     deleteColumn: isEn ? 'Delete column' : '열 삭제',
-    renameHint: isEn ? 'Click column title or Rename to edit the header name.' : '열 제목 클릭 또는 이름변경 버튼으로 열 이름을 수정할 수 있습니다.',
+    renameHint: isEn ? 'Double-click a column title and click outside to save.' : '열 제목을 더블클릭해 수정하고, 다른 영역을 클릭하면 저장됩니다.',
     deleteLabel: isEn ? 'Delete' : '삭제',
     noColumnToRun: isEn ? 'Cannot start analysis without columns.' : '열이 없으면 분석을 시작할 수 없습니다.',
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
@@ -1360,6 +1351,7 @@ function App() {
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
   const normalizedTeamSize = Number(config.teamSize) || 0;
+  const isCustomPromptActive = config.useCustomPrompt && String(customPrompt || '').trim().length > 0;
   const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
   const remainderCount = normalizedTeamSize > 0 ? validParticipants.length % normalizedTeamSize : 0;
   const canSelectRemainderMode = normalizedTeamSize > 0 && remainderCount > 0;
@@ -1412,7 +1404,7 @@ function App() {
     },
     {
       label: tx.customPromptUsage,
-      value: config.useCustomPrompt ? tx.enabled : tx.disabled
+      value: isCustomPromptActive ? tx.enabled : tx.disabled
     }
   ];
 
@@ -1507,18 +1499,32 @@ function App() {
                 <label className="inline-flex items-center gap-2">
                   <span>{tx.teamSize}</span>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     min="2"
                     max="50"
-                    value={config.teamSize}
+                    value={teamSizeInput}
                     onChange={(e) => {
-                      const parsed = Number(e.target.value);
-                      if (!Number.isFinite(parsed)) return;
-                      const nextSize = Math.min(50, Math.max(2, Math.round(parsed)));
+                      const raw = String(e.target.value || '');
+                      if (/^\d*$/.test(raw)) setTeamSizeInput(raw);
+                    }}
+                    onBlur={() => {
+                      const parsed = Number(teamSizeInput);
+                      const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : config.teamSize || 4;
+                      const nextSize = Math.min(50, Math.max(2, Math.round(safe)));
                       setConfig({ ...config, teamSize: nextSize });
+                      setTeamSizeInput(String(nextSize));
                     }}
                     className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                   />
+                </label>
+                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                  <input
+                    type="checkbox"
+                    checked={config.useCustomPrompt}
+                    onChange={(e) => setConfig({ ...config, useCustomPrompt: e.target.checked })}
+                  />
+                  {tx.customPromptToggle}
                 </label>
               </div>
               {canSelectRemainderMode && (
@@ -1557,22 +1563,31 @@ function App() {
               <div className="order-1 space-y-5">
               <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] overflow-hidden">
-              <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
+              <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold flex items-center justify-between gap-2">
+                <span>{tx.tableTitle}</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (importPanelOpen) setSheetListOpen(false);
+                    setImportPanelOpen((v) => !v);
+                  }}
+                  className="inline-flex items-center gap-1"
+                >
+                  <Database size={14} />
+                  {importPanelOpen ? tx.hideImportTools : tx.importTools}
+                </Button>
+              </div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
-                <div className="ml-auto flex items-center gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (importPanelOpen) setSheetListOpen(false);
-                      setImportPanelOpen((v) => !v);
-                    }}
-                    className="inline-flex items-center gap-1"
-                  >
-                    <Database size={14} />
-                    {importPanelOpen ? tx.hideImportTools : tx.importTools}
-                  </Button>
+                <div className="flex items-center gap-2">
+                  <Search size={14} className="text-[#667085]" />
+                  <Input
+                    value={participantQuery}
+                    onChange={(e) => setParticipantQuery(e.target.value)}
+                    placeholder={tx.search}
+                    className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
+                  />
                   <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
                     {tx.addRow}
                   </Button>
@@ -1630,7 +1645,6 @@ function App() {
                       ))}
                     </div>
                   )}
-                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
               )}
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
@@ -1654,19 +1668,6 @@ function App() {
               <div className="overflow-auto bg-white">
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
-                    <TableRow>
-                      <TableHead colSpan={tableFeatureKeys.length + 3} className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <Search size={14} className="text-[#667085]" />
-                          <Input
-                            value={participantQuery}
-                            onChange={(e) => setParticipantQuery(e.target.value)}
-                            placeholder={tx.search}
-                            className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
-                          />
-                        </div>
-                      </TableHead>
-                    </TableRow>
                     <TableRow>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
                         {validParticipants.length > 0 ? 'No' : ''}
