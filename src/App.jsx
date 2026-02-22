@@ -1649,18 +1649,6 @@ function App() {
               </div>
 
               <div className="space-y-4">
-              <div className="sticky bottom-3 bg-white/95 backdrop-blur border border-[#d9deea] rounded-xl p-3 flex gap-2">
-              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
-                {paymentLoading ? tx.moveToPayment : tx.runAssign}
-              </Button>
-              </div>
-              {!canRunAssignment && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  {tx.openDataTabHint}
-                </div>
-              )}
-              </div>
-              <div className="space-y-4">
                 <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
                   <p className="text-sm font-bold">{tx.reviewSummary}</p>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1680,6 +1668,18 @@ function App() {
                   )}
                   {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
+              </div>
+              <div className="space-y-4">
+              <div className="border border-[#d9deea] rounded-xl p-3 flex gap-2 bg-white">
+              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
+                {paymentLoading ? tx.moveToPayment : tx.runAssign}
+              </Button>
+              </div>
+              {!canRunAssignment && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  {tx.openDataTabHint}
+                </div>
+              )}
               </div>
               </div>
             </div>
