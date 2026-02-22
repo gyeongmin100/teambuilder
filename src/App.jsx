@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles } from 'lucide-react';
+import { Users, Upload, Trash2, Download, Search, Settings2, Database, ArrowRight, Sparkles, Pin } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -808,6 +808,17 @@ function App() {
     });
   };
 
+  const pinColumnAsIdentifier = (key) => {
+    if (!key) return;
+    if (columnOrder[0] === key) return;
+    recordHistorySnapshot();
+    setColumnOrder((prev) => {
+      const filtered = prev.filter((k) => k !== key);
+      return [key, ...filtered];
+    });
+    setMessage(tr(`식별 열 지정: ${key}`, `Identifier column set: ${key}`));
+  };
+
   const hasDuplicateColumnName = (nextName, exceptKey = '') => {
     const target = String(nextName || '').trim().toLowerCase();
     if (!target) return false;
@@ -866,25 +877,6 @@ function App() {
     if (selectedIdentifierKey === oldKey) setSelectedIdentifierKey(nextKey);
     cancelRenameFeatureColumn();
     setMessage(tr(`열 이름 변경: ${oldKey} -> ${nextKey}`, `Column renamed: ${oldKey} -> ${nextKey}`));
-  };
-
-  const removeFeatureColumn = (key) => {
-    if (availableIdentifierKeys.length <= 1) {
-      setMessage(tr('특성은 최소 1개 이상 필요합니다.', 'At least one column is required.'));
-      return;
-    }
-
-    recordHistorySnapshot();
-    setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
-    setColumnOrder((prev) => prev.filter((k) => k !== key));
-    setExcludedFeatureKeys((prev) => prev.filter((k) => k !== key));
-    setParticipants((prev) =>
-      prev.map((p) => {
-        const next = { ...(p.features || {}) };
-        delete next[key];
-        return { ...p, features: next };
-      })
-    );
   };
 
   const updateParticipantFeature = (participant, key, value) => {
@@ -1255,6 +1247,7 @@ function App() {
     addColumnPlaceholder: isEn ? 'New column name (e.g., MBTI, gender, preferred role)' : '새 특성명 입력 (예: MBTI, 성별, 희망역할)',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
     renameColumn: isEn ? 'Rename' : '이름 수정',
+    pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
     save: isEn ? 'Save' : '저장',
     cancel: isEn ? 'Cancel' : '취소',
     columnListHint: isEn ? 'Column list appears after importing a form or CSV.' : '폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.',
@@ -1607,17 +1600,18 @@ function App() {
                         <>
                           <button
                             type="button"
+                            onClick={() => pinColumnAsIdentifier(key)}
+                            className={`inline-flex items-center gap-1 ${columnOrder[0] === key ? 'text-cyan-700' : 'text-[#475467]'}`}
+                            title={tx.pinAsIdentifier}
+                          >
+                            <Pin size={12} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => startRenameFeatureColumn(key)}
                             className="text-[#1d4ed8]"
                           >
                             {tx.renameColumn}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeFeatureColumn(key)}
-                            className="text-rose-600"
-                          >
-                            {tx.deleteLabel}
                           </button>
                         </>
                       )}
