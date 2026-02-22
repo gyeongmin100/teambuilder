@@ -1458,7 +1458,7 @@ function App() {
               </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+              <div className="space-y-5">
               <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] p-3 space-y-3">
                 <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
@@ -1528,12 +1528,14 @@ function App() {
                     className="h-8 w-52 border-[#d9deea] text-sm"
                   />
                 </div>
-                <div className="ml-auto flex flex-wrap items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
-                    {tx.addColumn}
-                  </Button>
+                <div className="flex items-center gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
                     {tx.addRow}
+                  </Button>
+                </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
+                    {tx.addColumn}
                   </Button>
                 </div>
               </div>
@@ -1556,27 +1558,19 @@ function App() {
                   })}
                 </div>
               </div>
-              <div className="overflow-auto bg-white">
+              <div className="overflow-auto bg-white min-h-[420px]">
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
-                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]">
-                        <button
-                          type="button"
-                          disabled={shownParticipants.length === 0}
-                          className={`h-6 w-6 rounded-full border text-center text-sm font-bold ${
-                            shownParticipants.length === 0
-                              ? 'cursor-not-allowed border-[#e4e7ec] text-[#c8ced9]'
-                              : 'border-rose-300 text-rose-600'
-                          }`}
-                          aria-label={tx.deleteLabel}
-                        >
-                          -
-                        </button>
+                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
+                      <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
+                        {shownParticipants.length > 0 || selectedIdentifierKey ? 'No' : ''}
                       </TableHead>
-                      <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">No</TableHead>
                       <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                        {renderEditableHeader(selectedIdentifierKey, tx.primaryColumn)}
+                        {renderEditableHeader(
+                          selectedIdentifierKey,
+                          shownParticipants.length > 0 || selectedIdentifierKey ? tx.primaryColumn : ''
+                        )}
                       </TableHead>
                       {tableFeatureKeys.map((key) => (
                         <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
