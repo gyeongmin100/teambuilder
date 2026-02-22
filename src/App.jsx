@@ -363,6 +363,8 @@ function App() {
   const [, setHistoryTick] = useState(0);
   const [newFeatureName, setNewFeatureName] = useState('');
   const [draggingColumnKey, setDraggingColumnKey] = useState('');
+  const [editingColumnKey, setEditingColumnKey] = useState('');
+  const [editingColumnName, setEditingColumnName] = useState('');
 
   const maxInitialRows = 20;
   const maxFeatureColumns = 6;
@@ -806,13 +808,20 @@ function App() {
     });
   };
 
+  const hasDuplicateColumnName = (nextName, exceptKey = '') => {
+    const target = String(nextName || '').trim().toLowerCase();
+    if (!target) return false;
+    return availableIdentifierKeys.some((k) => k !== exceptKey && String(k || '').trim().toLowerCase() === target);
+  };
+
   const addFeatureColumn = () => {
     const key = String(newFeatureName || '').trim();
     if (!key) return setMessage(tr('추가할 특성명을 입력하세요.', 'Enter a new column name.'));
-    if (availableIdentifierKeys.includes(key)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
+    if (hasDuplicateColumnName(key)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
 
     recordHistorySnapshot();
     setAvailableIdentifierKeys((prev) => [...prev, key]);
+    setColumnOrder((prev) => (prev.includes(key) ? prev : [...prev, key]));
     setParticipants((prev) =>
       prev.map((p) => ({
         ...p,
@@ -820,6 +829,43 @@ function App() {
       }))
     );
     setNewFeatureName('');
+    setMessage(tr(`열 추가 완료: ${key}`, `Column added: ${key}`));
+  };
+
+  const startRenameFeatureColumn = (key) => {
+    setEditingColumnKey(key);
+    setEditingColumnName(key);
+  };
+
+  const cancelRenameFeatureColumn = () => {
+    setEditingColumnKey('');
+    setEditingColumnName('');
+  };
+
+  const submitRenameFeatureColumn = (oldKey) => {
+    const nextKey = String(editingColumnName || '').trim();
+    if (!oldKey) return cancelRenameFeatureColumn();
+    if (!nextKey) return setMessage(tr('새 열 이름을 입력하세요.', 'Enter a new column name.'));
+    if (nextKey === oldKey) return cancelRenameFeatureColumn();
+    if (hasDuplicateColumnName(nextKey, oldKey)) return setMessage(tr('이미 존재하는 특성명입니다.', 'Column already exists.'));
+
+    recordHistorySnapshot();
+    setAvailableIdentifierKeys((prev) => prev.map((k) => (k === oldKey ? nextKey : k)));
+    setColumnOrder((prev) => prev.map((k) => (k === oldKey ? nextKey : k)));
+    setExcludedFeatureKeys((prev) => prev.map((k) => (k === oldKey ? nextKey : k)));
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const base = { ...(p.features || {}) };
+        if (!(oldKey in base) && !(nextKey in base)) return p;
+        const value = String(base[oldKey] ?? base[nextKey] ?? '');
+        delete base[oldKey];
+        base[nextKey] = value;
+        return { ...p, features: base };
+      })
+    );
+    if (selectedIdentifierKey === oldKey) setSelectedIdentifierKey(nextKey);
+    cancelRenameFeatureColumn();
+    setMessage(tr(`열 이름 변경: ${oldKey} -> ${nextKey}`, `Column renamed: ${oldKey} -> ${nextKey}`));
   };
 
   const removeFeatureColumn = (key) => {
@@ -830,6 +876,7 @@ function App() {
 
     recordHistorySnapshot();
     setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
+    setColumnOrder((prev) => prev.filter((k) => k !== key));
     setExcludedFeatureKeys((prev) => prev.filter((k) => k !== key));
     setParticipants((prev) =>
       prev.map((p) => {
@@ -1121,6 +1168,7 @@ function App() {
     const baseColumns = columnOrder.length > 0 ? columnOrder : ['이름'];
     if (columnOrder.length === 0) {
       setAvailableIdentifierKeys((prev) => (prev.includes('이름') ? prev : [...prev, '이름']));
+      setColumnOrder((prev) => (prev.includes('이름') ? prev : [...prev, '이름']));
     }
     const features = Object.fromEntries(baseColumns.map((k) => [k, '']));
     setParticipants((prev) => [
@@ -1165,11 +1213,11 @@ function App() {
     connectOAuth: isEn ? 'Google sign in' : '구글로그인',
     googleLogin: isEn ? 'Continue with Google' : 'Google 로그인',
     participants: isEn ? 'Participants' : '현재 참가자',
-    primaryColumn: isEn ? 'Primary column' : '맨 앞 열',
+    primaryColumn: isEn ? 'Identifier column' : '식별 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
     progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
-    needPrimary: isEn ? 'Primary column required' : '맨 앞 열 확인 필요',
+    needPrimary: isEn ? 'Identifier column required' : '식별 열 확인 필요',
     dataDrivenAnalysis: isEn ? '100% data-driven team analysis' : '100% 데이터 기반 팀 분석',
     teamSettings: isEn ? '1) Team settings' : '1) 팀 설정',
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
@@ -1183,7 +1231,7 @@ function App() {
     myForms: isEn ? 'My Google Forms' : '내 구글폼 목록',
     loadingList: isEn ? 'Fetching list...' : '목록 조회 중...',
     uploadCsv: isEn ? 'Upload CSV' : 'CSV 업로드',
-    columnMgmt: isEn ? '3) Column management' : '3) 열 관리',
+    columnMgmt: isEn ? '3) Row/column management' : '3) 행/열 관리',
     tableTitle: isEn ? '4) Participant table' : '4) 참가자 데이터 (테이블)',
     search: isEn ? 'Search participant/value' : '참가자/값 검색',
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
@@ -1203,9 +1251,12 @@ function App() {
     ,
     formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
-    leadingColumnRule: isEn ? 'Teams are built using the first column as identifier.' : '맨 앞 열을 기준으로 팀을 나눕니다.',
+    leadingColumnRule: isEn ? 'The first column is used as the identifier for team assignment.' : '첫 번째 열을 식별 열로 사용해 팀을 나눕니다.',
     addColumnPlaceholder: isEn ? 'New column name (e.g., MBTI, gender, preferred role)' : '새 특성명 입력 (예: MBTI, 성별, 희망역할)',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
+    renameColumn: isEn ? 'Rename' : '이름 수정',
+    save: isEn ? 'Save' : '저장',
+    cancel: isEn ? 'Cancel' : '취소',
     columnListHint: isEn ? 'Column list appears after importing a form or CSV.' : '폼을 불러오거나 CSV를 업로드하면 열 목록이 표시됩니다.',
     baseLabel: isEn ? 'Base' : '기준',
     deleteLabel: isEn ? 'Delete' : '삭제',
@@ -1489,6 +1540,14 @@ function App() {
                   >
                     {tx.addColumn}
                   </Button>
+                  <Button
+                    type="button"
+                    onClick={addEmptyParticipantRow}
+                    variant="outline"
+                    className="h-10 border-[#d9deea] bg-white text-sm"
+                  >
+                    {tx.addRow}
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {columnOrder.length === 0 && (
@@ -1497,8 +1556,11 @@ function App() {
                   {columnOrder.map((key) => (
                     <div
                       key={`feature-remove-${key}`}
-                      draggable
-                      onDragStart={() => setDraggingColumnKey(key)}
+                      draggable={editingColumnKey !== key}
+                      onDragStart={() => {
+                        if (editingColumnKey === key) return;
+                        setDraggingColumnKey(key);
+                      }}
                       onDragEnd={() => setDraggingColumnKey('')}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => {
@@ -1509,15 +1571,56 @@ function App() {
                         columnOrder[0] === key ? 'border-cyan-600 bg-cyan-50' : 'bg-[#f7f9fc]'
                       }`}
                     >
-                      <span className="max-w-36 truncate" title={key}>{key}</span>
+                      {editingColumnKey === key ? (
+                        <Input
+                          value={editingColumnName}
+                          onChange={(e) => setEditingColumnName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') submitRenameFeatureColumn(key);
+                            if (e.key === 'Escape') cancelRenameFeatureColumn();
+                          }}
+                          className="h-7 w-40 border-[#cfd5e3] bg-white text-xs"
+                          autoFocus
+                        />
+                      ) : (
+                        <span className="max-w-36 truncate" title={key}>{key}</span>
+                      )}
                       {columnOrder[0] === key && <span className="text-[11px] text-cyan-700 font-bold">{tx.baseLabel}</span>}
-                      <button
-                        type="button"
-                        onClick={() => removeFeatureColumn(key)}
-                        className="text-rose-600"
-                      >
-                        {tx.deleteLabel}
-                      </button>
+                      {editingColumnKey === key ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => submitRenameFeatureColumn(key)}
+                            className="text-cyan-700"
+                          >
+                            {tx.save}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelRenameFeatureColumn}
+                            className="text-[#667085]"
+                          >
+                            {tx.cancel}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => startRenameFeatureColumn(key)}
+                            className="text-[#1d4ed8]"
+                          >
+                            {tx.renameColumn}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFeatureColumn(key)}
+                            className="text-rose-600"
+                          >
+                            {tx.deleteLabel}
+                          </button>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1566,11 +1669,6 @@ function App() {
                     placeholder={tx.search}
                     className="h-8 w-52 border-[#d9deea] text-sm"
                   />
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
-                    {tx.addRow}
-                  </Button>
                 </div>
               </div>
               <div className="overflow-auto bg-white">
