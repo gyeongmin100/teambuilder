@@ -508,7 +508,7 @@ function App() {
       if (selectedIdentifierKey) setSelectedIdentifierKey('');
       return;
     }
-    if (selectedIdentifierKey && !columnOrder.includes(selectedIdentifierKey)) {
+    if (!selectedIdentifierKey || !columnOrder.includes(selectedIdentifierKey)) {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
@@ -836,10 +836,6 @@ function App() {
 
   const removeFeatureColumn = (key) => {
     if (!key) return;
-    if (columnOrder.length <= 1) {
-      setMessage(tr('최소 1개의 열은 필요합니다.', 'At least one column is required.'));
-      return;
-    }
     recordHistorySnapshot();
     setAvailableIdentifierKeys((prev) => prev.filter((k) => k !== key));
     setColumnOrder((prev) => prev.filter((k) => k !== key));
@@ -1307,6 +1303,7 @@ function App() {
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
     remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
+    remainderPrompt: isEn ? 'Set in custom prompt' : '맞춤프롬프트에 입력하기',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
@@ -1399,6 +1396,9 @@ function App() {
           : Math.max(baseTeamCount, 1);
   const teamCompositionText = (() => {
     if (validParticipants.length === 0 || normalizedTeamSize <= 0 || expectedTeamCount === 0) return '-';
+    if (config.remainderMode === 'prompt') {
+      return isEn ? 'Follow custom prompt for remainder handling' : '나머지 인원 처리 방식은 맞춤프롬프트 지시를 따름';
+    }
     if (remainderCount === 0) return isEn ? `${normalizedTeamSize} members x ${expectedTeamCount} teams` : `${normalizedTeamSize}인 ${expectedTeamCount}팀`;
     if (config.remainderMode === 'keep_partial') {
       if (baseTeamCount === 0) return isEn ? `${remainderCount} members x 1 team` : `${remainderCount}인 1팀`;
@@ -1603,6 +1603,14 @@ function App() {
                       onChange={() => setConfig({ ...config, remainderMode: 'keep_partial' })}
                     />
                     {tx.remainderPartial}
+                  </label>
+                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                    <input
+                      type="radio"
+                      checked={config.remainderMode === 'prompt'}
+                      onChange={() => setConfig({ ...config, remainderMode: 'prompt' })}
+                    />
+                    {tx.remainderPrompt}
                   </label>
                 </div>
               )}
