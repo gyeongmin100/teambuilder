@@ -497,3 +497,15 @@ pm run build)
   - 실행 로직(run/checkout)은 기존과 충돌 없음
 - Verification:
   - `npm run build` 성공
+
+## 22. 2026-02-22 Input Page Bottom Placement + Hint Removal
+- Goal:
+  - 입력페이지에서 실행 전 점검 요약과 결제 후 실행 버튼을 시각적으로 항상 최하단에 배치.
+  - 실행 불가 시 노출되던 고정 힌트 문구(`데이터 불러오기와 식별 열 설정을 먼저 완료하세요.`) 제거.
+- Applied:
+  - `src/App.jsx`
+    - 실행 버튼 섹션 컨테이너 클래스에 `order-3` 지정
+    - 점검 요약 섹션 컨테이너 클래스에 `order-3` 지정
+    - `!canRunAssignment` 조건의 경고 박스 렌더링 제거
+- Verification:
+  - `npm run build` 성공
