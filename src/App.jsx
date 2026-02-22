@@ -357,6 +357,7 @@ function App() {
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
+  const [importPanelOpen, setImportPanelOpen] = useState(true);
   const runAssignLockRef = useRef(false);
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
@@ -1246,7 +1247,7 @@ function App() {
     remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
     customPromptToggle: isEn ? 'Use custom prompt' : '사용자 맞춤 프롬프트 사용',
-    importData: isEn ? '2) Import data' : '2) 데이터 가져오기',
+    importData: isEn ? 'Import data' : '데이터 가져오기',
     importHint: isEn ? 'Google Form, CSV upload, and manual row are supported' : '지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가',
     load: isEn ? 'Load' : '불러오기',
     loading: isEn ? 'Loading...' : '불러오는 중...',
@@ -1259,6 +1260,8 @@ function App() {
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
     noData: isEn ? 'Please enter data.' : '데이터를 입력해주세요',
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
+    importTools: isEn ? 'Import tools' : '데이터 가져오기',
+    hideImportTools: isEn ? 'Hide import tools' : '가져오기 도구 접기',
     runAssign: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
     analyzing: isEn ? 'Analyzing with AI' : 'AI 분석 중',
@@ -1461,62 +1464,6 @@ function App() {
 
               <div className="order-1 space-y-5">
               <div className="space-y-4">
-              <div className="rounded-xl border border-[#d9deea] p-3 space-y-3">
-                <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
-                <p className="text-xs text-[#667085]">{tx.importHint}</p>
-                <div className="flex gap-2">
-                  <Input
-                    value={formUrl}
-                    onChange={(e) => setFormUrl(e.target.value)}
-                    placeholder={tx.formUrlPlaceholder}
-                    className="h-10 flex-1 border-[#d9deea] bg-white"
-                  />
-                  <Button
-                    onClick={() => importSheet()}
-                    disabled={sheetImportLoading}
-                    className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
-                  >
-                      {sheetImportLoading ? tx.loading : tx.load}
-                  </Button>
-                  <Button
-                    onClick={openSheets}
-                    disabled={sheetListLoading}
-                    variant="secondary"
-                    className="h-10 rounded-md"
-                  >
-                      {sheetListLoading ? tx.loadingList : tx.myForms}
-                  </Button>
-                </div>
-                <label className="inline-flex w-fit items-center gap-2 px-3 py-2 bg-[#f2f5fa] rounded cursor-pointer">
-                  <Upload size={16} /> {tx.uploadCsv}
-                  <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
-                </label>
-              </div>
-
-              {sheetListOpen && driveForms.length > 0 && (
-              <div className="max-h-52 overflow-y-auto border rounded">
-                {driveForms.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => {
-                      setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
-                      importSheet(f.id);
-                      setSheetListOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 border-b hover:bg-[#f7f9fc]"
-                  >
-                    <div className="font-semibold text-sm">{f.name}</div>
-                    <div className="text-xs text-[#667085]">{f.id}</div>
-                  </button>
-                ))}
-              </div>
-              )}
-
-              {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
-
-              </div>
-
-              <div className="space-y-4">
               <div className="rounded-xl border border-[#d9deea] overflow-hidden">
               <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold">{tx.tableTitle}</div>
               <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
@@ -1530,6 +1477,19 @@ function App() {
                   />
                 </div>
                 <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (importPanelOpen) setSheetListOpen(false);
+                      setImportPanelOpen((v) => !v);
+                    }}
+                    className="inline-flex items-center gap-1"
+                  >
+                    <Database size={14} />
+                    {importPanelOpen ? tx.hideImportTools : tx.importTools}
+                  </Button>
                   <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
                     {tx.addRow}
                   </Button>
@@ -1538,6 +1498,58 @@ function App() {
                   </Button>
                 </div>
               </div>
+              {importPanelOpen && (
+                <div className="px-3 py-3 border-b bg-[#f8fafc] space-y-3">
+                  <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
+                  <p className="text-xs text-[#667085]">{tx.importHint}</p>
+                  <div className="flex flex-col gap-2 md:flex-row">
+                    <Input
+                      value={formUrl}
+                      onChange={(e) => setFormUrl(e.target.value)}
+                      placeholder={tx.formUrlPlaceholder}
+                      className="h-10 flex-1 border-[#d9deea] bg-white"
+                    />
+                    <Button
+                      onClick={() => importSheet()}
+                      disabled={sheetImportLoading}
+                      className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
+                    >
+                      {sheetImportLoading ? tx.loading : tx.load}
+                    </Button>
+                    <Button
+                      onClick={openSheets}
+                      disabled={sheetListLoading}
+                      variant="secondary"
+                      className="h-10 rounded-md"
+                    >
+                      {sheetListLoading ? tx.loadingList : tx.myForms}
+                    </Button>
+                    <label className="inline-flex h-10 w-fit items-center gap-2 px-3 bg-[#f2f5fa] rounded cursor-pointer">
+                      <Upload size={16} /> {tx.uploadCsv}
+                      <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
+                    </label>
+                  </div>
+                  {sheetListOpen && driveForms.length > 0 && (
+                    <div className="max-h-52 overflow-y-auto border rounded bg-white">
+                      {driveForms.map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => {
+                            setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
+                            importSheet(f.id);
+                            setSheetListOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 border-b hover:bg-[#f7f9fc]"
+                        >
+                          <div className="font-semibold text-sm">{f.name}</div>
+                          <div className="text-xs text-[#667085]">{f.id}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
+                </div>
+              )}
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
                 <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
                 <p className="text-xs text-[#667085]">{tx.excludeFieldHint}</p>

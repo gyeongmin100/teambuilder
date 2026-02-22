@@ -509,3 +509,16 @@ pm run build)
     - `!canRunAssignment` 조건의 경고 박스 렌더링 제거
 - Verification:
   - `npm run build` 성공
+
+## 23. 2026-02-22 Data Import Integration Into Participant Table
+- Goal:
+  - 데이터 가져오기 기능을 별도 섹션이 아니라 참가자 테이블 내부 기능으로 통합.
+- Applied:
+  - `src/App.jsx`
+    - 독립 `import data` 카드 제거
+    - 테이블 툴바에 `데이터 가져오기` 토글 버튼 추가
+    - import 패널(`Google Form URL`, `불러오기`, `내 구글폼`, `CSV 업로드`)을 테이블 카드 내부로 이동
+    - `sheetListOpen` 목록 렌더링을 동일 패널 내부로 이동
+    - 패널 접기 시 sheet list 자동 닫힘 처리
+- Verification:
+  - `npm run build` 성공
