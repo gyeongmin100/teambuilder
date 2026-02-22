@@ -1,10 +1,78 @@
 ﻿import { trimText } from '../../shared/text.js';
-import { summarizeConstraintStatus, analyzeConstraintConsistency } from './evaluator.js';
+import { summarizeConstraintStatus } from './evaluator.js';
 
-const buildAssignmentReport = ({ teams, constraints, feasibility, reason, teamSize, remainderMode, usedFallback, unsupportedConstraints = [] }) => {
-  const consistency = analyzeConstraintConsistency(constraints);
+const normalizeText = (v) => String(v || '').trim().toLowerCase();
+
+const includesAny = (text, keywords) => {
+  const t = normalizeText(text);
+  return keywords.some((k) => t.includes(k));
+};
+
+const GENDER_KEYWORDS = ['성별', 'gender', 'sex', '남녀'];
+const MALE_VALUES = ['남', '남자', 'male', 'man', 'm'];
+const FEMALE_VALUES = ['여', '여자', 'female', 'woman', 'f'];
+
+const detectGender = (member) => {
+  const features = member?.features || {};
+  for (const [key, rawValue] of Object.entries(features)) {
+    const keyText = normalizeText(key);
+    if (!GENDER_KEYWORDS.some((k) => keyText.includes(k))) continue;
+
+    const valueText = normalizeText(rawValue);
+    if (MALE_VALUES.some((v) => valueText === v || valueText.startsWith(`${v} `))) return 'male';
+    if (FEMALE_VALUES.some((v) => valueText === v || valueText.startsWith(`${v} `))) return 'female';
+  }
+  return '';
+};
+
+const collectGenderStats = (members) => {
+  let male = 0;
+  let female = 0;
+  for (const m of members || []) {
+    const g = detectGender(m);
+    if (g === 'male') male += 1;
+    if (g === 'female') female += 1;
+  }
+  return { male, female };
+};
+
+const hasGenderBalanceIntent = ({ constraints = [], customPrompt = '' }) => {
+  const promptText = normalizeText(customPrompt);
+  if (includesAny(promptText, ['성비', '남녀', 'gender', 'male', 'female', '남자', '여자'])) return true;
+
+  return (constraints || []).some((c) =>
+    includesAny(`${c?.rawText || ''} ${c?.instruction || ''}`, ['성비', '남녀', 'gender', 'male', 'female', '남자', '여자'])
+  );
+};
+
+const buildGenderShortageNote = ({ teamStats, totalStats, teamCount, genderIntent }) => {
+  if (!genderIntent) return '';
+
+  if (teamStats.male === 0) {
+    if (totalStats.male === 0) return '전체 데이터에 남성 인원이 없어 여성 중심으로 구성되었습니다.';
+    if (totalStats.male < teamCount) return '남성 인원이 팀 수보다 적어 모든 팀에 남성을 배치할 수 없어 여성 중심으로 구성되었습니다.';
+  }
+
+  if (teamStats.female === 0) {
+    if (totalStats.female === 0) return '전체 데이터에 여성 인원이 없어 남성 중심으로 구성되었습니다.';
+    if (totalStats.female < teamCount) return '여성 인원이 팀 수보다 적어 모든 팀에 여성을 배치할 수 없어 남성 중심으로 구성되었습니다.';
+  }
+
+  return '';
+};
+
+const buildAssignmentReport = ({
+  teams,
+  constraints,
+  feasibility,
+  reason,
+  teamSize,
+  remainderMode,
+  usedFallback,
+  unsupportedConstraints = [],
+  customPrompt = ''
+}) => {
   const feasibilityMap = new Map((feasibility || []).map((f) => [f.constraintId, f]));
-
   const constraintResults = constraints.map((constraint) => {
     const result = summarizeConstraintStatus({ constraint, feasibilityItem: feasibilityMap.get(constraint.id), teams });
     return {
@@ -17,50 +85,56 @@ const buildAssignmentReport = ({ teams, constraints, feasibility, reason, teamSi
     };
   });
 
-  const checklist = constraintResults.map((c) => ({
-    item: `${c.type}${c.rawText ? ` (${trimText(c.rawText, 30)})` : ''}`,
-    requested: true,
-    status: c.status
-  }));
-
   const warnings = (feasibility || []).filter((f) => f.status === 'impossible').map((f) => f.detail);
   const unsupportedWarnings = unsupportedConstraints.map((u) => `미지원 제약(${u.type}): ${u.rawText}`);
-  const conflictWarnings = consistency.conflicts.map((x) => `충돌: ${x}`);
-  const ambiguityWarnings = consistency.ambiguities.map((x) => `모호/정성: ${x}`);
+  const allMembers = teams.flatMap((t) => t.members || []);
+  const totalStats = collectGenderStats(allMembers);
+  const genderIntent = hasGenderBalanceIntent({ constraints, customPrompt });
+
+  const summaryParts = [
+    `총 ${allMembers.length}명을 ${teams.length}개 팀으로 배정했습니다.`,
+    usedFallback ? '일부 조건은 자동 안전 규칙으로 보정해 결과를 확정했습니다.' : '요청한 조건을 가능한 범위에서 반영했습니다.'
+  ];
+
+  if (warnings.length > 0) {
+    summaryParts.push(`데이터 제약으로 인해 ${warnings.length}개 조건은 완전 반영되지 않았습니다.`);
+  }
 
   return {
-    summary: trimText([
-      `총 ${teams.flatMap((t) => t.members || []).length}명을 ${teams.length}개 팀으로 배정했습니다.`,
-      `팀 크기 기준: ${teamSize}명 / remainderMode: ${remainderMode}.`,
-      `배정 메모: ${trimText(reason || '', 120) || '없음'}.`,
-      usedFallback ? 'AI 실패 시 서버 안전규칙으로 폴백 배정했습니다.' : 'AI 판단을 우선 반영하고 서버는 안전 검증만 수행했습니다.',
-      warnings.length > 0 ? `불가능 제약 ${warnings.length}건은 최선안으로 처리했습니다.` : '',
-      unsupportedWarnings.length > 0 ? `미지원 제약 ${unsupportedWarnings.length}건은 자동 검증에서 제외했습니다.` : '',
-      consistency.conflicts.length > 0 ? `요청 충돌 ${consistency.conflicts.length}건은 패널티 최소화 해를 선택했습니다.` : '',
-      consistency.ambiguities.length > 0 ? `모호/정성 요청 ${consistency.ambiguities.length}건은 최선 추정으로 반영했습니다.` : ''
-    ].filter(Boolean).join(' '), 900),
-    interpretation: constraints.map((c) => ({
-      constraintId: c.id,
-      type: c.type,
-      priority: c.priority,
-      rawText: c.rawText || '',
-      instruction: c.instruction || ''
-    })),
-    ambiguities: consistency.ambiguities,
-    conflicts: consistency.conflicts,
-    decisionLog: consistency.decisionLog,
-    checklist,
-    constraints: constraintResults,
-    feasibility,
-    warnings: [...warnings, ...unsupportedWarnings, ...conflictWarnings, ...ambiguityWarnings],
-    actionHint: warnings.length > 0
-      ? '요청사항 일부가 데이터상 불가능하여 AI가 최선안으로 조정했습니다. 상세 사유는 경고/판정 로그를 확인하세요.'
-      : 'AI 판단 기반으로 배정이 완료되었습니다.',
-    teamReports: teams.map((team) => ({
-      teamId: team.id,
-      reason: `${team.members.length}명으로 구성. 제약 반영 상태는 체크리스트를 확인하세요.`,
-      evidence: [`인원: ${team.members.length}명`, team.analysis ? `AI 코멘트: ${trimText(team.analysis, 220)}` : 'AI 코멘트 없음']
-    }))
+    summary: trimText(summaryParts.join(' '), 500),
+    warnings: [...warnings, ...unsupportedWarnings],
+    teamReports: teams.map((team) => {
+      const teamStats = collectGenderStats(team.members || []);
+      const unavoidableNote = buildGenderShortageNote({
+        teamStats,
+        totalStats,
+        teamCount: teams.length,
+        genderIntent
+      });
+
+      const baseReason = `${team.members.length}명으로 구성했고, 데이터 균형과 입력 조건을 함께 고려했습니다.`;
+      const aiReason = trimText(team.analysis || '', 180);
+      const reasonLines = [baseReason, aiReason, unavoidableNote].filter(Boolean);
+
+      const evidence = [
+        `인원: ${team.members.length}명`,
+        teamStats.male + teamStats.female > 0 ? `성별 집계: 남 ${teamStats.male} / 여 ${teamStats.female}` : ''
+      ].filter(Boolean);
+
+      return {
+        teamId: team.id,
+        reason: trimText(reasonLines.join(' '), 260),
+        evidence
+      };
+    }),
+    debug: {
+      reason: trimText(reason || '', 120),
+      teamSize,
+      remainderMode,
+      constraints: constraintResults,
+      feasibility,
+      unsupportedConstraints
+    }
   };
 };
 

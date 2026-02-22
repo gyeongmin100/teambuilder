@@ -63,14 +63,14 @@ export async function onRequestPost(context) {
         : config.remainderMode === 'prompt'
           ? 'prompt'
           : 'spread';
-    const remainderMode = remainderModeRaw === 'prompt' ? 'spread' : remainderModeRaw;
+    const fallbackRemainderMode = remainderModeRaw === 'keep_partial' ? 'keep_partial' : 'spread';
 
     const compact = ensureUniqueIds(participants.map(compactParticipant).filter((p) => p.id));
     if (compact.length < 2) {
       return jsonResponse({ error: '배정 가능한 참가자가 2명 미만입니다.' }, 400);
     }
 
-    const seedInput = `${checkoutId}|${teamSize}|${remainderMode}|${compact.map((p) => p.id).join(',')}`;
+    const seedInput = `${checkoutId}|${teamSize}|${remainderModeRaw}|${compact.map((p) => p.id).join(',')}`;
     const rand = createSeededRandom(seedInput);
 
     const memberById = new Map(
@@ -89,7 +89,6 @@ export async function onRequestPost(context) {
 
     const promptText = String(customPrompt || '').trim();
     const AI_TRUST_MODE = true;
-    let constraintSource = 'ai_only';
     let aiConstraints = [];
 
     if (promptText) {
@@ -99,7 +98,6 @@ export async function onRequestPost(context) {
           participants: compact,
           env
         });
-        constraintSource = 'ai';
       } catch (error) {
         console.error('Constraint parse failed:', error);
       }
@@ -125,13 +123,12 @@ export async function onRequestPost(context) {
           __source: 'ai'
         }
       ];
-      constraintSource = 'ai_only_empty_constraints';
     }
 
     const constraints = normalizeConstraints({ rawConstraints, participants: compact });
     const unsupportedConstraints = collectUnsupportedConstraints(rawConstraints);
     const teamCount =
-      remainderMode === 'keep_partial'
+      remainderModeRaw === 'keep_partial'
         ? Math.max(1, Math.floor(compact.length / teamSize) + (compact.length % teamSize > 0 ? 1 : 0))
         : createSpreadTeams(compact.length, teamSize);
 
@@ -164,7 +161,7 @@ export async function onRequestPost(context) {
         aiTeams: ai.teams,
         memberById,
         teamSize,
-        remainderMode,
+        remainderMode: remainderModeRaw,
         rand,
         constraints,
         trustAi: AI_TRUST_MODE
@@ -180,8 +177,10 @@ export async function onRequestPost(context) {
     }
 
     if (!teams || teams.length === 0) {
-      teams = buildBaseTeams(Array.from(memberById.values()), teamSize, remainderMode, rand);
-      reason = 'AI 배정 실패로 최소 안전 폴백 배정';
+      teams = buildBaseTeams(Array.from(memberById.values()), teamSize, fallbackRemainderMode, rand);
+      reason = remainderModeRaw === 'prompt'
+        ? '프롬프트 해석 실패로 안전 기본 규칙(spread)으로 배정'
+        : 'AI 배정 실패로 최소 안전 폴백 배정';
     }
 
     const annotatedTeams = annotateTeams(teams, reason);
@@ -191,21 +190,15 @@ export async function onRequestPost(context) {
       feasibility,
       reason,
       teamSize,
-      remainderMode,
+      remainderMode: remainderModeRaw,
       usedFallback: !ai?.teams || !Array.isArray(ai.teams),
-      unsupportedConstraints
+      unsupportedConstraints,
+      customPrompt: promptText
     });
 
     return jsonResponse({
       teams: annotatedTeams,
-      report: {
-        ...report,
-        meta: {
-          constraintSource,
-          parsedConstraintCount: constraints.length,
-          unsupportedConstraintCount: unsupportedConstraints.length
-        }
-      }
+      report
     });
   } catch (error) {
     return jsonResponse({ error: error.message || '팀 배정 중 오류가 발생했습니다.' }, 500);

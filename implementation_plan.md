@@ -658,3 +658,33 @@ pm run build)
     - query 파라미터 기반 자동 복귀 후 URL 정리 로직 유지
 - Verification:
   - `npm run build` 성공
+
+## 33. 2026-02-22 Result Output Quality + Spread Consistency + UX Additions
+- Goal:
+  - 입력 점검값과 실제 팀 결과 불일치(특히 spread 나머지 몰림)를 제거하고, 결과 페이지를 사용자 중심으로 단순/강화.
+- Applied:
+  - `functions/domain/teams/teamFormation.js`
+    - `buildSpreadTargetSizes(total, teamSize)` 추가
+    - spread 기본 배정 로직을 랜덤 추가 방식에서 목표 팀 크기 기반 균등 배치로 변경
+  - `functions/domain/teams/aiNormalization.js`
+    - AI 결과 정규화 후 spread 목표 크기(`buildSpreadTargetSizes`) 기준 재균등화(`rebalanceSpreadTeams`) 추가
+    - unassigned 배정 후에도 2차 재균등화 수행
+  - `functions/domain/constraints/reporter.js`
+    - 결과 요약 문구를 사용자용 요약 중심으로 단순화
+    - 팀별 사유 생성 로직 강화(기본 사유 + AI 코멘트 + 성비 불가피 사유 자동 멘트)
+    - 내부 진단 값은 `debug` 필드로 분리(기본 UI 노출 제거용)
+  - `functions/api/assign.js`
+    - `buildAssignmentReport`에 `customPrompt` 전달
+    - 결과 응답에서 상세 `meta` 제거(불필요 노출 최소화)
+  - `src/App.jsx`
+    - 결과 화면 상단에 `이미지로 저장`, `공유하기` 버튼 추가
+    - `프롬프트 수정 후 다시 배정` 버튼 제거
+    - 결과 상세 내부 진단 블록(제약 로그/판정 상태/파싱 메타 등) 렌더 제거
+    - 구성원 클릭 시 특성 상세 펼침/접기 UI 추가
+    - 결과 영역 이미지 캡처(외부 라이브러리 없이 SVG foreignObject + canvas) 구현
+- Verification:
+  - `node` 스모크 테스트:
+    - spread: `10/4 -> [5,5]`, `14/4 -> [5,5,4]`, `13/4 -> [5,4,4]`
+    - keep_partial: `13/4 -> [4,4,4,1]`
+    - AI 정규화 재균등화: 비정상 AI 입력에서도 `[5,5,4]` 보정 확인
+  - `npm run build` 성공

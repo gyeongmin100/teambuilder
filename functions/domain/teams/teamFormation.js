@@ -1,4 +1,4 @@
-import { trimText } from '../../shared/text.js';
+﻿import { trimText } from '../../shared/text.js';
 
 const xmur3 = (str) => {
   let h = 1779033703 ^ str.length;
@@ -37,6 +37,18 @@ export const createSpreadTeams = (total, teamSize) => {
   return Math.max(1, fullTeamCount);
 };
 
+export const buildSpreadTargetSizes = (total, teamSize) => {
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safeTeamSize = Math.max(1, Number(teamSize) || 1);
+  if (safeTotal === 0) return [];
+
+  const teamCount = createSpreadTeams(safeTotal, safeTeamSize);
+  const remainder = safeTotal - teamCount * safeTeamSize;
+  const sizes = Array.from({ length: teamCount }, () => safeTeamSize);
+  for (let i = 0; i < remainder; i += 1) sizes[i] += 1;
+  return sizes;
+};
+
 export const buildBaseTeams = (participants, teamSize, remainderMode, rand) => {
   if (participants.length === 0) return [];
 
@@ -69,22 +81,19 @@ export const buildBaseTeams = (participants, teamSize, remainderMode, rand) => {
     return teams;
   }
 
-  const total = participants.length;
-  const fullTeamCount = createSpreadTeams(total, teamSize);
-  const teams = Array.from({ length: fullTeamCount }, (_, i) => ({
+  const targetSizes = buildSpreadTargetSizes(participants.length, teamSize);
+  const teams = Array.from({ length: targetSizes.length }, (_, i) => ({
     id: i + 1,
     members: [],
     analysis: ''
   }));
 
-  const fullCapacity = fullTeamCount * teamSize;
-  for (let i = 0; i < fullCapacity && i < total; i += 1) {
-    teams[i % fullTeamCount].members.push(participants[i]);
-  }
-
-  for (let i = fullCapacity; i < total; i += 1) {
-    const randomTeam = teams[pickRandomIndex(teams.length, rand)];
-    randomTeam.members.push(participants[i]);
+  let cursor = 0;
+  for (let teamIdx = 0; teamIdx < teams.length; teamIdx += 1) {
+    for (let n = 0; n < targetSizes[teamIdx] && cursor < participants.length; n += 1) {
+      teams[teamIdx].members.push(participants[cursor]);
+      cursor += 1;
+    }
   }
 
   return teams;

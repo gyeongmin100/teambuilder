@@ -1,5 +1,5 @@
 ﻿import { trimText } from '../../shared/text.js';
-import { pickRandomIndex, createSpreadTeams } from './teamFormation.js';
+import { pickRandomIndex, createSpreadTeams, buildSpreadTargetSizes } from './teamFormation.js';
 import { matchConstraintValue, softObjectivePenalty } from '../constraints/constraintEngine.js';
 
 const chooseTargetTeamForUnassigned = ({ normalized, memberById, memberId, teamSize, remainderMode, rand, constraints, trustAi = false }) => {
@@ -22,10 +22,6 @@ const chooseTargetTeamForUnassigned = ({ normalized, memberById, memberId, teamS
     let bestTeam = null;
     let bestScore = Number.POSITIVE_INFINITY;
     for (const team of normalized) {
-      if (remainderMode === 'spread' && team.memberIds.length >= teamSize) {
-        // spread는 가급적 기본 팀 크기 이하 우선
-      }
-
       let score = 0;
       for (const c of minConstraints) {
         const current = team.memberIds
@@ -70,6 +66,30 @@ const chooseTargetTeamForUnassigned = ({ normalized, memberById, memberId, teamS
   if (target.memberIds.length >= teamSize) target = null;
   return target;
 };
+
+const rebalanceSpreadTeams = ({ normalized, targetSizes, memberCount, rand }) => {
+  if (!Array.isArray(normalized) || !Array.isArray(targetSizes) || normalized.length !== targetSizes.length) return;
+
+  const guardLimit = Math.max(30, memberCount * 4 + 20);
+  let guard = 0;
+
+  while (guard < guardLimit) {
+    const overIdx = normalized.findIndex((team, idx) => team.memberIds.length > targetSizes[idx]);
+    const underIdx = normalized.findIndex((team, idx) => team.memberIds.length < targetSizes[idx]);
+    if (overIdx < 0 || underIdx < 0) break;
+
+    const source = normalized[overIdx];
+    const target = normalized[underIdx];
+    if (!source || !target || source.memberIds.length === 0) break;
+
+    const movingIdx = pickRandomIndex(source.memberIds.length, rand);
+    const [movingId] = source.memberIds.splice(movingIdx, 1);
+    if (!movingId) break;
+    target.memberIds.push(movingId);
+    guard += 1;
+  }
+};
+
 const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand, constraints, trustAi = false }) => {
   const used = new Set();
   const normalized = [];
@@ -116,6 +136,9 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand, 
         randomTeam.memberIds.push(id);
       }
     }
+
+    const targetSizes = buildSpreadTargetSizes(memberById.size, teamSize);
+    rebalanceSpreadTeams({ normalized, targetSizes, memberCount: memberById.size, rand });
   }
 
   for (const id of unassigned) {
@@ -134,6 +157,11 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand, 
     } else {
       normalized.push({ id: normalized.length + 1, memberIds: [id], analysis: '' });
     }
+  }
+
+  if (remainderMode === 'spread') {
+    const targetSizes = buildSpreadTargetSizes(memberById.size, teamSize);
+    rebalanceSpreadTeams({ normalized, targetSizes, memberCount: memberById.size, rand });
   }
 
   return { valid: true, teams: normalized, unassigned: [] };

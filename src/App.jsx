@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Trash2 } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Trash2, Share2, ImageDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { supabase } from './lib/supabaseClient';
@@ -405,6 +405,9 @@ function App() {
   const [, setHistoryTick] = useState(0);
   const [editingColumnKey, setEditingColumnKey] = useState('');
   const [editingColumnName, setEditingColumnName] = useState('');
+  const [expandedMemberKeys, setExpandedMemberKeys] = useState({});
+  const [resultActionLoading, setResultActionLoading] = useState(false);
+  const resultCaptureRef = useRef(null);
 
   const maxInitialRows = 20;
   const historyLimit = 60;
@@ -1300,6 +1303,118 @@ function App() {
     a.click();
   };
 
+  const toggleMemberDetail = (teamId, memberId) => {
+    const key = `${teamId}::${memberId}`;
+    setExpandedMemberKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const captureResultAsBlob = async () => {
+    const target = resultCaptureRef.current;
+    if (!target) throw new Error(tr('결과 영역을 찾을 수 없습니다.', 'Result area not found.'));
+
+    const rect = target.getBoundingClientRect();
+    const clonedNode = target.cloneNode(true);
+    clonedNode.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+
+    const style = window.getComputedStyle(target);
+    const width = Math.max(960, Math.ceil(rect.width));
+    const height = Math.max(540, Math.ceil(rect.height));
+
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <foreignObject width="100%" height="100%">
+          <div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;background:${style.backgroundColor || '#ffffff'};">
+            ${new XMLSerializer().serializeToString(clonedNode)}
+          </div>
+        </foreignObject>
+      </svg>
+    `;
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      img.crossOrigin = 'anonymous';
+
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = svgUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width * 2;
+      canvas.height = height * 2;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
+      ctx.scale(2, 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error(tr('이미지 변환에 실패했습니다.', 'Failed to convert image.'));
+      return blob;
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  };
+
+  const saveResultImage = async () => {
+    setResultActionLoading(true);
+    try {
+      const blob = await captureResultAsBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TeamBuilder_Result_${new Date().toISOString().slice(0, 10)}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage(error?.message || tr('이미지 저장 중 오류가 발생했습니다.', 'Error occurred while saving image.'));
+    } finally {
+      setResultActionLoading(false);
+    }
+  };
+
+  const shareResult = async () => {
+    setResultActionLoading(true);
+    try {
+      const shareText = `${tr('팀 배정 결과', 'Team assignment result')}\n${assignmentReport?.summary || ''}`;
+      if (navigator.share) {
+        try {
+          const blob = await captureResultAsBlob();
+          const file = new File([blob], 'TeamBuilder_Result.png', { type: 'image/png' });
+          await navigator.share({
+            title: tr('팀 배정 결과', 'Team assignment result'),
+            text: shareText,
+            files: [file]
+          });
+          return;
+        } catch {
+          await navigator.share({
+            title: tr('팀 배정 결과', 'Team assignment result'),
+            text: shareText,
+            url: window.location.href
+          });
+          return;
+        }
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareText}\n${window.location.href}`);
+        setMessage(tr('결과 링크를 클립보드에 복사했습니다.', 'Result link copied to clipboard.'));
+      } else {
+        throw new Error(tr('공유를 지원하지 않는 브라우저입니다.', 'This browser does not support sharing.'));
+      }
+    } catch (error) {
+      setMessage(error?.message || tr('공유 중 오류가 발생했습니다.', 'Error occurred while sharing result.'));
+    } finally {
+      setResultActionLoading(false);
+    }
+  };
+
   const addEmptyParticipantRow = () => {
     recordHistorySnapshot();
     const baseColumns = columnOrder.length > 0 ? columnOrder : ['이름'];
@@ -1382,13 +1497,13 @@ function App() {
     analyzing: isEn ? 'Analyzing with AI' : 'AI 분석 중',
     analyzingDesc: isEn ? 'Verifying payment and calculating team composition.' : '결제 확인 후 팀 구성 결과를 계산하고 있습니다.',
     pendingTitle: isEn ? 'Checkout pending state' : '결제 대기 상태',
-    pendingDesc: isEn ? 'No valid checkout return found, so auto verification cannot start.' : '결제 복귀 정보가 없어서 자동 검증을 시작할 수 없습니다.',
-    pendingVerifying: isEn ? 'Payment verified. Running assignment...' : '결제 확인 후 팀 배정 분석을 진행 중입니다...',
-    goPayment: isEn ? 'Go to checkout' : '결제 페이지로 이동',
-    verifyPayment: isEn ? 'I paid, continue' : '결제 완료 확인',
-    goInput: isEn ? 'Go to input' : '입력 화면으로 이동',
+    pendingVerifying: isEn ? 'Analyzing team assignment after payment verification...' : '결제 확인 후 팀 배정 분석을 진행 중입니다...',
+    pendingStay: isEn ? 'Please do not leave this page until analysis is complete.' : '분석이 완료될 때까지 이 페이지를 이탈하지 마세요.',
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
-    rerunAssign: isEn ? 'Edit prompt and re-run' : '프롬프트 수정 후 다시 배정',
+    saveImage: isEn ? 'Save as image' : '이미지로 저장',
+    shareResult: isEn ? 'Share' : '공유하기',
+    memberDetails: isEn ? 'Details' : '특성 보기',
+    hideDetails: isEn ? 'Hide' : '닫기',
     fullReport: isEn ? 'Full report' : '전체 결과 보고서',
     teamReason: isEn ? 'Team rationale' : '팀 편성 근거'
     ,
@@ -1438,8 +1553,6 @@ function App() {
   };
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
-  const pendingCheckoutId = String(safeGetSession(PENDING_CHECKOUT_ID_KEY) || '').trim();
-  const canResumePendingCheckout = Boolean(pendingCheckoutId && safeGetSession(PENDING_ASSIGN_KEY));
   const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
@@ -1928,50 +2041,14 @@ function App() {
           <motion.div key="polar-wait" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
             <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center space-y-4">
               <h3 className="text-2xl font-black">{tx.pendingTitle}</h3>
-              {paymentLoading ? (
-                <div className="space-y-3">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
-                    className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
-                  />
-                  <p className="text-[#4b556b]">{tx.pendingVerifying}</p>
-                </div>
-              ) : (
-                <p className="text-[#4b556b]">{tx.pendingDesc}</p>
-              )}
-              <div className="flex justify-center gap-2">
-                <Button
-                  onClick={() => {
-                    const pendingUrl = safeGetSession(PENDING_CHECKOUT_URL_KEY);
-                    if (!pendingUrl) {
-                      setMessage(tx.waitingCheckoutLinkMissing);
-                      goPage('input');
-                      return;
-                    }
-                    window.location.href = pendingUrl;
-                  }}
-                  className="bg-[#1a2138] text-white hover:bg-[#12192d]"
-                >
-                  {tx.goPayment}
-                </Button>
-                <Button
-                  onClick={() =>
-                    runPaidAssignment({
-                      checkoutId: pendingCheckoutId,
-                      cleanReturnQuery: false,
-                      redirectOnMissingPayload: true
-                    })
-                  }
-                  disabled={!canResumePendingCheckout || paymentLoading}
-                  variant="outline"
-                  className="border-[#d9deea] bg-white"
-                >
-                  {tx.verifyPayment}
-                </Button>
-                <Button onClick={() => goPage('input')} variant="outline" className="border-[#d9deea] bg-white">
-                  {tx.goInput}
-                </Button>
+              <div className="space-y-3">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
+                  className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
+                />
+                <p className="text-[#4b556b]">{tx.pendingVerifying}</p>
+                <p className="text-sm font-semibold text-rose-600">{tx.pendingStay}</p>
               </div>
             </div>
           </motion.div>
@@ -1987,112 +2064,85 @@ function App() {
                 <Download size={16} /> {tx.downloadCsv}
               </Button>
               <Button
-                onClick={() => {
-                  setStep('input');
-                  goPage('input');
-                  setTeams([]);
-                  setAssignmentReport(null);
-                  safeRemoveSession(reportCacheKey);
-                }}
+                onClick={saveResultImage}
+                disabled={resultActionLoading}
                 variant="outline"
                 className="border-[#d9deea] bg-white"
               >
-                {tx.rerunAssign}
+                <ImageDown size={16} /> {tx.saveImage}
+              </Button>
+              <Button
+                onClick={shareResult}
+                disabled={resultActionLoading}
+                variant="outline"
+                className="border-[#d9deea] bg-white"
+              >
+                <Share2 size={16} /> {tx.shareResult}
               </Button>
             </div>
-            {assignmentReport && (
-              <div className="bg-white border rounded-2xl p-4 space-y-3">
-                <h3 className="font-black">{tx.fullReport}</h3>
-                <p className="text-sm text-[#344054]">{assignmentReport.summary}</p>
-                {assignmentReport.meta && (
-                  <p className="text-[11px] text-[#667085]">
-                    {tx.reportMetaPrefix}: {assignmentReport.meta.constraintSource || '-'} / {isEn ? 'parsed constraints' : '해석된 제약'} {assignmentReport.meta.parsedConstraintCount || 0}{isEn ? '' : '건'} / {isEn ? 'unsupported' : '미지원'} {assignmentReport.meta.unsupportedConstraintCount || 0}{isEn ? '' : '건'}
-                  </p>
-                )}
-                {(assignmentReport.conflicts || []).length > 0 && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-1">
-                    <p className="text-xs font-bold text-rose-700">{tx.reportConflicts}</p>
-                    {(assignmentReport.conflicts || []).map((w, idx) => (
-                      <p key={`conflict-${idx}`} className="text-xs text-rose-700">- {w}</p>
-                    ))}
-                  </div>
-                )}
-                {(assignmentReport.ambiguities || []).length > 0 && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-1">
-                    <p className="text-xs font-bold text-amber-800">{tx.reportAmbiguities}</p>
-                    {(assignmentReport.ambiguities || []).map((w, idx) => (
-                      <p key={`ambiguity-${idx}`} className="text-xs text-amber-800">- {w}</p>
-                    ))}
-                  </div>
-                )}
-                {assignmentReport.actionHint && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                    {assignmentReport.actionHint}
-                  </div>
-                )}
-                {(assignmentReport.warnings || []).length > 0 && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-1">
-                    <p className="text-xs font-bold text-rose-700">{tx.reportWarnings}</p>
-                    {(assignmentReport.warnings || []).map((w, idx) => (
-                      <p key={`warning-${idx}`} className="text-xs text-rose-700">- {w}</p>
-                    ))}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {(assignmentReport.checklist || []).map((item, i) => (
-                    <div key={`${item.item || 'item'}-${i}`} className="rounded-xl border border-[#d9deea] bg-[#f7f9fc] p-3">
-                      <p className="text-xs text-[#667085]">{item.item || tx.checklistItem}</p>
-                      <p className="text-sm font-bold mt-1">{item.status || '-'}</p>
-                      <p className="text-xs text-[#4b556b] mt-1">{item.requested ? tx.requested : tx.notRequested}</p>
-                    </div>
-                  ))}
+            <div ref={resultCaptureRef} className="space-y-4">
+              {assignmentReport && (
+                <div className="bg-white border rounded-2xl p-4 space-y-3">
+                  <h3 className="font-black">{tx.fullReport}</h3>
+                  <p className="text-sm text-[#344054]">{assignmentReport.summary}</p>
                 </div>
-                {(assignmentReport.constraints || []).length > 0 && (
-                  <div className="rounded-xl border border-[#d9deea] p-3 space-y-1">
-                    <p className="text-xs font-bold text-[#344054]">{tx.constraintDetail}</p>
-                    {(assignmentReport.constraints || []).map((c, idx) => (
-                      <p key={`constraint-${idx}`} className="text-xs text-[#4b556b]">
-                        - {c.type}: {c.status} {c.detail ? ` / ${c.detail}` : ''}
-                      </p>
-                    ))}
-                  </div>
-                )}
-                {(assignmentReport.decisionLog || []).length > 0 && (
-                  <div className="rounded-xl border border-[#d9deea] p-3 space-y-1">
-                    <p className="text-xs font-bold text-[#344054]">{tx.decisionLog}</p>
-                    {(assignmentReport.decisionLog || []).map((line, idx) => (
-                      <p key={`decision-${idx}`} className="text-xs text-[#4b556b]">- {line}</p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {teams.map((t) => {
-                const teamReport = teamReportMap.get(Number(t.id) || t.id);
-                const evidence = Array.isArray(teamReport?.evidence) ? teamReport.evidence : [];
-                return (
-                  <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
-                    <h3 className="font-black mb-2">Team {t.id}</h3>
-                    {t.members.map((m, i) => (
-                      <div key={i} className="text-sm border rounded p-2 mb-2">
-                        <div className="font-bold">{m.name || m.id || '-'}</div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {teams.map((t) => {
+                  const teamReport = teamReportMap.get(Number(t.id) || t.id);
+                  const evidence = Array.isArray(teamReport?.evidence) ? teamReport.evidence : [];
+                  return (
+                    <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
+                      <h3 className="font-black mb-2">Team {t.id}</h3>
+                      {t.members.map((m, i) => {
+                        const memberKey = `${t.id}::${m.id || i}`;
+                        const isExpanded = Boolean(expandedMemberKeys[memberKey]);
+                        const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
+
+                        return (
+                          <div key={memberKey} className="text-sm border rounded p-2 mb-2 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => toggleMemberDetail(t.id, m.id || i)}
+                              className="w-full flex items-center justify-between gap-2"
+                            >
+                              <span className="font-bold text-left">{m.name || m.id || '-'}</span>
+                              <span className="inline-flex items-center gap-1 text-xs text-[#344054]">
+                                {isExpanded ? tx.hideDetails : tx.memberDetails}
+                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </span>
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-2 grid grid-cols-1 gap-1 rounded bg-[#f8fafc] p-2">
+                                {features.length === 0 ? (
+                                  <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
+                                ) : (
+                                  features.map(([key, value]) => (
+                                    <p key={`${memberKey}-${key}`} className="text-xs text-[#344054]">
+                                      <span className="font-semibold">{key}</span>: {String(value)}
+                                    </p>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
+                        <p className="text-xs text-cyan-800 font-bold">{tx.teamReason}</p>
+                        <p className="text-xs text-[#344054] mt-1">{teamReport?.reason || t.analysis}</p>
+                        {evidence.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {evidence.map((line, idx) => (
+                              <p key={`${t.id}-evidence-${idx}`} className="text-[11px] text-[#4b556b]">- {line}</p>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
-                      <p className="text-xs text-cyan-800 font-bold">{tx.teamReason}</p>
-                      <p className="text-xs text-[#344054] mt-1">{teamReport?.reason || t.analysis}</p>
-                      {evidence.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {evidence.map((line, idx) => (
-                            <p key={`${t.id}-evidence-${idx}`} className="text-[11px] text-[#4b556b]">- {line}</p>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </motion.div>
         )}
