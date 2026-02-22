@@ -478,3 +478,22 @@ pm run build)
 - [x] 사용자 혼란 유발 용어(`폴백`, `fallback`, 내부 모드 표기) 노출 제거/완화
 - [x] 이미지 저장 로직을 DOM 스냅샷에서 캔버스 렌더 방식으로 전환(안정성 강화)
 - [x] 빌드 검증 통과 (`npm run build`)
+
+## 35. 2026-02-22 prompt 나머지 배정/성비 최적화/라벨 노출 오류 수정
+- [x] prompt 모드에서 미배정 인원 처리 시 신규 팀 생성되는 경로 제거
+- [x] `첫번째팀/마지막팀` 나머지 배정 지시를 prompt 텍스트 기반 정책으로 반영
+- [x] prompt 모드에서 기본 팀 개수(`floor(n/teamSize)`) 유지 보정 추가
+- [x] balance 패널티를 실제 남/여 불균형 기준으로 재정의
+- [x] AI 결과 후 제약 보정(`min/max`) + 로컬 탐색(local search) 재적용
+- [x] 리포트 요청 라벨에서 기술 타입(`balance`) 대신 사용자 문구(`성비 균형`) 출력
+- [x] 재현 스모크 테스트: 50명/4인/prompt(first+last) -> 12팀, 크기 [5,5,4...]
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 36. 2026-02-22 GPT 중심 구조 전환 + 빡센 검증(2차 자동 재요청)
+- [x] OpenAI 출력 스키마에 `remainder_decision(mode/allowed_team_count_change/reason)` 추가
+- [x] 예시 기반 나머지 분배 하드코딩 제거(프롬프트 패턴 룰 제거)
+- [x] 서버 파이프라인을 `AI 배정 -> 하드/형태 검증 -> 실패 사유 포함 2차 재요청` 구조로 개편
+- [x] prompt 모드에서 팀 수 변경은 `프롬프트 명시 + AI allowed_team_count_change` 동시 만족 시에만 허용
+- [x] 정량 검증 리포트(`중복/누락/팀수/분포`) + 정성 요청 반영 리포트 동시 반환
+- [x] 결과 페이지에 나머지 인원 판단 근거(`remainderDecision`) 노출 추가
+- [x] 빌드 검증 통과 (`npm run build`)

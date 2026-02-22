@@ -294,9 +294,33 @@ const constraintPenalty = (constraint, teams) => {
 
   if (constraint.type === 'balance') {
     if (!constraint.attributeKey) return 0;
-    const counts = teams.map((team) => (team.members || []).filter((m) => Boolean(m?.features?.[constraint.attributeKey])).length);
-    const diff = Math.max(...counts, 0) - Math.min(...counts, 0);
-    return diff * 3;
+    let teamImbalancePenalty = 0;
+    const maleRatios = [];
+
+    for (const team of teams) {
+      const members = team.members || [];
+      let male = 0;
+      let female = 0;
+      for (const m of members) {
+        const g = inferGender(m?.features?.[constraint.attributeKey] || '');
+        if (g === 'male') male += 1;
+        if (g === 'female') female += 1;
+      }
+      const known = male + female;
+      if (known > 0) {
+        teamImbalancePenalty += Math.abs(male - female);
+        maleRatios.push(male / known);
+      }
+    }
+
+    let acrossTeamPenalty = 0;
+    if (maleRatios.length > 1) {
+      const max = Math.max(...maleRatios);
+      const min = Math.min(...maleRatios);
+      acrossTeamPenalty = (max - min) * 8;
+    }
+
+    return teamImbalancePenalty * 6 + acrossTeamPenalty;
   }
 
   if (constraint.type === 'soft_objective') {
@@ -433,14 +457,37 @@ const summarizeConstraintStatus = ({ constraint, feasibilityItem, teams }) => {
 
   if (constraint.type === 'balance') {
     if (!constraint.attributeKey) return { status: 'not_verifiable', detail: feasibilityItem?.detail || '검증 불가' };
-    const counts = teams.map((team) => (team.members || []).filter((m) => {
-      const g = inferGender(m?.features?.[constraint.attributeKey] || '');
-      return g === 'male' || g === 'female';
-    }).length);
-    const diff = Math.max(...counts, 0) - Math.min(...counts, 0);
-    return diff <= 1
-      ? { status: 'satisfied', detail: `${constraint.attribute || '속성'} 균형 반영` }
-      : { status: 'partially_satisfied', detail: `${constraint.attribute || '속성'} 균형 일부 미충족 (팀간 차이 ${diff})` };
+    let perfectTeams = 0;
+    let partialTeams = 0;
+    let weakTeams = 0;
+
+    for (const team of teams) {
+      let male = 0;
+      let female = 0;
+      for (const m of team.members || []) {
+        const g = inferGender(m?.features?.[constraint.attributeKey] || '');
+        if (g === 'male') male += 1;
+        if (g === 'female') female += 1;
+      }
+      const known = male + female;
+      if (known === 0) continue;
+      const diff = Math.abs(male - female);
+      if (diff === 0) perfectTeams += 1;
+      else if (diff === 1) partialTeams += 1;
+      else weakTeams += 1;
+    }
+
+    if (weakTeams === 0) {
+      return {
+        status: 'satisfied',
+        detail: `${constraint.attribute || '속성'} 균형 반영 (완전균형 ${perfectTeams}팀, 근접균형 ${partialTeams}팀)`
+      };
+    }
+
+    return {
+      status: 'partially_satisfied',
+      detail: `${constraint.attribute || '속성'} 균형 일부 미충족 (완전균형 ${perfectTeams}팀, 근접균형 ${partialTeams}팀, 불균형 ${weakTeams}팀)`
+    };
   }
 
   if (constraint.type === 'raw_request') {

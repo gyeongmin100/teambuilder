@@ -706,3 +706,50 @@ pm run build)
     - 결과 요약/팀 사유를 캔버스에 텍스트로 렌더한 PNG 생성
 - Verification:
   - `npm run build` 성공
+
+## 35. 2026-02-22 Root-Cause Fix for `balance` Label, Prompt Remainder, and Gender Balance Quality
+- Goal:
+  - `balance` 기술 라벨 노출 제거, prompt 나머지 배정 지시 미반영 문제, 성비 균형 반영 약화 문제를 루트 원인 기준으로 수정.
+- Applied:
+  - `functions/domain/teams/aiNormalization.js`
+    - prompt 모드에서 미배정 인원을 처리할 때 신규 팀을 생성하지 않도록 로직 변경
+    - prompt 텍스트에서 `첫번째팀/마지막팀` 지시를 해석하는 정책(`first_last`, `first_only`, `last_only`, `smallest_first`) 추가
+    - prompt 모드에서도 기본 팀 개수(`floor(n/teamSize)`)로 정규화하도록 보정
+  - `functions/api/assign.js`
+    - AI 정규화 호출 시 `customPrompt` 전달
+    - AI 결과 이후 `enforceMinPerTeamConstraints`, `enforceMaxPerTeamConstraints`, `localSearchImprove`를 순차 적용해 제약 반영 강도 강화
+  - `functions/domain/constraints/evaluator.js`
+    - `balance` 패널티를 단순 “값 존재 여부”가 아닌 실제 남/여 불균형(팀 내 편차 + 팀간 비율 편차) 기준으로 재정의
+    - `balance` 판정 상세를 완전균형/근접균형/불균형 팀 수 기반으로 변경
+  - `functions/domain/constraints/reporter.js`
+    - 요청 라벨 변환 시 `balance` 타입을 사용자 문구 `성비 균형`으로 매핑
+- Verification:
+  - 스모크 재현:
+    - 조건: 50명, teamSize=4, remainderMode=prompt, 프롬프트 `첫번째팀 1명 마지막팀 1명`
+    - 결과: 팀 수 12 유지, 팀 크기 `[5,5,4,4,4,4,4,4,4,4,4,4]`
+  - `npm run build` 성공
+
+## 36. 2026-02-22 Final Architecture Shift: GPT-First Decision + Strict Quantitative Validation
+- Goal:
+  - 예시 하드코딩 없이 GPT가 나머지/충돌 판단을 수행하고, 서버는 정합성 검증 및 자동 재시도로 품질을 보장.
+- Applied:
+  - `functions/domain/constraints/openaiClient.js`
+    - 출력 스키마에 `remainder_decision` 강제 추가
+    - prompt 모드에서 팀 수 변경 시 `allowed_team_count_change=true` 명시 지시 추가
+  - `functions/domain/teams/aiNormalization.js`
+    - prompt 예시 기반 분배 하드코딩 제거
+    - spread만 분포 강제, prompt/keep_partial은 AI 초안 존중 + 미배정 보정
+  - `functions/api/assign.js`
+    - `validateQuantitative`를 하드(중복/누락/유효id) + 형태(팀수/분포) 검증 구조로 개편
+    - 1차 실패 사유를 피드백으로 포함해 2차 AI 재요청 수행
+    - prompt 모드 팀 수 변경 허용 조건:
+      - 프롬프트에 팀 수 변경 명시 의도 존재
+      - AI `remainder_decision.allowed_team_count_change=true`
+      - AI `remainder_decision.mode==='new_team'`
+    - 검증 실패 시 fallback 후 정량 리포트로 상태 명시
+  - `functions/domain/constraints/reporter.js`
+    - 리포트에 `remainderDecision` 포함
+  - `src/App.jsx`
+    - 결과 화면에 `나머지 인원 처리 판단` 블록 추가
+- Verification:
+  - `npm run build` 성공

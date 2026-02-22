@@ -2122,6 +2122,55 @@ function App() {
                 <div className="bg-white border rounded-2xl p-4 space-y-3">
                   <h3 className="font-black">{tx.fullReport}</h3>
                   <p className="text-sm text-[#344054]">{assignmentReport.summary}</p>
+                  {assignmentReport.integrity && (
+                    <div className="rounded-xl border border-[#d9deea] bg-[#f8fafc] p-3 space-y-2">
+                      <p className="text-xs font-bold text-[#1f2937]">{tr('정량 점검 결과', 'Quantitative checks')}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div className="rounded border bg-white p-2 text-xs">
+                          <p className="text-[#667085]">{tr('데이터 수', 'Data count')}</p>
+                          <p className="font-bold">{assignmentReport.integrity.totalParticipants}</p>
+                        </div>
+                        <div className="rounded border bg-white p-2 text-xs">
+                          <p className="text-[#667085]">{tr('예상 팀 수', 'Expected teams')}</p>
+                          <p className="font-bold">{assignmentReport.integrity.expectedTeamCount}</p>
+                        </div>
+                        <div className="rounded border bg-white p-2 text-xs">
+                          <p className="text-[#667085]">{tr('실제 팀 수', 'Actual teams')}</p>
+                          <p className="font-bold">{assignmentReport.integrity.actualTeamCount}</p>
+                        </div>
+                        <div className="rounded border bg-white p-2 text-xs">
+                          <p className="text-[#667085]">{tr('중복/누락', 'Duplicate/Missing')}</p>
+                          <p className="font-bold">{assignmentReport.integrity.duplicateCount} / {assignmentReport.integrity.missingCount}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[#4b556b]">
+                        {tr('팀 인원 분포', 'Team size distribution')}: {String(assignmentReport.integrity.actualTeamSizes || []).replaceAll(',', ', ')}
+                      </p>
+                    </div>
+                  )}
+                  {(assignmentReport.requestReview || []).length > 0 && (
+                    <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
+                      <p className="text-xs font-bold text-[#1f2937]">{tr('요청 반영 결과', 'Prompt fulfillment')}</p>
+                      {(assignmentReport.requestReview || []).map((item, idx) => (
+                        <div key={`req-review-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
+                          <p className="font-semibold text-[#111827]">{item.request}</p>
+                          <p className="mt-1 text-[#334155]">{tr('상태', 'Status')}: {item.statusLabel || item.status}</p>
+                          <p className="mt-1 text-[#475467]">{item.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {assignmentReport.remainderDecision && (
+                    <div className="rounded-xl border border-[#d9deea] bg-[#f8fafc] p-3 space-y-1">
+                      <p className="text-xs font-bold text-[#1f2937]">{tr('나머지 인원 처리 판단', 'Remainder decision')}</p>
+                      <p className="text-xs text-[#334155]">
+                        {tr('팀 수 변경 허용', 'Team-count change allowed')}: {assignmentReport.remainderDecision.allowedTeamCountChange ? tr('예', 'Yes') : tr('아니오', 'No')}
+                      </p>
+                      {assignmentReport.remainderDecision.reason && (
+                        <p className="text-xs text-[#475467]">{assignmentReport.remainderDecision.reason}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

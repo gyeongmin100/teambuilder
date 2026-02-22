@@ -4,16 +4,17 @@ import { matchConstraintValue, softObjectivePenalty } from '../constraints/const
 
 const chooseTargetTeamForUnassigned = ({ normalized, memberById, memberId, teamSize, remainderMode, rand, constraints, trustAi = false }) => {
   const member = memberById.get(memberId);
+
   if (trustAi) {
     if (remainderMode === 'spread') {
       const underCapacity = normalized.filter((t) => t.memberIds.length < teamSize);
       const targetPool = underCapacity.length > 0 ? underCapacity : normalized;
       return targetPool[pickRandomIndex(targetPool.length, rand)];
     }
-    let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
-    if (target.memberIds.length >= teamSize) target = null;
-    return target;
+    // keep_partial/prompt는 팀 수 유지 우선: 가장 작은 팀에 넣는다.
+    return normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
   }
+
   const minConstraints = (constraints || []).filter((c) => c.type === 'min_per_team' && c.attributeKey && c.priority === 'hard');
   const maxConstraints = (constraints || []).filter((c) => c.type === 'max_per_team' && c.attributeKey && c.priority === 'hard');
   const softObjectives = (constraints || []).filter((c) => c.type === 'soft_objective');
@@ -62,9 +63,7 @@ const chooseTargetTeamForUnassigned = ({ normalized, memberById, memberId, teamS
     return targetPool[pickRandomIndex(targetPool.length, rand)];
   }
 
-  let target = normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
-  if (target.memberIds.length >= teamSize) target = null;
-  return target;
+  return normalized.reduce((min, t) => (t.memberIds.length < min.memberIds.length ? t : min), normalized[0]);
 };
 
 const rebalanceSpreadTeams = ({ normalized, targetSizes, memberCount, rand }) => {
@@ -112,20 +111,16 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand, 
   }
 
   const unassigned = Array.from(memberById.keys()).filter((id) => !used.has(id));
-
   if (normalized.length === 0) {
     return { valid: false, teams: [], unassigned: Array.from(memberById.keys()) };
   }
 
+  // spread에서만 팀 수/분포 강제. prompt/keep_partial은 AI 팀 수를 우선 존중하고 서버 검증 단계에서 판단.
   if (remainderMode === 'spread') {
     const expectedTeams = createSpreadTeams(memberById.size, teamSize);
 
     while (normalized.length < expectedTeams) {
-      normalized.push({
-        id: normalized.length + 1,
-        memberIds: [],
-        analysis: ''
-      });
+      normalized.push({ id: normalized.length + 1, memberIds: [], analysis: '' });
     }
 
     if (normalized.length > expectedTeams) {
@@ -152,11 +147,9 @@ const normalizeAiTeams = ({ aiTeams, memberById, teamSize, remainderMode, rand, 
       constraints,
       trustAi
     });
-    if (target) {
-      target.memberIds.push(id);
-    } else {
-      normalized.push({ id: normalized.length + 1, memberIds: [id], analysis: '' });
-    }
+
+    if (target) target.memberIds.push(id);
+    else normalized[0].memberIds.push(id);
   }
 
   if (remainderMode === 'spread') {
