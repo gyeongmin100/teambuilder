@@ -337,12 +337,12 @@ function App() {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [config, setConfig] = useState({ teamSize: 4, remainderMode: 'spread', useCustomPrompt: true });
+  const [config, setConfig] = useState({ teamSize: 0, remainderMode: 'spread', useCustomPrompt: true });
   const [teams, setTeams] = useState([]);
   const [assignmentReport, setAssignmentReport] = useState(null);
   const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
-  const [teamSizeInput, setTeamSizeInput] = useState('4');
+  const [teamSizeInput, setTeamSizeInput] = useState('');
 
   const [formUrl, setFormUrl] = useState('');
   const [sheetImportLoading, setSheetImportLoading] = useState(false);
@@ -512,10 +512,6 @@ function App() {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
-
-  useEffect(() => {
-    setTeamSizeInput(String(config.teamSize || ''));
-  }, [config.teamSize]);
 
   useEffect(() => {
     let alive = true;
@@ -1122,6 +1118,9 @@ function App() {
 
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
+    if (!Number.isFinite(Number(config.teamSize)) || Number(config.teamSize) < 2) {
+      return setMessage(tr('1팀당 인원을 2 이상 입력해 주세요.', 'Please set members per team to at least 2.'));
+    }
     if (validParticipants.length < 2) {
       return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
     }
@@ -1274,7 +1273,6 @@ function App() {
     remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
-    customPromptToggle: isEn ? 'Use custom prompt' : '사용자 맞춤 프롬프트 사용',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form, CSV upload, and manual row are supported' : '지원 기능: 구글폼 연결, CSV 업로드, 빈 행 추가',
     load: isEn ? 'Load' : '불러오기',
@@ -1305,13 +1303,11 @@ function App() {
     ,
     formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
-    leadingColumnRule: isEn ? 'Select identifier column directly from the dropdown.' : '기준 열은 아래 드롭다운에서 직접 선택합니다.',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
     pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
     selectIdentifier: isEn ? 'Choose identifier column' : '기준 열 선택',
     renameColumn: isEn ? 'Rename column' : '열 이름 수정',
     deleteColumn: isEn ? 'Delete column' : '열 삭제',
-    renameHint: isEn ? 'Double-click a column title and click outside to save.' : '열 제목을 더블클릭해 수정하고, 다른 영역을 클릭하면 저장됩니다.',
     deleteLabel: isEn ? 'Delete' : '삭제',
     noColumnToRun: isEn ? 'Cannot start analysis without columns.' : '열이 없으면 분석을 시작할 수 없습니다.',
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
@@ -1351,7 +1347,7 @@ function App() {
 
   const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
   const normalizedTeamSize = Number(config.teamSize) || 0;
-  const isCustomPromptActive = config.useCustomPrompt && String(customPrompt || '').trim().length > 0;
+  const isCustomPromptActive = String(customPrompt || '').trim().length > 0;
   const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
   const remainderCount = normalizedTeamSize > 0 ? validParticipants.length % normalizedTeamSize : 0;
   const canSelectRemainderMode = normalizedTeamSize > 0 && remainderCount > 0;
@@ -1510,21 +1506,17 @@ function App() {
                     }}
                     onBlur={() => {
                       const parsed = Number(teamSizeInput);
-                      const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : config.teamSize || 4;
-                      const nextSize = Math.min(50, Math.max(2, Math.round(safe)));
+                      if (!Number.isFinite(parsed) || parsed <= 0) {
+                        setConfig({ ...config, teamSize: 0 });
+                        setTeamSizeInput('');
+                        return;
+                      }
+                      const nextSize = Math.min(50, Math.max(2, Math.round(parsed)));
                       setConfig({ ...config, teamSize: nextSize });
                       setTeamSizeInput(String(nextSize));
                     }}
                     className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                   />
-                </label>
-                <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                  <input
-                    type="checkbox"
-                    checked={config.useCustomPrompt}
-                    onChange={(e) => setConfig({ ...config, useCustomPrompt: e.target.checked })}
-                  />
-                  {tx.customPromptToggle}
                 </label>
               </div>
               {canSelectRemainderMode && (
@@ -1648,7 +1640,6 @@ function App() {
                 </div>
               )}
               <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
-                <p className="text-xs text-[#667085]">{tx.leadingColumnRule}</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
                   <select
@@ -1663,7 +1654,6 @@ function App() {
                     ))}
                   </select>
                 </div>
-                <p className="text-xs text-[#667085]">{tx.renameHint}</p>
               </div>
               <div className="overflow-auto bg-white">
                 <Table className="min-w-full text-sm">

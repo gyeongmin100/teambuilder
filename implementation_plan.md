@@ -569,3 +569,18 @@ pm run build)
     - 맞춤프롬프트 토글 UI 추가 및 `isCustomPromptActive` 기준으로 요약/실행 payload 연동
 - Verification:
   - `npm run build` 성공
+
+## 27. 2026-02-22 Input Follow-up (3 requested fixes)
+- Goal:
+  - 안내 문구 제거, 팀 인원 입력 기본값 제거, 맞춤 프롬프트 판단 로직 단순화.
+- Applied:
+  - `src/App.jsx`
+    - 기준열/열편집 안내 문구 렌더 제거
+    - `teamSizeInput` 초기값을 빈 문자열로 변경
+    - `config.teamSize` 기본값을 `0`으로 변경하고 blur 시 빈 값은 `0` 유지
+    - `사용자 맞춤 프롬프트 사용` 체크 UI 제거
+    - `isCustomPromptActive = customPrompt.trim().length > 0`로 단일화
+    - 실행 payload/점검요약을 동일 기준으로 연동
+    - 팀 인원 2 미만 실행 차단 가드 추가
+- Verification:
+  - `npm run build` 성공
