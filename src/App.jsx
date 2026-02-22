@@ -1649,27 +1649,6 @@ function App() {
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
-                  <p className="text-sm font-bold">{tx.reviewSummary}</p>
-                  <div className="grid gap-2 md:grid-cols-3">
-                    {reviewItems.map((item) => (
-                      <div key={item.label} className={`rounded-lg border p-3 ${item.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
-                        <p className="text-xs text-[#667085]">{item.label}</p>
-                        <p className="text-sm font-bold mt-1">{item.value}</p>
-                        {!item.ok && <p className="mt-2 text-xs text-rose-700">{tx.reviewFixAction}</p>}
-                      </div>
-                    ))}
-                  </div>
-                  {!selectedIdentifierKey && <p className="text-xs text-rose-600">{tx.noColumnToRun}</p>}
-                  {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
-                    <p className="text-xs text-amber-700">
-                      {isEn ? `${duplicateIdentifierCount} ${tx.duplicateValueNotice}` : `중복 값 ${duplicateIdentifierCount}${tx.duplicateValueNotice}`}
-                    </p>
-                  )}
-                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
-                </div>
-              </div>
-              <div className="space-y-4">
               <div className="border border-[#d9deea] rounded-xl p-3 flex gap-2 bg-white">
               <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
                 {paymentLoading ? tx.moveToPayment : tx.runAssign}
@@ -1680,6 +1659,25 @@ function App() {
                   {tx.openDataTabHint}
                 </div>
               )}
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
+                  <p className="text-sm font-bold">{tx.reviewSummary}</p>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    {reviewItems.map((item) => (
+                      <div key={item.label} className={`rounded-lg border p-3 ${item.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                        <p className="text-xs text-[#667085]">{item.label}</p>
+                        <p className="text-sm font-bold mt-1">{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedIdentifierKey && duplicateIdentifierCount > 0 && (
+                    <p className="text-xs text-amber-700">
+                      {isEn ? `${duplicateIdentifierCount} ${tx.duplicateValueNotice}` : `중복 값 ${duplicateIdentifierCount}${tx.duplicateValueNotice}`}
+                    </p>
+                  )}
+                  {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
+                </div>
               </div>
               </div>
             </div>
