@@ -1242,7 +1242,7 @@ function App() {
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
     needPrimary: isEn ? 'Identifier column required' : '식별 열 확인 필요',
     dataDrivenAnalysis: isEn ? '100% data-driven team analysis' : '100% 데이터 기반 팀 분석',
-    teamSettings: isEn ? '1) Team settings' : '1) 팀 설정',
+    teamSettings: isEn ? 'Team settings' : '팀 설정',
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
     remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
     remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
@@ -1254,8 +1254,8 @@ function App() {
     myForms: isEn ? 'My Google Forms' : '내 구글폼 목록',
     loadingList: isEn ? 'Fetching list...' : '목록 조회 중...',
     uploadCsv: isEn ? 'Upload CSV' : 'CSV 업로드',
-    columnMgmt: isEn ? '3) Row/column management' : '3) 행/열 관리',
-    tableTitle: isEn ? '4) Participant table' : '4) 참가자 데이터 (테이블)',
+    columnMgmt: isEn ? 'Row/column management' : '행/열 관리',
+    tableTitle: isEn ? 'Participant table' : '참가자 데이터 (테이블)',
     search: isEn ? 'Search participant/value' : '참가자/값 검색',
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
     noData: isEn ? 'Please enter data.' : '데이터를 입력해주세요',
@@ -1661,13 +1661,6 @@ function App() {
               </div>
 
               <div className="order-3 space-y-4">
-              <div className="border border-[#d9deea] rounded-xl p-3 flex gap-2 bg-white">
-              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
-                {paymentLoading ? tx.moveToPayment : tx.runAssign}
-              </Button>
-              </div>
-              </div>
-              <div className="order-3 space-y-4">
                 <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
                   <p className="text-sm font-bold">{tx.reviewSummary}</p>
                   <div className="grid gap-2 md:grid-cols-3">
@@ -1685,6 +1678,13 @@ function App() {
                   )}
                   {message && <p className="text-sm text-blue-700 font-semibold">{message}</p>}
                 </div>
+              </div>
+              <div className="order-3 space-y-4">
+              <div className="border border-[#d9deea] rounded-xl p-3 flex gap-2 bg-white">
+              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
+                {paymentLoading ? tx.moveToPayment : tx.runAssign}
+              </Button>
+              </div>
               </div>
               </div>
             </div>

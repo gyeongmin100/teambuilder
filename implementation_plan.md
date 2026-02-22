@@ -522,3 +522,17 @@ pm run build)
     - 패널 접기 시 sheet list 자동 닫힘 처리
 - Verification:
   - `npm run build` 성공
+
+## 24. 2026-02-22 Bottom Execution Order + Section Number Cleanup
+- Goal:
+  - 사용자가 `실행 전 점검 요약`을 읽은 뒤에 `결제 후 팀 배정 실행` 버튼을 누를 수 있도록 하단 순서를 재배치.
+  - 기능 섹션 제목의 번호 접두사(1), 4) 등)를 제거.
+- Applied:
+  - `src/App.jsx`
+    - 하단 블록 순서를 `점검 요약 -> 결제 실행 버튼`으로 재배치
+    - 텍스트 키 번호 제거
+      - `teamSettings`: `1) ...` -> `...`
+      - `columnMgmt`: `3) ...` -> `...`
+      - `tableTitle`: `4) ...` -> `...`
+- Verification:
+  - `npm run build` 성공
