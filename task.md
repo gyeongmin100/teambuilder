@@ -434,3 +434,12 @@ pm run build)
 - [x] 언어 동기화 useEffect 의존성에서 `uiLang` 제거
 - [x] 클릭 직후 URL 쿼리 반영 전 되돌림(ko -> en) 방지
 - [x] 빌드 검증 통과 (`npm run build`)
+
+## 30. 2026-02-22 구글폼 import 안정화 + 식별열/초기화/팀인원 UX 버그 수정
+- [x] Google provider token 누락 시 refreshSession fallback 추가
+- [x] Google Form responses 페이지네이션(nextPageToken) 처리 추가
+- [x] import 직후 식별열 미선택 상태면 첫 특성열 자동 선택
+- [x] 테이블 식별열 fallback 라벨 제거(가짜 `식별 열` 컬럼 노출 방지)
+- [x] 기준열 `초기화` 버튼을 전체 입력상태 리셋 동작으로 변경
+- [x] 팀인원 Enter 입력 시 commit 후 blur 처리(입력모드 해제)
+- [x] 빌드 검증 통과 (`npm run build`)

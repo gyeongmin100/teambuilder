@@ -614,3 +614,18 @@ pm run build)
   - 영어 -> 한국어 전환 시 1회 클릭으로 즉시 반영.
 - Verification:
   - `npm run build` 성공
+
+## 30. 2026-02-22 Import Reliability + Identifier/Reset/Enter Fixes
+- Goal:
+  - 구글폼 import 실패율을 낮추고, 식별열 가짜 컬럼/초기화 동작/팀인원 Enter UX 문제를 동시 해결.
+- Applied:
+  - `src/App.jsx`
+    - `openSheets`, `importSheet`에 `refreshSession()` 기반 provider token fallback 추가
+    - `importSheet` responses 조회를 `nextPageToken` 루프로 확장(최대 페이지 전부 수집)
+    - import된 featureKey 존재 시 식별열 미선택 상태에서 첫 열 자동 선택
+    - 테이블 식별열 헤더 fallback 문구 제거
+    - `resetInputState()` 추가: 참가자/열/식별열/검색/프롬프트/히스토리 등 전체 초기 상태 복구
+    - 기준열 영역 `초기화` 버튼을 `resetInputState`에 연결
+    - 팀인원 Enter 시 `commitTeamSizeInput()` 후 `blur()` 처리
+- Verification:
+  - `npm run build` 성공

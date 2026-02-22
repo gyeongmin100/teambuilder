@@ -716,7 +716,18 @@ function App() {
 
   const openSheets = async () => {
     try {
-      if (!session?.provider_token) throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
+      const getGoogleAccessToken = async () => {
+        if (session?.provider_token) return session.provider_token;
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) throw error;
+        const refreshed = data?.session?.provider_token;
+        if (!refreshed) {
+          throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
+        }
+        return refreshed;
+      };
+
+      const accessToken = await getGoogleAccessToken();
       setSheetListLoading(true);
       setMessage('');
 
@@ -725,7 +736,7 @@ function App() {
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime desc&q=${q}&fields=${fields}`,
         {
-          headers: { Authorization: `Bearer ${session.provider_token}` }
+          headers: { Authorization: `Bearer ${accessToken}` }
         }
       );
 
@@ -743,7 +754,18 @@ function App() {
 
   const importSheet = async (urlOrId) => {
     try {
-      if (!session?.provider_token) throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
+      const getGoogleAccessToken = async () => {
+        if (session?.provider_token) return session.provider_token;
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) throw error;
+        const refreshed = data?.session?.provider_token;
+        if (!refreshed) {
+          throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
+        }
+        return refreshed;
+      };
+
+      const accessToken = await getGoogleAccessToken();
       const formId = parseFormId(urlOrId ?? formUrl);
       if (!formId) throw new Error(tr('유효한 Google Form URL 또는 ID를 입력하세요.', 'Enter a valid Google Form URL or Form ID.'));
 
@@ -751,16 +773,26 @@ function App() {
       setMessage('');
 
       const formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
-        headers: { Authorization: `Bearer ${session.provider_token}` }
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
       if (!formRes.ok) throw new Error(tr('구글폼 메타데이터 조회 실패', 'Failed to fetch Google Form metadata'));
       const formData = await formRes.json();
 
-      const respRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses?pageSize=500`, {
-        headers: { Authorization: `Bearer ${session.provider_token}` }
-      });
-      if (!respRes.ok) throw new Error(tr('구글폼 응답 조회 실패', 'Failed to fetch Google Form responses'));
-      const responses = await respRes.json();
+      const allResponses = [];
+      let pageToken = '';
+      for (;;) {
+        const pageQuery = new URLSearchParams({ pageSize: '500' });
+        if (pageToken) pageQuery.set('pageToken', pageToken);
+        const respRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses?${pageQuery.toString()}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!respRes.ok) throw new Error(tr('구글폼 응답 조회 실패', 'Failed to fetch Google Form responses'));
+        const page = await respRes.json();
+        if (Array.isArray(page?.responses)) allResponses.push(...page.responses);
+        if (!page?.nextPageToken) break;
+        pageToken = page.nextPageToken;
+      }
+      const responses = { responses: allResponses };
 
       const { participants: imported, mapped, skipped } = mapFormResponsesToParticipants(formData, responses);
       if (!imported.length) throw new Error(tr('가져올 참가자 데이터가 없습니다.', 'No participant data to import.'));
@@ -770,6 +802,7 @@ function App() {
         new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
       );
       setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
+      if (!selectedIdentifierKey && featureKeys.length > 0) setSelectedIdentifierKey(featureKeys[0]);
       setShowAllParticipants(false);
 
       setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
@@ -788,6 +821,7 @@ function App() {
       new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
     );
     setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
+    if (!selectedIdentifierKey && featureKeys.length > 0) setSelectedIdentifierKey(featureKeys[0]);
     setShowAllParticipants(false);
 
     setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
@@ -1419,6 +1453,25 @@ function App() {
     setTeamSizeInput(String(nextSize));
   };
 
+  const resetInputState = () => {
+    historyRef.current = { past: [], future: [] };
+    setParticipants([]);
+    setAvailableIdentifierKeys([]);
+    setSelectedIdentifierKey('');
+    setColumnOrder([]);
+    setExcludedFeatureKeys([]);
+    setShowAllParticipants(false);
+    setParticipantQuery('');
+    setCustomPrompt('');
+    setConfig({ teamSize: 0, remainderMode: 'spread', useCustomPrompt: true });
+    setTeamSizeInput('');
+    setFormUrl('');
+    setSheetListOpen(false);
+    setDriveForms([]);
+    setImportPanelOpen(false);
+    setMessage('');
+  };
+
   return (
     <div className="min-h-screen bg-[#f5f6f1] text-[#1a1f2e] p-4 md:p-6">
       <div className="max-w-[1280px] mx-auto">
@@ -1524,6 +1577,7 @@ function App() {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         commitTeamSizeInput();
+                        e.currentTarget.blur();
                       }
                     }}
                     className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
@@ -1671,7 +1725,7 @@ function App() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setSelectedIdentifierKey('')}
+                      onClick={resetInputState}
                     >
                       {tx.clearIdentifier}
                     </Button>
@@ -1688,7 +1742,7 @@ function App() {
                       <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
                         {renderEditableHeader(
                           selectedIdentifierKey,
-                          validParticipants.length > 0 ? tx.primaryColumn : ''
+                          ''
                         )}
                       </TableHead>
                       {tableFeatureKeys.map((key) => (
