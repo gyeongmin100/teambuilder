@@ -7,6 +7,68 @@ const statusText = (status) => {
   return '부분 충족';
 };
 
+const parsePromptChecklistItems = (customPrompt = '') => {
+  const raw = String(customPrompt || '').trim();
+  if (!raw) return [];
+
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^[-*•\d\)\.\s]+/, '').trim())
+    .filter(Boolean);
+
+  const source =
+    lines.length <= 1
+      ? raw
+          .split(/,|;|\/| 그리고 | 및 /)
+          .map((part) => part.trim())
+          .map((part) => part.replace(/^[-*•\d\)\.\s]+/, '').trim())
+          .filter(Boolean)
+      : lines;
+
+  const dedup = [];
+  const seen = new Set();
+  for (const item of source) {
+    const normalized = item.replace(/\s+/g, ' ').trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    dedup.push(normalized);
+  }
+
+  return dedup.slice(0, 12);
+};
+
+const buildPromptChecklist = (customPrompt, requestReview = []) => {
+  const items = parsePromptChecklistItems(customPrompt);
+  if (items.length === 0) return [];
+
+  const reviewPool = (requestReview || []).map((r) => ({
+    ...r,
+    request: String(r?.request || '').trim(),
+    used: false
+  }));
+
+  return items.map((item, idx) => {
+    let matched = reviewPool.find(
+      (r) => !r.used && r.request && (r.request.includes(item) || item.includes(r.request))
+    );
+    if (!matched && reviewPool[idx] && !reviewPool[idx].used) matched = reviewPool[idx];
+    if (matched) matched.used = true;
+
+    const status = matched?.status || 'partially_satisfied';
+    return {
+      item: trimText(item, 220),
+      status,
+      statusLabel: statusText(status),
+      reason: trimText(
+        matched?.reason || '세부 판정 정보가 충분하지 않아 기본 상태(부분 충족)로 표시했습니다.',
+        320
+      )
+    };
+  });
+};
+
 const buildAssignmentReport = ({
   teams,
   reason,
@@ -45,8 +107,12 @@ const buildAssignmentReport = ({
     evidence: [`인원: ${team.members.length}명`]
   }));
 
+  const promptChecklist = buildPromptChecklist(customPrompt, requestReview || []);
+
   return {
     summary: trimText(summaryLines.join(' '), 1300),
+    originalPrompt: trimText(customPrompt || '', 2000),
+    promptChecklist,
     integrity: integrityReport || null,
     requestReview: (requestReview || []).map((r) => ({
       request: trimText(r.request || '', 180),

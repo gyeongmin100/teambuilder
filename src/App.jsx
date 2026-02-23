@@ -408,6 +408,7 @@ function App() {
   const [expandedMemberKeys, setExpandedMemberKeys] = useState({});
   const [resultActionLoading, setResultActionLoading] = useState(false);
   const resultCaptureRef = useRef(null);
+  const [promptChecklistOpen, setPromptChecklistOpen] = useState(false);
 
   const maxInitialRows = 20;
   const historyLimit = 60;
@@ -507,6 +508,10 @@ function App() {
       })
     );
   }, [teams, assignmentReport, reportCacheHydrated, reportCacheKey]);
+
+  useEffect(() => {
+    setPromptChecklistOpen(false);
+  }, [assignmentReport]);
 
   useEffect(() => {
     safeSetLocal('teambuilder_ui_lang', uiLang);
@@ -1532,6 +1537,10 @@ function App() {
     participants: isEn ? 'Participants' : '현재 참가자',
     primaryColumn: isEn ? 'Identifier column' : '식별 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
+    promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
+    promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
+    promptOpen: isEn ? 'Open' : '열기',
+    promptClose: isEn ? 'Close' : '닫기',
     progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
     needPrimary: isEn ? 'Identifier column required' : '식별 열 확인 필요',
@@ -2240,6 +2249,49 @@ function App() {
                 <div className="bg-white border rounded-2xl p-4 space-y-3">
                   <h3 className="font-black">{tx.fullReport}</h3>
                   <p className="text-sm text-[#344054]">{assignmentReport.summary}</p>
+                  {(String(assignmentReport.originalPrompt || '').trim() || (assignmentReport.promptChecklist || []).length > 0) && (
+                    <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPromptChecklistOpen((v) => !v)}
+                          className="h-7 border-[#d9deea] bg-white text-xs"
+                        >
+                          {promptChecklistOpen ? tx.promptClose : tx.promptOpen}
+                        </Button>
+                      </div>
+                      {promptChecklistOpen && (
+                        <div className="space-y-2">
+                          {String(assignmentReport.originalPrompt || '').trim() && (
+                            <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
+                              <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
+                              <p className="mt-1 whitespace-pre-wrap text-xs text-[#111827]">
+                                {assignmentReport.originalPrompt}
+                              </p>
+                            </div>
+                          )}
+                          {(assignmentReport.promptChecklist || []).length > 0 && (
+                            <div className="space-y-1">
+                              {(assignmentReport.promptChecklist || []).map((item, idx) => (
+                                <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="font-semibold text-[#111827]">{idx + 1}. {item.item}</p>
+                                    <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[11px] font-semibold text-[#344054]">
+                                      {item.statusLabel || item.status}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 text-[#475467]">{item.reason}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {assignmentReport.integrity && (
                     <div className="rounded-xl border border-[#d9deea] bg-[#f8fafc] p-3 space-y-2">
                       <p className="text-xs font-bold text-[#1f2937]">{tr('정량 점검 결과', 'Quantitative checks')}</p>

@@ -1,20 +1,14 @@
 import { trimText } from '../../shared/text.js';
 import { compactParticipant, ensureUniqueIds } from '../participants/participantSanitizer.js';
-import {
-  buildSpreadTargetSizes,
-  annotateTeams
-} from '../teams/teamFormation.js';
-import {
-  buildAssignmentReport,
-  callOpenAIOnce
-} from '../constraints/constraintEngine.js';
+import { buildSpreadTargetSizes, annotateTeams } from '../teams/teamFormation.js';
+import { buildAssignmentReport, callOpenAIOnce } from '../constraints/constraintEngine.js';
 
 const hasExplicitTeamCountChangeIntent = (customPrompt = '') => {
   const text = String(customPrompt || '').toLowerCase();
   if (!text) return false;
   return (
-    /ìƒˆ\s*íŒ€|ì‹ ê·œ\s*íŒ€|íŒ€\s*ì¶”ê°€|íŒ€\s*ëŠ˜|íŒ€\s*í•˜ë‚˜\s*ë”|new\s*team|add\s*team/.test(text) ||
-    /ë§ˆì§€ë§‰\s*íŒ€\s*ë§Œë“¤|ë‚¨ì€\s*ì¸ì›\s*íŒ€/.test(text)
+    /»õ\s*ÆÀ|½Å±Ô\s*ÆÀ|ÆÀ\s*Ãß°¡|ÆÀ\s*´Ã|ÆÀ\s*ÇÏ³ª\s*´õ|new\s*team|add\s*team/.test(text) ||
+    /¸¶Áö¸·\s*ÆÀ\s*¸¸µé|³²Àº\s*ÀÎ¿ø\s*ÆÀ/.test(text)
   );
 };
 
@@ -53,15 +47,18 @@ const buildTargetTeamSizes = ({ total, teamSize, remainderPolicy, customRemainde
     if (rem > 0) sizes.push(rem);
     return sizes.length > 0 ? sizes : [total];
   }
+
   if (remainderPolicy === 'custom') {
     const baseTeamCount = Math.floor(total / teamSize);
     const remainder = total % teamSize;
     if (baseTeamCount <= 0 || remainder === 0) return buildSpreadTargetSizes(total, teamSize);
+
     const plan = normalizeCustomRemainderPlan(customRemainderPlan, baseTeamCount);
     const planned = Object.values(plan).reduce((acc, value) => acc + value, 0);
     if (planned !== remainder) {
-      throw new Error(`ì»¤ìŠ¤í…€ ë‚˜ë¨¸ì§€ ë°°ë¶„ í•©ê³„(${planned})ê°€ ë‚˜ë¨¸ì§€ ì¸ì›(${remainder})ê³¼ ì¼ì¹˜í•´ì•¼ í•©ë‹ˆë‹¤.`);
+      throw new Error(`Ä¿½ºÅÒ ³ª¸ÓÁö ¹èºÐ ÇÕ°è(${planned})°¡ ³ª¸ÓÁö ÀÎ¿ø(${remainder})°ú ÀÏÄ¡ÇØ¾ß ÇÕ´Ï´Ù.`);
     }
+
     return Array.from({ length: baseTeamCount }, (_, idx) => teamSize + (plan[idx + 1] || 0));
   }
 
@@ -83,8 +80,9 @@ const extractRequestReview = (aiOutput, customPrompt) => {
             : rawStatus === 'unfulfilled'
               ? 'unmet'
               : 'partially_satisfied';
+
         return {
-          request: trimText(item?.original_text || item?.intent_id || `ìš”ì²­ ${idx + 1}`, 140),
+          request: trimText(item?.original_text || item?.intent_id || `¿äÃ» ${idx + 1}`, 140),
           status,
           reason: trimText(item?.reason || '', 260)
         };
@@ -96,7 +94,7 @@ const extractRequestReview = (aiOutput, customPrompt) => {
   if (legacy.length > 0) {
     return legacy
       .map((item, idx) => ({
-        request: trimText(item?.request || `ìš”ì²­ ${idx + 1}`, 140),
+        request: trimText(item?.request || `¿äÃ» ${idx + 1}`, 140),
         status: ['satisfied', 'partially_satisfied', 'unmet'].includes(item?.status)
           ? item.status
           : 'partially_satisfied',
@@ -110,7 +108,7 @@ const extractRequestReview = (aiOutput, customPrompt) => {
       {
         request: trimText(customPrompt, 140),
         status: 'partially_satisfied',
-        reason: 'ìžìœ  ìš”ì²­ì„ ê¸°ì¤€ìœ¼ë¡œ ìµœëŒ€í•œ ë°˜ì˜ë˜ë„ë¡ ë°°ì •í–ˆìŠµë‹ˆë‹¤. ì„¸ë¶€ íŒë‹¨ì€ íŒ€ë³„ ì„¤ëª…ì„ í™•ì¸í•˜ì„¸ìš”.'
+        reason: 'ÀÚÀ¯ ¿äÃ»À» ±âÁØÀ¸·Î ÃÖ´ëÇÑ ¹Ý¿µµÇµµ·Ï ¹èÁ¤Çß½À´Ï´Ù. ¼¼ºÎ ÆÇ´ÜÀº ÆÀº° ¼³¸íÀ» È®ÀÎÇÏ¼¼¿ä.'
       }
     ];
   }
@@ -132,22 +130,209 @@ const normalizeMembersById = (participants = []) =>
     ])
   );
 
-const buildTeamsFromAiOutput = ({ ai, memberById }) => {
-  if (!Array.isArray(ai?.teams) || ai.teams.length === 0) return null;
-  const teams = [];
-  for (let idx = 0; idx < ai.teams.length; idx += 1) {
-    const team = ai.teams[idx];
+const flattenAiMemberOrder = (aiTeams = [], allIdSet) => {
+  const used = new Set();
+  const ordered = [];
+  let duplicateInAi = 0;
+  let unknownInAi = 0;
+
+  for (const team of aiTeams) {
     const memberIds = Array.isArray(team?.members)
-      ? team.members.map((value) => String(value || '').trim()).filter(Boolean)
+      ? team.members.map((raw) => String(raw || '').trim()).filter(Boolean)
       : [];
-    const members = memberIds.map((id) => memberById.get(id)).filter(Boolean);
+
+    for (const id of memberIds) {
+      if (!allIdSet.has(id)) {
+        unknownInAi += 1;
+        continue;
+      }
+      if (used.has(id)) {
+        duplicateInAi += 1;
+        continue;
+      }
+      used.add(id);
+      ordered.push(id);
+    }
+  }
+
+  return { ordered, used, duplicateInAi, unknownInAi };
+};
+
+const buildSlottedTeams = ({ ai, memberById, allIds, targetTeamSizes }) => {
+  if (!Array.isArray(ai?.teams) || ai.teams.length === 0) return null;
+
+  const allIdSet = new Set(allIds);
+  const { ordered, used, duplicateInAi, unknownInAi } = flattenAiMemberOrder(ai.teams, allIdSet);
+  const missingFromAi = allIds.filter((id) => !used.has(id));
+  const finalOrder = [...ordered, ...missingFromAi];
+
+  const teams = [];
+  let cursor = 0;
+
+  for (let teamIdx = 0; teamIdx < targetTeamSizes.length; teamIdx += 1) {
+    const size = Number(targetTeamSizes[teamIdx]) || 0;
+    const members = [];
+    for (let n = 0; n < size && cursor < finalOrder.length; n += 1) {
+      const member = memberById.get(finalOrder[cursor]);
+      if (member) members.push(member);
+      cursor += 1;
+    }
+
     teams.push({
-      id: Number(team?.id) > 0 ? Number(team.id) : idx + 1,
+      id: teamIdx + 1,
       members,
-      analysis: trimText(team?.analysis || '', 220)
+      analysis: trimText(ai?.teams?.[teamIdx]?.analysis || '', 220)
     });
   }
-  return teams;
+
+  const warnings = [];
+  if (duplicateInAi > 0) warnings.push(`AI ÀÀ´äÀÇ Áßº¹ ÀÎ¿ø ${duplicateInAi}°ÇÀ» ÀÚµ¿ º¸Á¤Çß½À´Ï´Ù.`);
+  if (unknownInAi > 0) warnings.push(`AI ÀÀ´äÀÇ ¹Ìµî·Ï ÀÎ¿ø ${unknownInAi}°ÇÀ» Á¦¿ÜÇß½À´Ï´Ù.`);
+  if (missingFromAi.length > 0) warnings.push(`AI ÀÀ´ä ´©¶ô ÀÎ¿ø ${missingFromAi.length}¸íÀ» ³²Àº ½½·Ô¿¡ ÀÚµ¿ ¹èÄ¡Çß½À´Ï´Ù.`);
+
+  return { teams, warnings };
+};
+
+const arraysEqual = (a = [], b = []) => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
+const validateIntegrity = ({ teams, allIds, targetTeamSizes }) => {
+  const usedIds = teams.flatMap((team) => (team.members || []).map((member) => member.id));
+
+  const seen = new Set();
+  const duplicateIds = [];
+  for (const id of usedIds) {
+    if (seen.has(id)) duplicateIds.push(id);
+    else seen.add(id);
+  }
+
+  const allIdSet = new Set(allIds);
+  const invalidIds = usedIds.filter((id) => !allIdSet.has(id));
+  const missingIds = allIds.filter((id) => !seen.has(id));
+
+  const actualTeamSizes = teams.map((team) => (team.members || []).length);
+  const teamCountMatch = teams.length === targetTeamSizes.length;
+  const teamSizeRuleMatch = arraysEqual(actualTeamSizes, targetTeamSizes);
+
+  const ok =
+    duplicateIds.length === 0 &&
+    invalidIds.length === 0 &&
+    missingIds.length === 0 &&
+    teamCountMatch &&
+    teamSizeRuleMatch;
+
+  return {
+    ok,
+    totalParticipants: allIds.length,
+    expectedTeamCount: targetTeamSizes.length,
+    actualTeamCount: teams.length,
+    expectedTeamSizes: targetTeamSizes,
+    actualTeamSizes,
+    duplicateCount: duplicateIds.length,
+    missingCount: missingIds.length,
+    invalidCount: invalidIds.length,
+    teamCountMatch,
+    teamSizeRuleMatch,
+    duplicateIds: duplicateIds.slice(0, 8),
+    missingIds: missingIds.slice(0, 8),
+    invalidIds: invalidIds.slice(0, 8)
+  };
+};
+
+const buildRetryFeedback = (integrity) => {
+  if (!integrity) return '¹èÁ¤ °á°ú°¡ ºñ¾î ÀÖ½À´Ï´Ù. targetTeamSizes¸¦ Á¤È®È÷ ¸¸Á·ÇÏµµ·Ï ´Ù½Ã ¹èÁ¤ÇÏ¼¼¿ä.';
+
+  const messages = [];
+  if (!integrity.teamCountMatch) {
+    messages.push(`ÆÀ ¼ö°¡ ´Ù¸¨´Ï´Ù. expected=${integrity.expectedTeamCount}, actual=${integrity.actualTeamCount}`);
+  }
+  if (!integrity.teamSizeRuleMatch) {
+    messages.push(
+      `ÆÀº° ÀÎ¿ø¼ö°¡ Æ²·È½À´Ï´Ù. expected=${JSON.stringify(integrity.expectedTeamSizes)}, actual=${JSON.stringify(
+        integrity.actualTeamSizes
+      )}`
+    );
+  }
+  if (integrity.duplicateCount > 0) messages.push(`Áßº¹ id: ${integrity.duplicateIds.join(', ')}`);
+  if (integrity.missingCount > 0) messages.push(`´©¶ô id: ${integrity.missingIds.join(', ')}`);
+  if (integrity.invalidCount > 0) messages.push(`¹Ìµî·Ï id: ${integrity.invalidIds.join(', ')}`);
+
+  return messages.join(' | ');
+};
+
+const runOneAttempt = async ({
+  compactParticipants,
+  memberById,
+  allIds,
+  teamSize,
+  remainderPolicy,
+  targetTeamCount,
+  targetTeamSizes,
+  customRemainderPlan,
+  customPrompt,
+  feedback,
+  env
+}) => {
+  const ai = await callOpenAIOnce({
+    participants: compactParticipants,
+    teamSize,
+    remainderPolicy,
+    targetTeamCount,
+    targetTeamSizes,
+    customRemainderPlan,
+    customPrompt,
+    feedback,
+    env
+  });
+
+  const slotted = buildSlottedTeams({
+    ai,
+    memberById,
+    allIds,
+    targetTeamSizes
+  });
+
+  if (!slotted?.teams) {
+    return {
+      ai,
+      teams: null,
+      integrity: {
+        ok: false,
+        totalParticipants: allIds.length,
+        expectedTeamCount: targetTeamCount,
+        actualTeamCount: 0,
+        expectedTeamSizes: targetTeamSizes,
+        actualTeamSizes: [],
+        duplicateCount: 0,
+        missingCount: allIds.length,
+        invalidCount: 0,
+        teamCountMatch: false,
+        teamSizeRuleMatch: false,
+        duplicateIds: [],
+        missingIds: allIds.slice(0, 8),
+        invalidIds: []
+      },
+      warnings: ['AI ÀÀ´ä¿¡ À¯È¿ÇÑ ÆÀ Á¤º¸°¡ ¾ø¾î Àç½Ãµµ°¡ ÇÊ¿äÇÕ´Ï´Ù.']
+    };
+  }
+
+  const integrity = validateIntegrity({
+    teams: slotted.teams,
+    allIds,
+    targetTeamSizes
+  });
+
+  return {
+    ai,
+    teams: slotted.teams,
+    integrity,
+    warnings: slotted.warnings || []
+  };
 };
 
 export const assignTeamsWithValidation = async ({
@@ -168,7 +353,7 @@ export const assignTeamsWithValidation = async ({
     participants.map(compactParticipant).filter((participant) => participant.id)
   );
   if (compactParticipants.length < 2) {
-    throw new Error('ë°°ì • ê°€ëŠ¥í•œ ì°¸ê°€ìžê°€ 2ëª… ë¯¸ë§Œìž…ë‹ˆë‹¤.');
+    throw new Error('¹èÁ¤ °¡´ÉÇÑ Âü°¡ÀÚ°¡ 2¸í ¹Ì¸¸ÀÔ´Ï´Ù.');
   }
 
   const targetTeamSizes = buildTargetTeamSizes({
@@ -178,57 +363,68 @@ export const assignTeamsWithValidation = async ({
     customRemainderPlan
   });
   const targetTeamCount = targetTeamSizes.length;
-
+  const allIds = compactParticipants.map((participant) => participant.id);
   const memberById = normalizeMembersById(compactParticipants);
 
-  const ai = await callOpenAIOnce({
-    participants: compactParticipants,
+  const attemptContext = {
+    compactParticipants,
+    memberById,
+    allIds,
     teamSize,
     remainderPolicy,
     targetTeamCount,
     targetTeamSizes,
     customRemainderPlan,
     customPrompt,
-    feedback: '',
     env
+  };
+
+  let attempt = await runOneAttempt({
+    ...attemptContext,
+    feedback: ''
   });
 
-  const teams = buildTeamsFromAiOutput({ ai, memberById });
-  if (!teams) {
-    throw new Error('AI íŒ€ ë°°ì • ì‘ë‹µì´ ë¹„ì–´ ìžˆìŠµë‹ˆë‹¤.');
+  let retryUsed = false;
+  if (!attempt.integrity?.ok) {
+    retryUsed = true;
+    const feedback = buildRetryFeedback(attempt.integrity);
+    const retried = await runOneAttempt({
+      ...attemptContext,
+      feedback
+    });
+
+    if (retried.integrity?.ok) {
+      attempt = retried;
+    } else {
+      throw new Error(`ÀÚµ¿ Àç½Ãµµ ÈÄ¿¡µµ ¹èÁ¤ Á¤ÇÕ¼ºÀ» ¸¸Á·ÇÏÁö ¸øÇß½À´Ï´Ù. ${buildRetryFeedback(retried.integrity)}`);
+    }
   }
 
-  const remainderDecision = normalizeRemainderDecision(ai);
+  const remainderDecision = normalizeRemainderDecision(attempt.ai);
   const allowTeamCountChange =
     remainderPolicy === 'custom' &&
     hasExplicitTeamCountChangeIntent(customPrompt) &&
     remainderDecision.allowedTeamCountChange &&
     remainderDecision.mode === 'new_team';
-  const reason = trimText(ai?.reason || '', 180);
-  const annotatedTeams = annotateTeams(teams, reason);
-  const requestReview = extractRequestReview(ai || {}, customPrompt);
+
+  const reason = trimText(attempt.ai?.reason || '', 180);
+  const annotatedTeams = annotateTeams(attempt.teams, reason);
+  const requestReview = extractRequestReview(attempt.ai || {}, customPrompt);
+
   const warnings = [
-    ...(Array.isArray(ai?.warnings) ? ai.warnings : [])
+    ...(Array.isArray(attempt.ai?.warnings) ? attempt.ai.warnings : []),
+    ...(Array.isArray(attempt.warnings) ? attempt.warnings : []),
+    ...(retryUsed ? ['Á¤ÇÕ¼º ½ÇÆÐ·Î 1È¸ ÀÚµ¿ Àç½Ãµµ¸¦ ¼öÇàÇß½À´Ï´Ù.'] : [])
   ];
 
   const report = buildAssignmentReport({
     teams: annotatedTeams,
     reason,
-    usedFallback: false,
+    usedFallback: retryUsed,
     customPrompt,
     integrityReport: {
-      ok: null,
-      totalParticipants: compactParticipants.length,
-      expectedTeamCount: targetTeamCount,
-      allowTeamCountChange,
-      actualTeamCount: annotatedTeams.length,
-      expectedTeamSizes: targetTeamSizes,
-      actualTeamSizes: annotatedTeams.map((team) => team.members.length),
-      duplicateCount: null,
-      missingCount: null,
-      invalidCount: null,
-      teamCountMatch: null,
-      teamSizeRuleMatch: null
+      ...attempt.integrity,
+      allowTeamCountChange
     },
     requestReview,
     warnings,

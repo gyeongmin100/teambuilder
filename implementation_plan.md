@@ -837,3 +837,82 @@ pm run build)
     - 남은 인원(`customRemainingCount`)이 0이면 `완료`, 아니면 `미완료`로 자동 전환.
 - Verification:
   - 진행 예정 (`npm run build`)
+
+## 44. 2026-02-23 Prompt Checklist Reporting (Collapsible on Result Page)
+- Goal:
+  - 맞춤 프롬프트를 요청 항목 단위로 분해하여 결과 페이지에서 검토 가능한 체크리스트로 제공.
+- Applied:
+  - `functions/domain/constraints/reporter.js`
+    - 프롬프트 텍스트를 항목화(parse)하는 함수 추가.
+    - `requestReview`와 매칭해 체크리스트별 상태/사유를 생성.
+    - 리포트 스키마에 `originalPrompt`, `promptChecklist` 필드 추가.
+  - `src/App.jsx`
+    - 결과 보고서에 접힘/펼침 UI 추가.
+    - 버튼 클릭 시 사용자 원문 프롬프트 + 체크리스트 항목(상태/사유) 표시.
+- Verification:
+  - `npm run build` 성공
+
+## 45. 2026-02-23 Two-Stage Inference Split: Request Extraction -> Team Assignment
+- Goal:
+  - 단일 AI 호출에서 요청 해석과 팀 배정을 분리해 품질/디버깅 가능성을 높인다.
+  - 1단계 출력(요청 체크리스트)을 2단계 입력으로 강제 연결해 맞춤 프롬프트 반영률을 개선한다.
+- Scope:
+  - Backend only (API pipeline + OpenAI prompt contracts + report linkage)
+  - UI는 기존 체크리스트 표시를 재사용하되 1단계 추출 결과 기준으로 표기
+- Plan:
+  1. `functions/domain/constraints/openaiClient.js`
+     - 1단계 전용 함수 추가: `callOpenAIRequestExtractor`
+     - 2단계 배정 함수는 `customPrompt` 직해석 대신 `requestChecklist`를 입력받아 배정
+     - 두 단계의 JSON 스키마를 분리하고, 각 단계 실패 메시지를 명확히 분기
+  2. `functions/domain/assignment/engine.js`
+     - 파이프라인 순서 변경:
+       - 1단계: 맞춤 프롬프트 -> 요청 체크리스트 추출
+       - 2단계: 팀 틀(`targetTeamSizes`) + 참가자 데이터 + 요청 체크리스트로 배정
+     - 1단계 산출물이 없거나 파싱 실패 시 방어 로직(빈 체크리스트 + 경고) 적용
+  3. `functions/domain/constraints/reporter.js`
+     - 결과 리포트의 체크리스트를 “프롬프트 문자열 파싱”이 아니라 “1단계 추출 결과”를 우선 사용하도록 변경
+     - 항목별 상태(`충족/부분/미충족`) 매핑 로직을 2단계 결과와 동기화
+  4. 회귀 검증
+     - 케이스 A: 프롬프트 없음
+     - 케이스 B: 단일 요청(예: 성비 최대한 균형)
+     - 케이스 C: 다중 요청(예: 특정 인원 함께 + MBTI 유사)
+     - 빌드 검증: `npm run build`
+- Acceptance Criteria:
+  - 배정 API 호출 시 1단계 추출과 2단계 배정이 분리 실행된다.
+  - 2단계 입력에 1단계 체크리스트가 포함된다.
+  - 결과 페이지 체크리스트가 1단계 추출 항목을 기준으로 표시된다.
+  - 빌드가 성공한다.
+- Verification:
+  - 진행 예정 (`npm run build`)
+
+## 46. 2026-02-23 Plan Update: Hard Template Slotting + Conditional Retry Gate
+- Goal:
+  - 팀 크기/팀 수 틀(`targetTeamSizes`)을 절대 위반하지 않도록 서버에서 슬롯 강제 배치를 적용.
+  - 재시도는 무조건 수행하지 않고, 무결성 실패 시에만 조건부로 수행.
+- Applied to Plan (not code yet):
+  1. Hard template slotting:
+     - 2단계 배정 결과를 그대로 신뢰하지 않고, 서버가 `targetTeamSizes` 슬롯에 맞춰 최종 팀을 구성.
+     - 슬롯 구성 규칙:
+       - 전체 인원 정확히 1회 배정
+       - 팀별 인원수는 `targetTeamSizes`와 1:1 일치
+  2. Integrity-first gating:
+     - 중복/누락/invalid id/팀크기 불일치가 있으면 결과를 “무효” 처리.
+  3. Conditional retry only:
+     - 무결성 실패 시에만 1회 재시도.
+     - 2차 결과가 무결성 통과 + 품질 점수 개선일 때만 채택.
+     - 2차가 나쁘면 1차 유지(roll-back).
+  4. Partial-fix safety:
+     - 재시도 시 전체 재생성보다 문제 구간 중심 보정 우선.
+     - 이미 안정적인 팀/제약은 잠금(lock)하여 변동 최소화.
+- Acceptance Criteria:
+  - 팀 틀 위반 결과가 최종 응답으로 반환되지 않는다.
+  - 재시도는 무결성 실패 조건에서만 발생한다.
+  - 2차 결과가 품질 열화 시 자동 롤백된다.
+- Verification:
+  - 1차 적용 완료:
+    - `targetTeamSizes` 슬롯 강제 배정 로직 적용
+    - 무결성 실패 시에만 1회 재시도 적용
+  - `npm run build` 성공
+  - 남은 작업:
+    - 2차 결과 품질 열화 시 1차 롤백 게이트
+    - 문제 구간 중심 부분 보정/잠금 전략
