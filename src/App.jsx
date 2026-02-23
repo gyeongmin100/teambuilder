@@ -1905,13 +1905,14 @@ function App() {
                     <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       {tx.customRemainderRemaining}: {customRemainingCount}
                     </p>
-                    <div className="space-y-1">
+                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
                       {Array.from({ length: baseTeamCount }, (_, idx) => idx + 1).map((teamId) => (
-                        <div key={`custom-team-${teamId}`} className="flex items-center justify-between rounded border bg-[#f8fafc] px-2 py-1.5">
-                          <p className="text-xs font-semibold text-[#344054]">
-                            {isEn ? `Team ${teamId}` : `${teamId}팀`} : {customRemainderPlan[teamId] || 0}
+                        <div key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-1">
+                          <p className="text-[11px] font-semibold text-[#344054]">
+                            {isEn ? `Team ${teamId}` : `${teamId}팀`}
                           </p>
-                          <div className="flex items-center gap-1">
+                          <p className="text-sm font-black text-[#111827]">{customRemainderPlan[teamId] || 0}</p>
+                          <div className="flex items-center gap-1 justify-end">
                             <Button
                               type="button"
                               size="icon"
