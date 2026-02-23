@@ -1651,7 +1651,6 @@ function App() {
   const customRemainingCount = Math.max(0, remainderCount - customAssignedCount);
   const isCustomRemainderValid =
     remainderCount === 0 || remainderPolicy !== 'custom' || customAssignedCount === remainderCount;
-  const isCustomRemainderDone = remainderPolicy === 'custom' && remainderCount > 0 && customRemainingCount === 0;
   const expectedTeamCount =
     normalizedTeamSize <= 0
       ? 0
@@ -1892,18 +1891,7 @@ function App() {
                 {remainderPolicy === 'custom' && baseTeamCount > 0 && (
                   <div className="rounded-lg border border-[#d9deea] bg-white p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                            isCustomRemainderDone
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-rose-100 text-rose-700'
-                          }`}
-                        >
-                          {isCustomRemainderDone ? tx.customRemainderDone : tx.customRemainderPending}
-                        </span>
-                      </div>
+                      <p className="text-sm font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
                       <Button
                         type="button"
                         size="sm"
@@ -1914,42 +1902,42 @@ function App() {
                         {tx.customRemainderReset}
                       </Button>
                     </div>
-                    <p className="text-xs text-[#667085]">{tx.customRemainderHelp}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {tx.customRemainderRemaining}: {customRemainingCount}
+                    </p>
+                    <div className="space-y-1">
                       {Array.from({ length: baseTeamCount }, (_, idx) => idx + 1).map((teamId) => (
-                        <div key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-2">
-                          <p className="text-xs font-semibold text-[#344054]">{isEn ? `Team ${teamId}` : `${teamId}팀`}</p>
-                          <p className="text-xs text-[#475467]">
-                            {tx.customRemainderAssigned}: <span className="font-bold text-[#111827]">{customRemainderPlan[teamId] || 0}</span>
+                        <div key={`custom-team-${teamId}`} className="flex items-center justify-between rounded border bg-[#f8fafc] px-2 py-1.5">
+                          <p className="text-xs font-semibold text-[#344054]">
+                            {isEn ? `Team ${teamId}` : `${teamId}팀`} : {customRemainderPlan[teamId] || 0}
                           </p>
-                          <div className="flex gap-1">
+                          <div className="flex items-center gap-1">
                             <Button
                               type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => applyCustomRemainderDelta(teamId, -1)}
-                              disabled={(customRemainderPlan[teamId] || 0) <= 0}
-                              className="h-7 flex-1 border-[#d9deea] bg-white text-xs"
-                            >
-                              {tx.customRemainderMinus}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
+                              size="icon"
                               variant="outline"
                               onClick={() => applyCustomRemainderDelta(teamId, 1)}
                               disabled={customRemainingCount <= 0}
-                              className="h-7 flex-1 border-[#d9deea] bg-white text-xs"
+                              className="h-6 w-6 border-[#d9deea] bg-white"
+                              aria-label={tx.customRemainderPlus}
                             >
-                              {tx.customRemainderPlus}
+                              <ChevronUp size={12} />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              onClick={() => applyCustomRemainderDelta(teamId, -1)}
+                              disabled={(customRemainderPlan[teamId] || 0) <= 0}
+                              className="h-6 w-6 border-[#d9deea] bg-white"
+                              aria-label={tx.customRemainderMinus}
+                            >
+                              <ChevronDown size={12} />
                             </Button>
                           </div>
                         </div>
                       ))}
                     </div>
-                    <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      {tx.customRemainderRemaining}: {customRemainingCount}
-                    </p>
                   </div>
                 )}
                 </div>
