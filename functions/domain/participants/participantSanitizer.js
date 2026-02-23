@@ -1,22 +1,26 @@
-import { trimText } from '../../shared/text.js';
-
-const MAX_INTRO = 260;
-const MAX_FEATURES = 12;
-const MAX_FEATURE_VALUE = 120;
+const MAX_FEATURES = 20;
+const MAX_FEATURE_KEY = 40;
+const MAX_FEATURE_VALUE = 160;
 
 const compactFeatures = (features) => {
   const entries = Object.entries(features || {}).slice(0, MAX_FEATURES);
-  return Object.fromEntries(entries.map(([k, v]) => [trimText(k, 80), trimText(v, MAX_FEATURE_VALUE)]));
+  const cleaned = entries
+    .map(([key, value]) => [
+      String(key || '').trim().slice(0, MAX_FEATURE_KEY),
+      String(value ?? '').trim().slice(0, MAX_FEATURE_VALUE)
+    ])
+    .filter(([key, value]) => key.length > 0 && value.length > 0);
+  return Object.fromEntries(cleaned);
 };
 
 export const compactParticipant = (participant, index) => {
   const id = String(participant.internalId || participant.id || `participant-${index + 1}`).trim();
   return {
     id,
-    displayName: trimText(participant.originalName || participant.name || id, 120),
-    intro: trimText(participant.intro || '', MAX_INTRO),
+    displayName: String(participant.originalName || participant.name || id).trim(),
+    intro: String(participant.intro || '').trim(),
     features: compactFeatures(participant.features || {}),
-    identifierKey: trimText(participant.identifierKey || '', 80)
+    identifierKey: String(participant.identifierKey || '').trim()
   };
 };
 

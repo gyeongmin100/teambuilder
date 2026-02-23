@@ -376,7 +376,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [config, setConfig] = useState({ teamSize: 0, remainderMode: 'spread', useCustomPrompt: true });
+  const [config, setConfig] = useState({ teamSize: 0, remainderPolicy: 'spread', customRemainderPlan: {} });
   const [teams, setTeams] = useState([]);
   const [assignmentReport, setAssignmentReport] = useState(null);
   const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
@@ -1207,6 +1207,19 @@ function App() {
     );
   };
 
+  const updateCustomRemainderCount = (teamId, nextValue) => {
+    const parsed = Number(nextValue);
+    const safeValue = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+    const nextPlan = { ...customRemainderPlan, [teamId]: safeValue };
+    const nextAssigned = Object.values(nextPlan).reduce((acc, value) => acc + value, 0);
+    if (nextAssigned > remainderCount) return;
+    setConfig((prev) => ({
+      ...prev,
+      remainderPolicy: 'custom',
+      customRemainderPlan: nextPlan
+    }));
+  };
+
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
     if (!Number.isFinite(Number(config.teamSize)) || Number(config.teamSize) < 1) {
@@ -1226,6 +1239,9 @@ function App() {
     if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
       return setMessage(tr('식별 열은 제외할 수 없습니다.', 'Identifier column cannot be excluded.'));
     }
+    if (remainderCount > 0 && remainderPolicy === 'custom' && !isCustomRemainderValid) {
+      return setMessage(tx.customRemainderInvalid);
+    }
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
       internalId: String(p.internalId || p.id || createInternalId()),
@@ -1238,7 +1254,11 @@ function App() {
 
     const assignPayload = {
       participants: payloadParticipants,
-      config,
+      config: {
+        teamSize: Number(config.teamSize) || 0,
+        remainderPolicy,
+        customRemainderPlan: remainderPolicy === 'custom' ? customRemainderPlan : {}
+      },
       customPrompt: isCustomPromptActive ? String(customPrompt || '').trim() : ''
     };
 
@@ -1510,10 +1530,14 @@ function App() {
     dataDrivenAnalysis: isEn ? '100% data-driven team analysis' : '100% 데이터 기반 팀 분석',
     teamSettings: isEn ? 'Team settings' : '팀 설정',
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
-    remainderSpread: isEn ? 'Spread remainders into existing teams' : '나머지 인원 기존 팀에 배분',
-    remainderPartial: isEn ? 'Keep final team as partial' : '마지막 팀을 부족 인원 그대로 유지',
-    remainderPrompt: isEn ? 'Set in custom prompt' : '맞춤프롬프트에 입력하기',
+    remainderSpread: isEn ? 'Distribute across base teams' : '기본팀에 균등 배분',
+    remainderNewTeam: isEn ? 'Create a new team' : '새 팀 만들기',
+    remainderCustom: isEn ? 'Custom distribution' : '커스텀',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
+    customRemainderTitle: isEn ? 'Custom remainder allocation' : '커스텀 나머지 배분',
+    customRemainderHelp: isEn ? 'Enter how many remainder members to add to each base team.' : '기본팀별로 나머지 인원을 몇 명 추가할지 입력하세요.',
+    customRemainderRemaining: isEn ? 'Remaining to assign' : '아직 배분하지 않은 인원',
+    customRemainderInvalid: isEn ? 'Custom allocation must match remainder count exactly.' : '커스텀 배분 합계가 나머지 인원과 정확히 같아야 합니다.',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
     load: isEn ? 'Load' : '불러오기',
@@ -1594,28 +1618,52 @@ function App() {
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
   const isCustomPromptActive = String(customPrompt || '').trim().length > 0;
+  const remainderPolicy = config.remainderPolicy || 'spread';
   const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
   const remainderCount = normalizedTeamSize > 0 ? validParticipants.length % normalizedTeamSize : 0;
   const canSelectRemainderMode = normalizedTeamSize > 0 && remainderCount > 0;
+  const customRemainderPlan = useMemo(() => {
+    const raw = config.customRemainderPlan && typeof config.customRemainderPlan === 'object'
+      ? config.customRemainderPlan
+      : {};
+    const normalized = {};
+    for (let teamId = 1; teamId <= baseTeamCount; teamId += 1) {
+      const value = Number(raw[teamId]);
+      normalized[teamId] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+    }
+    return normalized;
+  }, [config.customRemainderPlan, baseTeamCount]);
+  const customAssignedCount = Object.values(customRemainderPlan).reduce((acc, value) => acc + value, 0);
+  const customRemainingCount = Math.max(0, remainderCount - customAssignedCount);
+  const isCustomRemainderValid =
+    remainderCount === 0 || remainderPolicy !== 'custom' || customAssignedCount === remainderCount;
   const expectedTeamCount =
     normalizedTeamSize <= 0
       ? 0
       : remainderCount === 0
         ? baseTeamCount
-        : config.remainderMode === 'keep_partial'
+        : remainderPolicy === 'new_team'
           ? baseTeamCount + 1
           : Math.max(baseTeamCount, 1);
   const teamCompositionText = (() => {
     if (validParticipants.length === 0 || normalizedTeamSize <= 0 || expectedTeamCount === 0) return '-';
-    if (config.remainderMode === 'prompt') {
-      return isEn ? 'Follow custom prompt for remainder handling' : '나머지 인원 처리 방식은 맞춤프롬프트 지시를 따름';
-    }
     if (remainderCount === 0) return isEn ? `${normalizedTeamSize} members x ${expectedTeamCount} teams` : `${normalizedTeamSize}인 ${expectedTeamCount}팀`;
-    if (config.remainderMode === 'keep_partial') {
+    if (remainderPolicy === 'new_team') {
       if (baseTeamCount === 0) return isEn ? `${remainderCount} members x 1 team` : `${remainderCount}인 1팀`;
       return isEn
         ? `${normalizedTeamSize} members x ${baseTeamCount} teams, ${remainderCount} members x 1 team`
         : `${normalizedTeamSize}인 ${baseTeamCount}팀, ${remainderCount}인 1팀`;
+    }
+    if (remainderPolicy === 'custom') {
+      const added = Object.entries(customRemainderPlan)
+        .filter(([, count]) => Number(count) > 0)
+        .map(([teamId, count]) => (isEn ? `Team ${teamId} +${count}` : `${teamId}팀 +${count}명`));
+      if (added.length === 0) {
+        return isEn
+          ? `Custom mode selected (${remainderCount} remainder not allocated yet)`
+          : `커스텀 모드 선택됨 (아직 ${remainderCount}명 미배분)`;
+      }
+      return added.join(', ');
     }
     const group = new Map();
     const spreadTeams = Math.max(baseTeamCount, 1);
@@ -1675,7 +1723,7 @@ function App() {
     setShowAllParticipants(false);
     setParticipantQuery('');
     setCustomPrompt('');
-    setConfig({ teamSize: 0, remainderMode: 'spread', useCustomPrompt: true });
+    setConfig({ teamSize: 0, remainderPolicy: 'spread', customRemainderPlan: {} });
     setTeamSizeInput('');
     setFormUrl('');
     setSheetListOpen(false);
@@ -1798,32 +1846,58 @@ function App() {
                 </label>
               </div>
               {canSelectRemainderMode && (
-                <div className="flex flex-wrap items-center gap-2 text-sm">
+                <div className="space-y-2 text-sm">
                   <span className="text-[#475467]">{tx.remainderModeTitle}</span>
+                  <div className="flex flex-wrap items-center gap-2">
                   <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
                     <input
                       type="radio"
-                      checked={config.remainderMode === 'spread'}
-                      onChange={() => setConfig({ ...config, remainderMode: 'spread' })}
+                      checked={remainderPolicy === 'spread'}
+                      onChange={() => setConfig({ ...config, remainderPolicy: 'spread' })}
                     />
                     {tx.remainderSpread}
                   </label>
                   <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
                     <input
                       type="radio"
-                      checked={config.remainderMode === 'keep_partial'}
-                      onChange={() => setConfig({ ...config, remainderMode: 'keep_partial' })}
+                      checked={remainderPolicy === 'new_team'}
+                      onChange={() => setConfig({ ...config, remainderPolicy: 'new_team' })}
                     />
-                    {tx.remainderPartial}
+                    {tx.remainderNewTeam}
                   </label>
                   <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
                     <input
                       type="radio"
-                      checked={config.remainderMode === 'prompt'}
-                      onChange={() => setConfig({ ...config, remainderMode: 'prompt' })}
+                      checked={remainderPolicy === 'custom'}
+                      onChange={() => setConfig({ ...config, remainderPolicy: 'custom' })}
                     />
-                    {tx.remainderPrompt}
+                    {tx.remainderCustom}
                   </label>
+                </div>
+                {remainderPolicy === 'custom' && baseTeamCount > 0 && (
+                  <div className="rounded-lg border border-[#d9deea] bg-white p-3 space-y-2">
+                    <p className="text-xs font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
+                    <p className="text-xs text-[#667085]">{tx.customRemainderHelp}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {Array.from({ length: baseTeamCount }, (_, idx) => idx + 1).map((teamId) => (
+                        <label key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-1">
+                          <p className="text-xs font-semibold text-[#344054]">{isEn ? `Team ${teamId}` : `${teamId}팀`}</p>
+                          <Input
+                            type="number"
+                            min="0"
+                            max={remainderCount}
+                            value={String(customRemainderPlan[teamId] || 0)}
+                            onChange={(e) => updateCustomRemainderCount(teamId, e.target.value)}
+                            className="h-8 border-[#d9deea] bg-white text-sm"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {tx.customRemainderRemaining}: {customRemainingCount}
+                    </p>
+                  </div>
+                )}
                 </div>
               )}
               <div className="space-y-2">

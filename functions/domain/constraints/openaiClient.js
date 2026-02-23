@@ -5,40 +5,29 @@ const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Optimizer
 
 ## Mission
-- Primary KPI: maximize user prompt fulfillment accuracy.
-- Always satisfy integrity rules before anything else.
-
-## Integrity Rules (must pass)
-1. Each participant is assigned to exactly one team.
-2. No duplicate assignment.
-3. No missing participant.
-4. No invalid participant id.
-5. Team size is at least 1.
-6. Team count and team-size distribution must be mathematically consistent.
+- You are the sole decision-maker for team assignment.
+- Use all participant information and prioritize user prompt intent.
 
 ## Prompt-First Interpretation
-- Do not classify user requests into hard/soft/preference categories.
 - Treat the prompt as request items and reflect them directly.
-- If multiple requests exist, handle each request item independently and then combine.
-- If requests conflict, choose the best feasible trade-off and explain briefly.
-- If impossible under integrity rules, keep integrity and provide feasible alternative reasoning.
+- If requests conflict, choose the best trade-off and explain briefly.
 
 ## Remainder Handling
-- mode: spread | keep_partial | prompt
-- In prompt mode, prioritize the user instruction for remainder members.
-- If the instruction breaks integrity rules, apply the closest feasible alternative.
+- remainderPolicy: spread | new_team | custom
+- If remainderPolicy is custom, follow customRemainderPlan exactly.
 
 ## Output Rules
 - Return JSON object only.
-- Do not expose internal engine terms.
-- Explain what was reflected / partially reflected / not reflected in user language.`;
+- Explain what was reflected / partially reflected / not reflected in user language.
+- The server will trust this output directly, so provide final teams carefully.`;
 
 const buildPrompt = ({
   participants,
   teamSize,
-  remainderMode,
+  remainderPolicy,
   targetTeamCount,
   targetTeamSizes,
+  customRemainderPlan,
   customPrompt,
   feedback
 }) => {
@@ -77,12 +66,11 @@ const buildPrompt = ({
   };
 
   const ruleLines = [
-    '- Use each participant id exactly once.',
-    '- Do not invent ids.',
-    '- Match targetTeamCount and targetTeamSizes as closely as possible.',
+    '- Use participant ids from input.',
     '- Interpret user_prompt directly as request items.',
     '- For multiple requests, evaluate each item and return per-item status.',
-    '- In prompt remainder mode, follow user instruction if feasible.',
+    '- Respect remainderPolicy and targetTeamSizes.',
+    '- If remainderPolicy=custom, apply customRemainderPlan exactly.',
     '- If team count is changed, set remainder_decision.allowed_team_count_change=true.',
     '- Fill both request_reflection.intent_results and request_status for compatibility.',
     '- Return JSON object only (no markdown/code fences).'
@@ -91,9 +79,10 @@ const buildPrompt = ({
   return [
     '# INPUT',
     `teamSize: ${teamSize}`,
-    `remainderMode: ${remainderMode}`,
+    `remainderPolicy: ${remainderPolicy}`,
     `targetTeamCount: ${targetTeamCount}`,
     `targetTeamSizes: ${JSON.stringify(targetTeamSizes)}`,
+    `customRemainderPlan: ${JSON.stringify(customRemainderPlan || {})}`,
     `user_prompt: ${customPrompt || '(none)'}`,
     feedback ? `validationFeedback: ${feedback}` : '',
     '',
@@ -113,9 +102,10 @@ const buildPrompt = ({
 const callOpenAIOnce = async ({
   participants,
   teamSize,
-  remainderMode,
+  remainderPolicy,
   targetTeamCount,
   targetTeamSizes,
+  customRemainderPlan,
   customPrompt,
   feedback,
   env
@@ -123,9 +113,10 @@ const callOpenAIOnce = async ({
   const prompt = buildPrompt({
     participants,
     teamSize,
-    remainderMode,
+    remainderPolicy,
     targetTeamCount,
     targetTeamSizes,
+    customRemainderPlan,
     customPrompt,
     feedback
   });

@@ -753,3 +753,66 @@ pm run build)
     - 결과 화면에 `나머지 인원 처리 판단` 블록 추가
 - Verification:
   - `npm run build` 성공
+
+## 37. 2026-02-23 Recomposition: Assign Logic From Scratch (Pipelineized)
+- Goal:
+  - `assign` 진입점 과밀을 해소하고, 배정 로직을 독립 엔진으로 분리해 재시도/검증/폴백 경로를 명확화.
+- Applied:
+  - `functions/api/assign.js`
+    - 요청 파싱/필수 검증/결제 검증만 담당하도록 축소.
+    - 실제 배정은 `assignTeamsWithValidation` 호출로 위임.
+  - `functions/domain/assignment/engine.js` (new)
+    - 4단계 파이프라인 구성:
+      - 입력 정규화(참가자 컴팩트/ID 고유화/목표 팀 크기 계산)
+      - AI 1차 시도
+      - 정량 검증 실패 또는 프롬프트 불일치 시 피드백 포함 2차 시도
+      - 실패 시 deterministic fallback 확정
+    - 기존 응답 포맷(`teams`, `report`)과 리포트 구성 호환 유지.
+  - `functions/domain/assignment/quantitative.js` (new)
+    - 정량 무결성 검증(중복/누락/invalid id/팀수/팀크기 분포) 분리.
+    - AI 재요청용 피드백 문자열 생성 분리.
+- Verification:
+  - `npm run build` 성공 (2026-02-23)
+
+## 38. 2026-02-23 Architecture Change: AI-Only Assignment (No Server Validation)
+- Goal:
+  - 서버의 정량 검증/재시도/폴백을 제거하고, 모델이 최종 팀 배정을 단독 결정하도록 전환.
+- Applied:
+  - `functions/domain/assignment/engine.js`
+    - 기존 `AI 1차 -> 검증 -> 2차 -> fallback` 파이프라인 제거.
+    - `AI 1회 호출 -> 응답 팀 매핑 -> 결과 반환` 흐름으로 단순화.
+    - 서버는 AI 출력의 팀 구성 결과를 신뢰해 그대로 반환.
+  - `functions/domain/constraints/openaiClient.js`
+    - 시스템 지침을 무결성 강제 중심에서 "모델 자율 배정" 중심으로 수정.
+    - 규칙에서 서버 검증 전제를 제거하고 사용자 요청 반영 우선으로 재조정.
+- Verification:
+  - 진행 예정 (`npm run build`)
+
+## 39. 2026-02-23 Data Fidelity Update: Remove Participant Compression Caps
+- Goal:
+  - 사용자 특성 반영 정확도를 높이기 위해 OpenAI 입력 단계에서 속성 손실을 제거.
+- Applied:
+  - `functions/domain/participants/participantSanitizer.js`
+    - `features` 상한(기존 12개) 제거
+    - `intro/displayName/identifierKey` 길이 절단 제거
+    - 공백 정리 + 빈 key/value 제거만 수행
+- Verification:
+  - 진행 예정 (`npm run build`)
+
+## 40. 2026-02-23 Remainder Policy Redesign: spread / new_team / custom
+- Goal:
+  - 나머지 인원 처리 방식을 사용자 친화적으로 고정 선택(UI) + 숫자 입력(커스텀)으로 단순화.
+- Applied:
+  - `src/App.jsx`
+    - 나머지 처리 옵션을 3종(`기본팀에 균등 배분`, `새 팀 만들기`, `커스텀`)으로 재구성.
+    - `커스텀` 선택 시 팀별 추가 인원 입력 UI 제공.
+    - 실시간 잔여 인원 표시 및 `커스텀 배분 합계 === 나머지 인원` 검증 추가.
+    - 결제 전 API payload의 `config`를 `remainderPolicy/customRemainderPlan` 구조로 정리.
+  - `functions/domain/assignment/engine.js`
+    - `remainderPolicy`(`spread|new_team|custom`) 해석 로직 추가.
+    - `customRemainderPlan`을 사용한 목표 팀 크기 계산 및 합계 불일치 에러 처리 추가.
+  - `functions/domain/constraints/openaiClient.js`
+    - OpenAI 프롬프트 컨텍스트를 새 정책명(`remainderPolicy`) 기준으로 갱신.
+    - `customRemainderPlan`을 모델 입력에 포함.
+- Verification:
+  - `npm run build` 성공

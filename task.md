@@ -497,3 +497,31 @@ pm run build)
 - [x] 정량 검증 리포트(`중복/누락/팀수/분포`) + 정성 요청 반영 리포트 동시 반환
 - [x] 결과 페이지에 나머지 인원 판단 근거(`remainderDecision`) 노출 추가
 - [x] 빌드 검증 통과 (`npm run build`)
+
+## 37. 2026-02-23 Assign 로직 재구성(핸들러/엔진 분리)
+- [x] `functions/api/assign.js`를 얇은 라우터 구조로 단순화
+- [x] `functions/domain/assignment/engine.js` 신설: 입력 정규화 -> AI 시도 -> 검증 -> 폴백 파이프라인 구성
+- [x] `functions/domain/assignment/quantitative.js` 신설: 정량 검증/재시도 피드백 생성 로직 분리
+- [x] 기존 출력 스키마(`teams`, `report`) 호환 유지
+- [x] 빌드 검증 통과 (`npm run build`)
+
+## 38. 2026-02-23 AI 단독 배정 모드 전환
+- [x] 서버 정량 검증/재요청/폴백 경로 제거
+- [x] `assign`를 AI 1회 호출 기반 배정으로 단순화
+- [x] 팀 결과는 AI 출력을 직접 신뢰해 반환하도록 변경
+- [x] 프롬프트 규칙을 "AI 자율 배정" 중심으로 조정
+- [x] 빌드 검증 (`npm run build`)
+
+## 39. 2026-02-23 참가자 속성 보존 강화(압축 제한 제거)
+- [x] `participantSanitizer`의 feature 개수 제한 제거
+- [x] intro/displayName/identifierKey 길이 컷 제거
+- [x] OpenAI 입력에 사용자 특성 원문을 최대한 보존하도록 변경
+- [x] 빌드 검증 (`npm run build`)
+
+## 40. 2026-02-23 나머지 인원 처리 정책 3종 UI/로직 전환
+- [x] 나머지 처리 모드를 `spread | new_team | custom` 3종으로 재정의
+- [x] 맞춤프롬프트 기반 나머지 처리 옵션 제거
+- [x] 커스텀 모드 팀별 숫자 입력 UI 추가(남은 인원 실시간 표시)
+- [x] 커스텀 합계(팀별 추가 인원 합) = 나머지 인원 검증 추가
+- [x] 백엔드 목표 팀 크기 계산을 3종 정책 기준으로 변경
+- [x] 빌드 검증 (`npm run build`)
