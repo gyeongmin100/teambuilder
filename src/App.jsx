@@ -1669,15 +1669,16 @@ function App() {
         : `${normalizedTeamSize}인 ${baseTeamCount}팀, ${remainderCount}인 1팀`;
     }
     if (remainderPolicy === 'custom') {
-      const added = Object.entries(customRemainderPlan)
-        .filter(([, count]) => Number(count) > 0)
-        .map(([teamId, count]) => (isEn ? `Team ${teamId} +${count}` : `${teamId}팀 +${count}명`));
-      if (added.length === 0) {
-        return isEn
-          ? `Custom mode selected (${remainderCount} remainder not allocated yet)`
-          : `커스텀 모드 선택됨 (아직 ${remainderCount}명 미배분)`;
-      }
-      return added.join(', ');
+      const sizes = Array.from(
+        { length: Math.max(baseTeamCount, 1) },
+        (_, idx) => normalizedTeamSize + (customRemainderPlan[idx + 1] || 0)
+      );
+      const group = new Map();
+      sizes.forEach((size) => group.set(size, (group.get(size) || 0) + 1));
+      return Array.from(group.entries())
+        .sort((a, b) => b[0] - a[0])
+        .map(([size, count]) => (isEn ? `${size} members x ${count} teams` : `${size}인 ${count}팀`))
+        .join(', ');
     }
     const group = new Map();
     const spreadTeams = Math.max(baseTeamCount, 1);
