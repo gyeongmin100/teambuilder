@@ -1207,16 +1207,24 @@ function App() {
     );
   };
 
-  const updateCustomRemainderCount = (teamId, nextValue) => {
-    const parsed = Number(nextValue);
-    const safeValue = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
-    const nextPlan = { ...customRemainderPlan, [teamId]: safeValue };
+  const applyCustomRemainderDelta = (teamId, delta) => {
+    const current = Number(customRemainderPlan[teamId]) || 0;
+    const nextValue = Math.max(0, current + delta);
+    const nextPlan = { ...customRemainderPlan, [teamId]: nextValue };
     const nextAssigned = Object.values(nextPlan).reduce((acc, value) => acc + value, 0);
     if (nextAssigned > remainderCount) return;
     setConfig((prev) => ({
       ...prev,
       remainderPolicy: 'custom',
       customRemainderPlan: nextPlan
+    }));
+  };
+
+  const resetCustomRemainderPlan = () => {
+    setConfig((prev) => ({
+      ...prev,
+      remainderPolicy: 'custom',
+      customRemainderPlan: {}
     }));
   };
 
@@ -1535,9 +1543,15 @@ function App() {
     remainderCustom: isEn ? 'Custom distribution' : '커스텀',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
     customRemainderTitle: isEn ? 'Custom remainder allocation' : '커스텀 나머지 배분',
-    customRemainderHelp: isEn ? 'Enter how many remainder members to add to each base team.' : '기본팀별로 나머지 인원을 몇 명 추가할지 입력하세요.',
+    customRemainderHelp: isEn ? 'Tap +1 or -1 on each base team card.' : '각 기본팀 카드에서 +1 / -1 버튼으로 배분하세요.',
     customRemainderRemaining: isEn ? 'Remaining to assign' : '아직 배분하지 않은 인원',
     customRemainderInvalid: isEn ? 'Custom allocation must match remainder count exactly.' : '커스텀 배분 합계가 나머지 인원과 정확히 같아야 합니다.',
+    customRemainderPlus: isEn ? 'Add +1' : '+1 추가',
+    customRemainderMinus: isEn ? 'Remove -1' : '-1 제거',
+    customRemainderAssigned: isEn ? 'Assigned' : '배분됨',
+    customRemainderReset: isEn ? 'Reset' : '초기화',
+    customRemainderDone: isEn ? 'Done' : '완료',
+    customRemainderPending: isEn ? 'Pending' : '미완료',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
     load: isEn ? 'Load' : '불러오기',
@@ -1637,6 +1651,7 @@ function App() {
   const customRemainingCount = Math.max(0, remainderCount - customAssignedCount);
   const isCustomRemainderValid =
     remainderCount === 0 || remainderPolicy !== 'custom' || customAssignedCount === remainderCount;
+  const isCustomRemainderDone = remainderPolicy === 'custom' && remainderCount > 0 && customRemainingCount === 0;
   const expectedTeamCount =
     normalizedTeamSize <= 0
       ? 0
@@ -1876,21 +1891,60 @@ function App() {
                 </div>
                 {remainderPolicy === 'custom' && baseTeamCount > 0 && (
                   <div className="rounded-lg border border-[#d9deea] bg-white p-3 space-y-2">
-                    <p className="text-xs font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                            isCustomRemainderDone
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-rose-100 text-rose-700'
+                          }`}
+                        >
+                          {isCustomRemainderDone ? tx.customRemainderDone : tx.customRemainderPending}
+                        </span>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={resetCustomRemainderPlan}
+                        className="h-7 border-[#d9deea] bg-white text-xs"
+                      >
+                        {tx.customRemainderReset}
+                      </Button>
+                    </div>
                     <p className="text-xs text-[#667085]">{tx.customRemainderHelp}</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {Array.from({ length: baseTeamCount }, (_, idx) => idx + 1).map((teamId) => (
-                        <label key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-1">
+                        <div key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-2">
                           <p className="text-xs font-semibold text-[#344054]">{isEn ? `Team ${teamId}` : `${teamId}팀`}</p>
-                          <Input
-                            type="number"
-                            min="0"
-                            max={remainderCount}
-                            value={String(customRemainderPlan[teamId] || 0)}
-                            onChange={(e) => updateCustomRemainderCount(teamId, e.target.value)}
-                            className="h-8 border-[#d9deea] bg-white text-sm"
-                          />
-                        </label>
+                          <p className="text-xs text-[#475467]">
+                            {tx.customRemainderAssigned}: <span className="font-bold text-[#111827]">{customRemainderPlan[teamId] || 0}</span>
+                          </p>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => applyCustomRemainderDelta(teamId, -1)}
+                              disabled={(customRemainderPlan[teamId] || 0) <= 0}
+                              className="h-7 flex-1 border-[#d9deea] bg-white text-xs"
+                            >
+                              {tx.customRemainderMinus}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => applyCustomRemainderDelta(teamId, 1)}
+                              disabled={customRemainingCount <= 0}
+                              className="h-7 flex-1 border-[#d9deea] bg-white text-xs"
+                            >
+                              {tx.customRemainderPlus}
+                            </Button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                     <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>

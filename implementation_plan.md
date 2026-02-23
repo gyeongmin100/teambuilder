@@ -816,3 +816,24 @@ pm run build)
     - `customRemainderPlan`을 모델 입력에 포함.
 - Verification:
   - `npm run build` 성공
+
+## 41. 2026-02-23 Custom Allocation UX Upgrade: +1/-1 Card Interaction
+- Goal:
+  - 커스텀 나머지 배분을 비전공자 기준으로 더 직관적인 조작 방식으로 단순화.
+- Applied:
+  - `src/App.jsx`
+    - 팀별 숫자 입력 필드를 제거하고 팀 카드 `+1/-1` 버튼 방식으로 교체.
+    - 팀별 배분 수(`Assigned`) 및 전체 남은 인원 표시를 유지.
+    - 커스텀 배분값 일괄 초기화 버튼 추가.
+- Verification:
+  - 진행 예정 (`npm run build`)
+
+## 42. 2026-02-23 Custom Allocation Status Badge (Done/Pending)
+- Goal:
+  - 커스텀 배분 완료 여부를 즉시 식별할 수 있도록 상단 상태 배지를 추가.
+- Applied:
+  - `src/App.jsx`
+    - 커스텀 배분 카드 상단에 `완료/미완료` 배지 추가.
+    - 남은 인원(`customRemainingCount`)이 0이면 `완료`, 아니면 `미완료`로 자동 전환.
+- Verification:
+  - 진행 예정 (`npm run build`)
