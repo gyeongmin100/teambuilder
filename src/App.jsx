@@ -1477,7 +1477,7 @@ function App() {
     customPromptHelp: isEn
       ? 'Write detailed team-building requirements here. The AI uses this prompt to reflect your constraints in the assignment.'
       : '팀 편성 조건을 구체적으로 적는 입력란입니다. 입력한 내용을 AI가 분석해 배정 결과에 반영합니다.',
-    customPromptToggle: isEn ? 'Enable (Paid)' : '사용(유료)',
+    customPromptToggle: isEn ? 'Enable (Paid)' : '사용하기(유료)',
     promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
     promptOpen: isEn ? 'Open' : '열기',
@@ -1849,7 +1849,7 @@ function App() {
                         {tx.customPromptHelp}
                       </span>
                     </span>
-                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#334155]">
+                    <label className="inline-flex items-center gap-1 text-xs font-semibold text-[#334155]">
                       <input
                         type="checkbox"
                         checked={customPromptEnabled}
@@ -2267,10 +2267,6 @@ function App() {
                           </div>
                         );
                       })}
-                      <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
-                        <p className="text-xs text-cyan-800 font-bold">{tx.teamReason}</p>
-                        <p className="text-xs text-[#344054] mt-1">{t.analysis}</p>
-                      </div>
                     </div>
                   );
                 })}
