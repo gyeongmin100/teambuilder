@@ -45,7 +45,8 @@ export const buildSpreadTargetSizes = (total, teamSize) => {
   const teamCount = createSpreadTeams(safeTotal, safeTeamSize);
   const remainder = safeTotal - teamCount * safeTeamSize;
   const sizes = Array.from({ length: teamCount }, () => safeTeamSize);
-  for (let i = 0; i < remainder; i += 1) sizes[i] += 1;
+  // Distribute remainder cyclically so cases like 50 people / size 30 become [50], not [31, NaN...].
+  for (let i = 0; i < remainder; i += 1) sizes[i % teamCount] += 1;
   return sizes;
 };
 

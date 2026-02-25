@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
+import { toBlob } from 'html-to-image';
 import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Trash2, Share2, ImageDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
@@ -376,11 +377,12 @@ function App() {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const [config, setConfig] = useState({ teamSize: 0, remainderPolicy: 'spread', customRemainderPlan: {} });
+  const [config, setConfig] = useState({ teamSize: 0, remainderPolicy: 'spread' });
   const [teams, setTeams] = useState([]);
   const [assignmentReport, setAssignmentReport] = useState(null);
   const [reportCacheHydrated, setReportCacheHydrated] = useState(false);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [customPromptEnabled, setCustomPromptEnabled] = useState(false);
   const [teamSizeInput, setTeamSizeInput] = useState('');
 
   const [formUrl, setFormUrl] = useState('');
@@ -410,7 +412,7 @@ function App() {
   const resultCaptureRef = useRef(null);
   const [promptChecklistOpen, setPromptChecklistOpen] = useState(false);
 
-  const maxInitialRows = 20;
+  const maxInitialRows = 10;
   const historyLimit = 60;
 
   const cloneSnapshot = (snapshot) => {
@@ -896,7 +898,7 @@ function App() {
     if (!key) return;
     if (selectedIdentifierKey === key) return;
     setSelectedIdentifierKey(key);
-    setMessage(tr(`식별 열 지정: ${key}`, `Identifier column set: ${key}`));
+    setMessage(tr(`기준 열 지정: ${key}`, `Primary column set: ${key}`));
   };
 
   const removeFeatureColumn = (key) => {
@@ -1145,15 +1147,8 @@ function App() {
     return candidates;
   }, [columnOrder, excludedFeatureKeys, selectedIdentifierKey]);
 
-  const shownParticipants = useMemo(() => {
-    if (showAllParticipants || filteredParticipants.length <= maxInitialRows) return filteredParticipants;
-    return filteredParticipants.slice(0, maxInitialRows);
-  }, [filteredParticipants, showAllParticipants]);
-
-  const teamReportMap = useMemo(() => {
-    const reports = Array.isArray(assignmentReport?.teamReports) ? assignmentReport.teamReports : [];
-    return new Map(reports.map((r) => [Number(r.teamId) || r.teamId, r]));
-  }, [assignmentReport]);
+  const shownParticipants = filteredParticipants;
+  const compactTableMaxHeight = 10 * 44 + 52;
 
   const duplicateIdentifierCount = useMemo(() => {
     if (!selectedIdentifierKey) return 0;
@@ -1212,27 +1207,6 @@ function App() {
     );
   };
 
-  const applyCustomRemainderDelta = (teamId, delta) => {
-    const current = Number(customRemainderPlan[teamId]) || 0;
-    const nextValue = Math.max(0, current + delta);
-    const nextPlan = { ...customRemainderPlan, [teamId]: nextValue };
-    const nextAssigned = Object.values(nextPlan).reduce((acc, value) => acc + value, 0);
-    if (nextAssigned > remainderCount) return;
-    setConfig((prev) => ({
-      ...prev,
-      remainderPolicy: 'custom',
-      customRemainderPlan: nextPlan
-    }));
-  };
-
-  const resetCustomRemainderPlan = () => {
-    setConfig((prev) => ({
-      ...prev,
-      remainderPolicy: 'custom',
-      customRemainderPlan: {}
-    }));
-  };
-
   const runAssign = async () => {
     if (runAssignLockRef.current) return;
     if (!Number.isFinite(Number(config.teamSize)) || Number(config.teamSize) < 1) {
@@ -1242,18 +1216,15 @@ function App() {
       return setMessage(tr('최소 2명 이상 입력해 주세요.', 'Please provide at least 2 participants.'));
     }
     if (!selectedIdentifierKey) {
-      return setMessage(tr('식별 열이 필요합니다. 열을 추가해 주세요.', 'Identifier column is required. Please add a column.'));
+      return setMessage(tr('기준 열이 필요합니다. 열을 추가해 주세요.', 'Primary column is required. Please add a column.'));
     }
 
     const missingIdentifier = validParticipants.filter((p) => !getParticipantIdentifier(p));
     if (missingIdentifier.length > 0) {
-      return setMessage(tr(`식별 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`, `${missingIdentifier.length} participants have empty identifier values.`));
+      return setMessage(tr(`기준 열 값이 비어 있는 참가자가 ${missingIdentifier.length}명 있습니다.`, `${missingIdentifier.length} participants have empty primary-column values.`));
     }
     if (excludedFeatureKeys.includes(selectedIdentifierKey)) {
-      return setMessage(tr('식별 열은 제외할 수 없습니다.', 'Identifier column cannot be excluded.'));
-    }
-    if (remainderCount > 0 && remainderPolicy === 'custom' && !isCustomRemainderValid) {
-      return setMessage(tx.customRemainderInvalid);
+      return setMessage(tr('기준 열은 제외할 수 없습니다.', 'Primary column cannot be excluded.'));
     }
     const payloadParticipants = validParticipants.map((p) => ({
       ...p,
@@ -1265,20 +1236,42 @@ function App() {
       features: applyFeatureExclusion(p.features || {})
     }));
 
+    if (customPromptEnabled && !normalizedCustomPrompt) {
+      return setMessage(tr('맞춤 프롬프트를 입력해 주세요.', 'Please enter a custom prompt.'));
+    }
+
     const assignPayload = {
       participants: payloadParticipants,
       config: {
         teamSize: Number(config.teamSize) || 0,
-        remainderPolicy,
-        customRemainderPlan: remainderPolicy === 'custom' ? customRemainderPlan : {}
+        remainderPolicy
       },
-      customPrompt: isCustomPromptActive ? String(customPrompt || '').trim() : ''
+      customPrompt: customPromptEnabled ? normalizedCustomPrompt : ''
     };
 
     runAssignLockRef.current = true;
     setStep('loading');
     setPaymentLoading(true);
     try {
+      if (!customPromptEnabled) {
+        const res = await fetch('/api/assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...assignPayload,
+            checkout_id: ''
+          })
+        });
+        const data = await res.json();
+        if (!data?.teams) throw new Error(data?.error || tr('배정 실패', 'Assignment failed'));
+        setTeams(data.teams);
+        setAssignmentReport(data.report || null);
+        setMessage(tr('무료 랜덤 배정이 완료되었습니다.', 'Free random assignment completed.'));
+        setStep('result');
+        goPage('report', { replace: true });
+        return;
+      }
+
       const checkoutRes = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1318,14 +1311,12 @@ function App() {
   };
 
   const exportCSV = () => {
-    let csv = '\uFEFFTeam,Identifier,Analysis,TeamReason\n';
+    let csv = '\uFEFFTeam,Identifier,Analysis\n';
     teams.forEach((t) =>
       t.members.forEach((m) => {
         const identifier = String(m.name || m.id || '').replaceAll('"', '""');
         const analysis = String(t.analysis || '').replaceAll('"', '""');
-        const teamReport = teamReportMap.get(Number(t.id) || t.id);
-        const teamReason = String(teamReport?.reason || '').replaceAll('"', '""');
-        csv += `${t.id},"${identifier}","${analysis}","${teamReason}"\n`;
+        csv += `${t.id},"${identifier}","${analysis}"\n`;
       })
     );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1342,91 +1333,15 @@ function App() {
   };
 
   const captureResultAsBlob = async () => {
-    const width = 1400;
-    const padding = 52;
-    const lineHeight = 28;
-    const teamGap = 30;
+    const node = resultCaptureRef.current;
+    if (!node) throw new Error(tr('결과 영역을 찾을 수 없습니다.', 'Result area not found.'));
 
-    const wrapText = (ctx, text, maxWidth) => {
-      const words = String(text || '').split(/\s+/).filter(Boolean);
-      if (words.length === 0) return [''];
-      const lines = [];
-      let line = words[0];
-      for (let i = 1; i < words.length; i += 1) {
-        const candidate = `${line} ${words[i]}`;
-        if (ctx.measureText(candidate).width <= maxWidth) line = candidate;
-        else {
-          lines.push(line);
-          line = words[i];
-        }
-      }
-      lines.push(line);
-      return lines;
-    };
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = 2400;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    let y = padding;
-    const drawLines = (lines, font = '18px Pretendard, sans-serif', color = '#0f172a') => {
-      ctx.font = font;
-      ctx.fillStyle = color;
-      lines.forEach((line) => {
-        ctx.fillText(line, padding, y);
-        y += lineHeight;
-      });
-    };
-
-    drawLines([tr('TeamBuilder 결과 요약', 'TeamBuilder Result Summary')], 'bold 34px Pretendard, sans-serif', '#0f172a');
-    y += 12;
-
-    const summaryLines = wrapText(ctx, assignmentReport?.summary || tr('요약 정보가 없습니다.', 'No summary available.'), width - padding * 2);
-    drawLines(summaryLines, '18px Pretendard, sans-serif', '#1e293b');
-    y += 8;
-
-    teams.forEach((team, idx) => {
-      const teamReport = teamReportMap.get(Number(team.id) || team.id);
-      const memberNames = (team.members || []).map((m) => String(m?.name || m?.id || '-')).join(', ');
-      const reason = teamReport?.reason || team.analysis || '';
-
-      drawLines([`Team ${team.id}`], 'bold 24px Pretendard, sans-serif', '#0f172a');
-      const memberLines = wrapText(ctx, `${tr('구성원', 'Members')}: ${memberNames}`, width - padding * 2);
-      drawLines(memberLines, '16px Pretendard, sans-serif', '#334155');
-      const reasonLines = wrapText(ctx, `${tr('구성 설명', 'Reason')}: ${reason}`, width - padding * 2);
-      drawLines(reasonLines, '16px Pretendard, sans-serif', '#334155');
-
-      if (idx < teams.length - 1) {
-        y += 8;
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.beginPath();
-        ctx.moveTo(padding, y);
-        ctx.lineTo(width - padding, y);
-        ctx.stroke();
-        y += teamGap;
-      }
+    const blob = await toBlob(node, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: '#f8fafc'
     });
 
-    if (y + padding > canvas.height) {
-      const resized = document.createElement('canvas');
-      resized.width = width;
-      resized.height = y + padding;
-      const rctx = resized.getContext('2d');
-      if (!rctx) throw new Error(tr('이미지 캔버스를 생성할 수 없습니다.', 'Cannot create image canvas.'));
-      rctx.fillStyle = '#f8fafc';
-      rctx.fillRect(0, 0, resized.width, resized.height);
-      rctx.drawImage(canvas, 0, 0);
-      const blob = await new Promise((resolve) => resized.toBlob(resolve, 'image/png'));
-      if (!blob) throw new Error(tr('이미지 변환에 실패했습니다.', 'Failed to convert image.'));
-      return blob;
-    }
-
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error(tr('이미지 변환에 실패했습니다.', 'Failed to convert image.'));
     return blob;
   };
@@ -1535,32 +1450,26 @@ function App() {
     connectOAuth: isEn ? 'Google sign in' : '구글로그인',
     googleLogin: isEn ? 'Continue with Google' : 'Google 로그인',
     participants: isEn ? 'Participants' : '현재 참가자',
-    primaryColumn: isEn ? 'Identifier column' : '식별 열',
+    primaryColumn: isEn ? 'Primary column' : '기준 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
+    customPromptHelp: isEn
+      ? 'Turn ON to use paid AI assignment. Turn OFF to use free internal random assignment.'
+      : 'ON이면 유료 AI 배정, OFF이면 무료 내부 랜덤 배정입니다.',
+    customPromptToggle: isEn ? 'Use custom prompt (Paid)' : '맞춤 프롬프트 사용(유료)',
     promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
     promptOpen: isEn ? 'Open' : '열기',
     promptClose: isEn ? 'Close' : '닫기',
     progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
-    needPrimary: isEn ? 'Identifier column required' : '식별 열 확인 필요',
+    needPrimary: isEn ? 'Primary column required' : '기준 열 확인 필요',
     dataDrivenAnalysis: isEn ? '100% data-driven team analysis' : '100% 데이터 기반 팀 분석',
     teamSettings: isEn ? 'Team settings' : '팀 설정',
     teamSize: isEn ? 'Members per team' : '1팀당 인원',
-    remainderSpread: isEn ? 'Distribute across base teams' : '기본팀에 균등 배분',
-    remainderNewTeam: isEn ? 'Create a new team' : '새 팀 만들기',
-    remainderCustom: isEn ? 'Custom distribution' : '커스텀',
+    remainderSpread: isEn ? 'Distribute across existing teams' : '기존팀에 균등 배분',
+    remainderNewTeam: isEn ? 'Create a new team' : '새 팀으로 만들기',
+    remainderOneTeam: isEn ? 'Put all remainder in one team' : '한 팀에 전부 배분',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
-    customRemainderTitle: isEn ? 'Custom remainder allocation' : '커스텀 나머지 배분',
-    customRemainderHelp: isEn ? 'Tap +1 or -1 on each base team card.' : '각 기본팀 카드에서 +1 / -1 버튼으로 배분하세요.',
-    customRemainderRemaining: isEn ? 'Remaining to assign' : '아직 배분하지 않은 인원',
-    customRemainderInvalid: isEn ? 'Custom allocation must match remainder count exactly.' : '커스텀 배분 합계가 나머지 인원과 정확히 같아야 합니다.',
-    customRemainderPlus: isEn ? 'Add +1' : '+1 추가',
-    customRemainderMinus: isEn ? 'Remove -1' : '-1 제거',
-    customRemainderAssigned: isEn ? 'Assigned' : '배분됨',
-    customRemainderReset: isEn ? 'Reset' : '초기화',
-    customRemainderDone: isEn ? 'Done' : '완료',
-    customRemainderPending: isEn ? 'Pending' : '미완료',
     importData: isEn ? 'Import external data' : '외부데이터 가져오기',
     importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
     load: isEn ? 'Load' : '불러오기',
@@ -1576,10 +1485,11 @@ function App() {
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
     importTools: isEn ? 'Import external data' : '외부데이터 가져오기',
     hideImportTools: isEn ? 'Close import panel' : '외부데이터 가져오기 닫기',
-    runAssign: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
+    runAssignPaid: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
+    runAssignFree: isEn ? 'Run free random assignment' : '무료 랜덤 배정 실행',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
-    analyzing: isEn ? 'Analyzing with AI' : 'AI 분석 중',
-    analyzingDesc: isEn ? 'Verifying payment and calculating team composition.' : '결제 확인 후 팀 구성 결과를 계산하고 있습니다.',
+    assigning: isEn ? 'Assigning teams...' : '팀 배정 중...',
+    analyzingDesc: isEn ? 'Analyzing. Please wait a moment.' : '분석 중입니다. 잠시만 기다려주세요.',
     pendingTitle: isEn ? 'Checkout pending state' : '결제 대기 상태',
     pendingVerifying: isEn ? 'Analyzing team assignment after payment verification...' : '결제 확인 후 팀 배정 분석을 진행 중입니다...',
     pendingStay: isEn ? 'Please do not leave this page until analysis is complete.' : '분석이 완료될 때까지 이 페이지를 이탈하지 마세요.',
@@ -1588,14 +1498,12 @@ function App() {
     shareResult: isEn ? 'Share' : '공유하기',
     memberDetails: isEn ? 'Details' : '특성 보기',
     hideDetails: isEn ? 'Hide' : '닫기',
-    fullReport: isEn ? 'Full report' : '전체 결과 보고서',
-    teamReason: isEn ? 'Team rationale' : '팀 편성 근거'
-    ,
+    teamReason: isEn ? 'Team rationale' : '팀 편성 근거',
     formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
-    pinAsIdentifier: isEn ? 'Set identifier' : '식별 열로 지정',
-    selectIdentifier: isEn ? 'Choose identifier column' : '기준 열 선택',
+    pinAsIdentifier: isEn ? 'Set primary column' : '기준 열로 지정',
+    selectIdentifier: isEn ? 'Choose primary column' : '기준 열 선택',
     clearIdentifier: isEn ? 'Clear' : '초기화',
     renameColumn: isEn ? 'Rename column' : '열 이름 수정',
     deleteColumn: isEn ? 'Delete column' : '열 삭제',
@@ -1631,7 +1539,7 @@ function App() {
     disabled: isEn ? 'Disabled' : '미사용',
     runReady: isEn ? 'Ready to run assignment' : '팀 배정 실행 가능',
     runBlocked: isEn ? 'Fix required items first' : '먼저 필수 항목을 해결하세요',
-    openDataTabHint: isEn ? 'Complete data import and identifier setup first.' : '데이터 불러오기와 식별 열 설정을 먼저 완료하세요.',
+    openDataTabHint: isEn ? 'Complete data import and primary-column setup first.' : '데이터 불러오기와 기준 열 설정을 먼저 완료하세요.',
     goDataTab: isEn ? 'Check data section' : '데이터 섹션 확인',
     reviewFixAction: isEn ? 'Fix in page' : '페이지에서 바로 수정'
   };
@@ -1640,26 +1548,12 @@ function App() {
   const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
-  const isCustomPromptActive = String(customPrompt || '').trim().length > 0;
+  const normalizedCustomPrompt = String(customPrompt || '').trim();
+  const isCustomPromptActive = customPromptEnabled;
   const remainderPolicy = config.remainderPolicy || 'spread';
   const baseTeamCount = normalizedTeamSize > 0 ? Math.floor(validParticipants.length / normalizedTeamSize) : 0;
   const remainderCount = normalizedTeamSize > 0 ? validParticipants.length % normalizedTeamSize : 0;
   const canSelectRemainderMode = normalizedTeamSize > 0 && remainderCount > 0;
-  const customRemainderPlan = useMemo(() => {
-    const raw = config.customRemainderPlan && typeof config.customRemainderPlan === 'object'
-      ? config.customRemainderPlan
-      : {};
-    const normalized = {};
-    for (let teamId = 1; teamId <= baseTeamCount; teamId += 1) {
-      const value = Number(raw[teamId]);
-      normalized[teamId] = Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-    }
-    return normalized;
-  }, [config.customRemainderPlan, baseTeamCount]);
-  const customAssignedCount = Object.values(customRemainderPlan).reduce((acc, value) => acc + value, 0);
-  const customRemainingCount = Math.max(0, remainderCount - customAssignedCount);
-  const isCustomRemainderValid =
-    remainderCount === 0 || remainderPolicy !== 'custom' || customAssignedCount === remainderCount;
   const expectedTeamCount =
     normalizedTeamSize <= 0
       ? 0
@@ -1677,11 +1571,10 @@ function App() {
         ? `${normalizedTeamSize} members x ${baseTeamCount} teams, ${remainderCount} members x 1 team`
         : `${normalizedTeamSize}인 ${baseTeamCount}팀, ${remainderCount}인 1팀`;
     }
-    if (remainderPolicy === 'custom') {
-      const sizes = Array.from(
-        { length: Math.max(baseTeamCount, 1) },
-        (_, idx) => normalizedTeamSize + (customRemainderPlan[idx + 1] || 0)
-      );
+    if (remainderPolicy === 'one_team') {
+      if (baseTeamCount === 0) return isEn ? `${validParticipants.length} members x 1 team` : `${validParticipants.length}인 1팀`;
+      const sizes = Array.from({ length: baseTeamCount }, () => normalizedTeamSize);
+      sizes[0] += remainderCount;
       const group = new Map();
       sizes.forEach((size) => group.set(size, (group.get(size) || 0) + 1));
       return Array.from(group.entries())
@@ -1691,7 +1584,10 @@ function App() {
     }
     const group = new Map();
     const spreadTeams = Math.max(baseTeamCount, 1);
-    const sizes = Array.from({ length: spreadTeams }, (_, idx) => normalizedTeamSize + (idx < remainderCount ? 1 : 0));
+    const sizes = Array.from({ length: spreadTeams }, () => normalizedTeamSize);
+    for (let i = 0; i < remainderCount; i += 1) {
+      sizes[i % spreadTeams] += 1;
+    }
     sizes.forEach((size) => group.set(size, (group.get(size) || 0) + 1));
     return Array.from(group.entries())
       .sort((a, b) => b[0] - a[0])
@@ -1747,7 +1643,7 @@ function App() {
     setShowAllParticipants(false);
     setParticipantQuery('');
     setCustomPrompt('');
-    setConfig({ teamSize: 0, remainderPolicy: 'spread', customRemainderPlan: {} });
+    setConfig({ teamSize: 0, remainderPolicy: 'spread' });
     setTeamSizeInput('');
     setFormUrl('');
     setSheetListOpen(false);
@@ -1828,8 +1724,19 @@ function App() {
                 <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
               </div>
               <div className="mt-6">
-                <Button onClick={login} className="h-11 w-full rounded-xl bg-[#1a2138] text-white font-semibold hover:bg-[#12192d]">
-                  {tx.googleLogin}
+                <Button
+                  onClick={login}
+                  className="h-11 w-full rounded-xl border border-[#d9deea] bg-white text-[#111827] font-semibold hover:bg-[#f8fafc]"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/>
+                      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z"/>
+                      <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.9 26.7 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.1 16.2 44 24 44z"/>
+                      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 2.8-3 5-5.9 6.6l.1-.1 6.3 5.2C35.4 40 44 34 44 24c0-1.2-.1-2.4-.4-3.5z"/>
+                    </svg>
+                    {tx.googleLogin}
+                  </span>
                 </Button>
               </div>
             </Card>
@@ -1884,82 +1791,54 @@ function App() {
                   <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
                     <input
                       type="radio"
+                      checked={remainderPolicy === 'one_team'}
+                      onChange={() => setConfig({ ...config, remainderPolicy: 'one_team' })}
+                    />
+                    {tx.remainderOneTeam}
+                  </label>
+                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                    <input
+                      type="radio"
                       checked={remainderPolicy === 'new_team'}
                       onChange={() => setConfig({ ...config, remainderPolicy: 'new_team' })}
                     />
                     {tx.remainderNewTeam}
                   </label>
-                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                    <input
-                      type="radio"
-                      checked={remainderPolicy === 'custom'}
-                      onChange={() => setConfig({ ...config, remainderPolicy: 'custom' })}
-                    />
-                    {tx.remainderCustom}
-                  </label>
                 </div>
-                {remainderPolicy === 'custom' && baseTeamCount > 0 && (
-                  <div className="rounded-lg border border-[#d9deea] bg-white p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-[#334155]">{tx.customRemainderTitle}</p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={resetCustomRemainderPlan}
-                        className="h-7 border-[#d9deea] bg-white text-xs"
-                      >
-                        {tx.customRemainderReset}
-                      </Button>
-                    </div>
-                    <p className={`text-xs font-semibold ${customRemainingCount === 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      {tx.customRemainderRemaining}: {customRemainingCount}
-                    </p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                      {Array.from({ length: baseTeamCount }, (_, idx) => idx + 1).map((teamId) => (
-                        <div key={`custom-team-${teamId}`} className="rounded border bg-[#f8fafc] p-2 space-y-1">
-                          <p className="text-[11px] font-semibold text-[#344054]">
-                            {isEn ? `Team ${teamId}` : `${teamId}팀`}
-                          </p>
-                          <p className="text-sm font-black text-[#111827]">{customRemainderPlan[teamId] || 0}</p>
-                          <div className="flex items-center gap-1 justify-end">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              onClick={() => applyCustomRemainderDelta(teamId, 1)}
-                              disabled={customRemainingCount <= 0}
-                              className="h-6 w-6 border-[#d9deea] bg-white"
-                              aria-label={tx.customRemainderPlus}
-                            >
-                              <ChevronUp size={12} />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              onClick={() => applyCustomRemainderDelta(teamId, -1)}
-                              disabled={(customRemainderPlan[teamId] || 0) <= 0}
-                              className="h-6 w-6 border-[#d9deea] bg-white"
-                              aria-label={tx.customRemainderMinus}
-                            >
-                              <ChevronDown size={12} />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 </div>
               )}
               <div className="space-y-2">
-                <p className="text-sm font-semibold">{tx.customPrompt}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#334155]">
+                    <input
+                      type="checkbox"
+                      checked={customPromptEnabled}
+                      onChange={(e) => setCustomPromptEnabled(e.target.checked)}
+                    />
+                    {tx.customPromptToggle}
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold">{tx.customPrompt}</p>
+                  <span className="relative inline-flex group">
+                    <button
+                      type="button"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-bold text-[#475467] bg-white"
+                      aria-label={tx.customPromptHelp}
+                    >
+                      ?
+                    </button>
+                    <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
+                      {tx.customPromptHelp}
+                    </span>
+                  </span>
+                </div>
                 <textarea
                   value={customPrompt}
                   onChange={(e) => setCustomPrompt(e.target.value)}
                   placeholder={tx.promptPlaceholder}
-                  className="w-full min-h-24 border rounded px-3 py-2 text-sm"
+                  disabled={!customPromptEnabled}
+                  className="w-full min-h-24 border rounded px-3 py-2 text-sm disabled:bg-[#f3f4f6] disabled:text-[#9ca3af]"
                 />
               </div>
               </div>
@@ -2080,7 +1959,10 @@ function App() {
                   )}
                 </div>
               </div>
-              <div className="overflow-auto bg-white">
+              <div
+                className={`overflow-x-auto bg-white ${showAllParticipants ? '' : 'overflow-y-auto'}`}
+                style={showAllParticipants ? undefined : { maxHeight: `${compactTableMaxHeight}px` }}
+              >
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
@@ -2183,7 +2065,7 @@ function App() {
               </div>
               <div className="order-3 flex justify-end">
               <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
-                {paymentLoading ? tx.moveToPayment : tx.runAssign}
+                {paymentLoading ? (customPromptEnabled ? tx.moveToPayment : tx.assigning) : (customPromptEnabled ? tx.runAssignPaid : tx.runAssignFree)}
               </Button>
               </div>
               </div>
@@ -2195,8 +2077,7 @@ function App() {
           <motion.div key="loading" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
             <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center">
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1.4 }} className="mx-auto h-12 w-12 rounded-full border-4 border-[#d9deea] border-t-cyan-600" />
-              <h3 className="mt-6 text-2xl font-black">{tx.analyzing}</h3>
-              <p className="mt-2 text-[#4b556b]">{tx.analyzingDesc}</p>
+              <p className="mt-6 text-[#4b556b]">{tx.analyzingDesc}</p>
             </div>
           </motion.div>
         )}
@@ -2244,11 +2125,9 @@ function App() {
                 <Share2 size={16} /> {tx.shareResult}
               </Button>
             </div>
-            <div ref={resultCaptureRef} className="space-y-4">
+            <div className="space-y-4">
               {assignmentReport && (
                 <div className="bg-white border rounded-2xl p-4 space-y-3">
-                  <h3 className="font-black">{tx.fullReport}</h3>
-                  <p className="text-sm text-[#344054]">{assignmentReport.summary}</p>
                   {(String(assignmentReport.originalPrompt || '').trim() || (assignmentReport.promptChecklist || []).length > 0) && (
                     <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
@@ -2277,13 +2156,30 @@ function App() {
                             <div className="space-y-1">
                               {(assignmentReport.promptChecklist || []).map((item, idx) => (
                                 <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
+                                  {(() => {
+                                    const itemTitle = String(
+                                      item?.item || item?.text || item?.request || item?.original_text || `${idx + 1}`
+                                    ).trim();
+                                    const itemStatus = String(
+                                      item?.statusLabel || item?.status || item?.result || ''
+                                    ).trim();
+                                    const itemReason = String(
+                                      item?.reason || item?.comment || item?.report || item?.explanation || ''
+                                    ).trim();
+                                    return (
+                                      <>
                                   <div className="flex items-center justify-between gap-2">
-                                    <p className="font-semibold text-[#111827]">{idx + 1}. {item.item}</p>
-                                    <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[11px] font-semibold text-[#344054]">
-                                      {item.statusLabel || item.status}
-                                    </span>
+                                    <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
+                                    {itemStatus && (
+                                      <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[11px] font-semibold text-[#344054]">
+                                        {itemStatus}
+                                      </span>
+                                    )}
                                   </div>
-                                  <p className="mt-1 text-[#475467]">{item.reason}</p>
+                                  {itemReason && <p className="mt-1 text-[#475467]">{itemReason}</p>}
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                               ))}
                             </div>
@@ -2292,61 +2188,10 @@ function App() {
                       )}
                     </div>
                   )}
-                  {assignmentReport.integrity && (
-                    <div className="rounded-xl border border-[#d9deea] bg-[#f8fafc] p-3 space-y-2">
-                      <p className="text-xs font-bold text-[#1f2937]">{tr('정량 점검 결과', 'Quantitative checks')}</p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <div className="rounded border bg-white p-2 text-xs">
-                          <p className="text-[#667085]">{tr('데이터 수', 'Data count')}</p>
-                          <p className="font-bold">{assignmentReport.integrity.totalParticipants}</p>
-                        </div>
-                        <div className="rounded border bg-white p-2 text-xs">
-                          <p className="text-[#667085]">{tr('예상 팀 수', 'Expected teams')}</p>
-                          <p className="font-bold">{assignmentReport.integrity.expectedTeamCount}</p>
-                        </div>
-                        <div className="rounded border bg-white p-2 text-xs">
-                          <p className="text-[#667085]">{tr('실제 팀 수', 'Actual teams')}</p>
-                          <p className="font-bold">{assignmentReport.integrity.actualTeamCount}</p>
-                        </div>
-                        <div className="rounded border bg-white p-2 text-xs">
-                          <p className="text-[#667085]">{tr('중복/누락', 'Duplicate/Missing')}</p>
-                          <p className="font-bold">{assignmentReport.integrity.duplicateCount} / {assignmentReport.integrity.missingCount}</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-[#4b556b]">
-                        {tr('팀 인원 분포', 'Team size distribution')}: {String(assignmentReport.integrity.actualTeamSizes || []).replaceAll(',', ', ')}
-                      </p>
-                    </div>
-                  )}
-                  {(assignmentReport.requestReview || []).length > 0 && (
-                    <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
-                      <p className="text-xs font-bold text-[#1f2937]">{tr('요청 반영 결과', 'Prompt fulfillment')}</p>
-                      {(assignmentReport.requestReview || []).map((item, idx) => (
-                        <div key={`req-review-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
-                          <p className="font-semibold text-[#111827]">{item.request}</p>
-                          <p className="mt-1 text-[#334155]">{tr('상태', 'Status')}: {item.statusLabel || item.status}</p>
-                          <p className="mt-1 text-[#475467]">{item.reason}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {assignmentReport.remainderDecision && (
-                    <div className="rounded-xl border border-[#d9deea] bg-[#f8fafc] p-3 space-y-1">
-                      <p className="text-xs font-bold text-[#1f2937]">{tr('나머지 인원 처리 판단', 'Remainder decision')}</p>
-                      <p className="text-xs text-[#334155]">
-                        {tr('팀 수 변경 허용', 'Team-count change allowed')}: {assignmentReport.remainderDecision.allowedTeamCountChange ? tr('예', 'Yes') : tr('아니오', 'No')}
-                      </p>
-                      {assignmentReport.remainderDecision.reason && (
-                        <p className="text-xs text-[#475467]">{assignmentReport.remainderDecision.reason}</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div ref={resultCaptureRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {teams.map((t) => {
-                  const teamReport = teamReportMap.get(Number(t.id) || t.id);
-                  const evidence = Array.isArray(teamReport?.evidence) ? teamReport.evidence : [];
                   return (
                     <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
                       <h3 className="font-black mb-2">Team {t.id}</h3>
@@ -2386,14 +2231,7 @@ function App() {
                       })}
                       <div className="rounded-xl border border-cyan-100 bg-cyan-50 p-3">
                         <p className="text-xs text-cyan-800 font-bold">{tx.teamReason}</p>
-                        <p className="text-xs text-[#344054] mt-1">{teamReport?.reason || t.analysis}</p>
-                        {evidence.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {evidence.map((line, idx) => (
-                              <p key={`${t.id}-evidence-${idx}`} className="text-[11px] text-[#4b556b]">- {line}</p>
-                            ))}
-                          </div>
-                        )}
+                        <p className="text-xs text-[#344054] mt-1">{t.analysis}</p>
                       </div>
                     </div>
                   );
@@ -2404,17 +2242,15 @@ function App() {
         )}
         </AnimatePresence>
 
-        <footer className="mt-10 pt-6 border-t text-center text-sm text-[#667085]">
-          <Button type="button" variant="link" onClick={() => goPolicy('terms', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Terms' : '이용약관'}</Button>
-          <Button type="button" variant="link" onClick={() => goPolicy('privacy', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Privacy' : '개인정보처리방침'}</Button>
-          <Button type="button" variant="link" onClick={() => goPolicy('refund', uiLang)} className="mx-1 text-[#667085]">{uiLang === 'en' ? 'Refund' : '환불정책'}</Button>
-        </footer>
       </div>
     </div>
   );
 }
 
 export default App;
+
+
+
 
 
 

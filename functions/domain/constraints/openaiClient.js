@@ -13,8 +13,8 @@ const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Optimizer
 - If requests conflict, choose the best trade-off and explain briefly.
 
 ## Remainder Handling
-- remainderPolicy: spread | new_team | custom
-- If remainderPolicy is custom, follow customRemainderPlan exactly.
+- remainderPolicy: spread | new_team | one_team
+- If remainderPolicy is one_team, place all remainder members into one existing team.
 
 ## Output Rules
 - Return JSON object only.
@@ -27,7 +27,6 @@ const buildPrompt = ({
   remainderPolicy,
   targetTeamCount,
   targetTeamSizes,
-  customRemainderPlan,
   customPrompt,
   feedback
 }) => {
@@ -40,6 +39,7 @@ const buildPrompt = ({
       }
     ],
     reason: 'Short global summary of assignment rationale.',
+    global_report: 'Detailed free-form overall report in user language. End with a concise 2-line summary.',
     remainder_decision: {
       mode: 'existing_teams | new_team',
       allowed_team_count_change: false,
@@ -55,11 +55,11 @@ const buildPrompt = ({
         }
       ]
     },
-    request_status: [
+    prompt_checklist: [
       {
-        request: 'Legacy compatible request text',
+        item: 'One atomic request item interpreted from user_prompt',
         status: 'satisfied | partially_satisfied | unmet',
-        reason: 'Legacy compatible reason'
+        reason: 'Why this checklist item has this status'
       }
     ],
     warnings: ['Optional warnings for unavoidable trade-offs.']
@@ -67,12 +67,14 @@ const buildPrompt = ({
 
   const ruleLines = [
     '- Use participant ids from input.',
-    '- Interpret user_prompt directly as request items.',
+    '- Interpret user_prompt directly as request items, without omitting ambiguous parts.',
     '- For multiple requests, evaluate each item and return per-item status.',
+    '- Build prompt_checklist as atomic items; each item should include rich explanation (reflection, evidence, and trade-off when partially/unmet).',
+    '- Write global_report as a detailed free-form overall report (no fixed format/template), and end with a concise summary within 2 lines.',
     '- Respect remainderPolicy and targetTeamSizes.',
-    '- If remainderPolicy=custom, apply customRemainderPlan exactly.',
+    '- If remainderPolicy=one_team, put all remainder members into one existing team.',
     '- If team count is changed, set remainder_decision.allowed_team_count_change=true.',
-    '- Fill both request_reflection.intent_results and request_status for compatibility.',
+    '- Fill request_reflection.intent_results and prompt_checklist.',
     '- Return JSON object only (no markdown/code fences).'
   ];
 
@@ -82,7 +84,6 @@ const buildPrompt = ({
     `remainderPolicy: ${remainderPolicy}`,
     `targetTeamCount: ${targetTeamCount}`,
     `targetTeamSizes: ${JSON.stringify(targetTeamSizes)}`,
-    `customRemainderPlan: ${JSON.stringify(customRemainderPlan || {})}`,
     `user_prompt: ${customPrompt || '(none)'}`,
     feedback ? `validationFeedback: ${feedback}` : '',
     '',
@@ -105,7 +106,6 @@ const callOpenAIOnce = async ({
   remainderPolicy,
   targetTeamCount,
   targetTeamSizes,
-  customRemainderPlan,
   customPrompt,
   feedback,
   env
@@ -116,7 +116,6 @@ const callOpenAIOnce = async ({
     remainderPolicy,
     targetTeamCount,
     targetTeamSizes,
-    customRemainderPlan,
     customPrompt,
     feedback
   });
@@ -223,3 +222,4 @@ const callOpenAIRequestVerifier = async ({
 };
 
 export { callOpenAIOnce, callOpenAIRequestVerifier };
+

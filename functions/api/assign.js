@@ -13,21 +13,25 @@ export async function onRequestPost(context) {
       customPrompt = '',
       checkout_id: checkoutId = ''
     } = body;
+    const normalizedPrompt = String(customPrompt || '').trim();
+    const needsPaidFlow = normalizedPrompt.length > 0;
 
     if (!Array.isArray(participants) || participants.length < 2) {
       return jsonResponse({ error: '최소 2명 이상의 참가자가 필요합니다.' }, 400);
     }
 
-    if (!env.OPENAI_API_KEY) {
+    if (needsPaidFlow && !env.OPENAI_API_KEY) {
       return jsonResponse({ error: 'OPENAI_API_KEY가 없습니다.' }, 500);
     }
 
-    await verifyPaidCheckout({ checkoutId, env });
+    if (needsPaidFlow) {
+      await verifyPaidCheckout({ checkoutId, env });
+    }
 
     const result = await assignTeamsWithValidation({
       participants,
       config,
-      customPrompt,
+      customPrompt: normalizedPrompt,
       checkoutId,
       env
     });
