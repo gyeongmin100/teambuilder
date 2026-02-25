@@ -413,7 +413,7 @@ function App() {
   const [expandedMemberKeys, setExpandedMemberKeys] = useState({});
   const [resultActionLoading, setResultActionLoading] = useState(false);
   const resultCaptureRef = useRef(null);
-  const [promptChecklistOpen, setPromptChecklistOpen] = useState(false);
+  const bypassReportRedirectRef = useRef(false);
 
   const maxInitialRows = 10;
   const historyLimit = 60;
@@ -515,10 +515,6 @@ function App() {
   }, [teams, assignmentReport, reportCacheHydrated, reportCacheKey]);
 
   useEffect(() => {
-    setPromptChecklistOpen(false);
-  }, [assignmentReport]);
-
-  useEffect(() => {
     safeSetLocal('teambuilder_ui_lang', uiLang);
   }, [uiLang]);
 
@@ -585,11 +581,18 @@ function App() {
 
   useEffect(() => {
     if (routePage !== 'report') return;
+    if (bypassReportRedirectRef.current) return;
     if (!reportCacheHydrated) return;
     if (Array.isArray(teams) && teams.length > 0) return;
     setMessage(tr('결과 데이터가 없습니다. 입력 화면에서 먼저 팀 배정을 실행해 주세요.', 'No report data found. Run team assignment from input page first.'));
     goPage('input', { replace: true });
   }, [routePage, teams, reportCacheHydrated]);
+
+  useEffect(() => {
+    if (routePage !== 'report') {
+      bypassReportRedirectRef.current = false;
+    }
+  }, [routePage]);
 
   useEffect(() => {
     if (routePage !== 'polar') return;
@@ -1356,12 +1359,11 @@ function App() {
   };
 
   const exportCSV = () => {
-    let csv = '\uFEFFTeam,Identifier,Analysis\n';
+    let csv = '\uFEFFTeam,Identifier\n';
     teams.forEach((t) =>
       t.members.forEach((m) => {
         const identifier = String(m.name || m.id || '').replaceAll('"', '""');
-        const analysis = String(t.analysis || '').replaceAll('"', '""');
-        csv += `${t.id},"${identifier}","${analysis}"\n`;
+        csv += `${t.id},"${identifier}"\n`;
       })
     );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1502,10 +1504,8 @@ function App() {
       ? 'Write detailed team-building requirements here. The AI uses this prompt to reflect your constraints in the assignment.'
       : '팀 편성 조건을 구체적으로 적는 입력란입니다. 입력한 내용을 AI가 분석해 배정 결과에 반영합니다.',
     customPromptToggle: isEn ? 'Enable (Paid)' : '사용하기(유료)',
-    promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
+    promptChecklistTitle: isEn ? 'Team Building Report' : '팀 빌딩 리포트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
-    promptOpen: isEn ? 'Open' : '열기',
-    promptClose: isEn ? 'Close' : '닫기',
     progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
     needPrimary: isEn ? 'Primary column required' : '기준 열 확인 필요',
@@ -1536,8 +1536,8 @@ function App() {
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
     assigning: isEn ? 'Assigning teams...' : '팀 배정 중...',
     analyzingDesc: isEn ? 'Analyzing. Please wait a moment.' : '분석 중입니다. 잠시만 기다려주세요.',
-    pendingTitle: isEn ? 'Checkout pending state' : '결제 대기 상태',
-    pendingVerifying: isEn ? 'Analyzing team assignment after payment verification...' : '결제 확인 후 팀 배정 분석을 진행 중입니다...',
+    pendingTitle: isEn ? 'Analyzing for team assignment.' : '팀 배정을 위해 분석 중입니다.',
+    pendingVerifying: isEn ? '' : '',
     pendingStay: isEn ? 'Please do not leave this page until analysis is complete.' : '분석이 완료될 때까지 이 페이지를 이탈하지 마세요.',
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
     saveImage: isEn ? 'Save as image' : '이미지로 저장',
@@ -1704,11 +1704,12 @@ function App() {
   };
 
   const goLandingAndReset = () => {
+    bypassReportRedirectRef.current = true;
     resetInputState();
     clearAllReportCaches();
     setTeams([]);
     setAssignmentReport(null);
-    goPage('landing');
+    goPage('landing', { replace: true });
   };
 
   return (
@@ -2176,7 +2177,7 @@ function App() {
                   transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
                   className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
                 />
-                <p className="text-[#4b556b]">{tx.pendingVerifying}</p>
+                {tx.pendingVerifying ? <p className="text-[#4b556b]">{tx.pendingVerifying}</p> : null}
                 <p className="text-sm font-semibold text-rose-600">{tx.pendingStay}</p>
               </div>
             </div>
@@ -2216,60 +2217,58 @@ function App() {
                     <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPromptChecklistOpen((v) => !v)}
-                          className="h-7 border-[#d9deea] bg-white text-xs"
-                        >
-                          {promptChecklistOpen ? tx.promptClose : tx.promptOpen}
-                        </Button>
                       </div>
-                      {promptChecklistOpen && (
-                        <div className="space-y-2">
-                          {String(assignmentReport.originalPrompt || '').trim() && (
-                            <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
-                              <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
-                              <p className="mt-1 whitespace-pre-wrap text-xs text-[#111827]">
-                                {assignmentReport.originalPrompt}
-                              </p>
-                            </div>
-                          )}
-                          {(assignmentReport.promptChecklist || []).length > 0 && (
-                            <div className="space-y-1">
-                              {(assignmentReport.promptChecklist || []).map((item, idx) => (
-                                <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
-                                  {(() => {
-                                    const itemTitle = String(
-                                      item?.item || item?.text || item?.request || item?.original_text || `${idx + 1}`
-                                    ).trim();
-                                    const itemStatus = String(
-                                      item?.statusLabel || item?.status || item?.result || ''
-                                    ).trim();
-                                    const itemReason = String(
-                                      item?.reason || item?.comment || item?.report || item?.explanation || ''
-                                    ).trim();
-                                    return (
-                                      <>
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
-                                    {itemStatus && (
-                                      <span className="rounded-full bg-[#f2f4f7] px-2 py-0.5 text-[11px] font-semibold text-[#344054]">
-                                        {itemStatus}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {itemReason && <p className="mt-1 text-[#475467]">{itemReason}</p>}
-                                      </>
-                                    );
-                                  })()}
+                      <div className="space-y-2">
+                        {String(assignmentReport.originalPrompt || '').trim() && (
+                          <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
+                            <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
+                            <p className="mt-1 whitespace-pre-wrap text-xs text-[#111827]">
+                              {assignmentReport.originalPrompt}
+                            </p>
+                          </div>
+                        )}
+                        {(assignmentReport.promptChecklist || []).length > 0 && (
+                          <div className="space-y-1">
+                            {(assignmentReport.promptChecklist || []).map((item, idx) => (
+                              <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
+                                {(() => {
+                                  const itemTitle = String(
+                                    item?.item || item?.text || item?.request || item?.original_text || `${idx + 1}`
+                                  ).trim();
+                                  const statusKey = String(item?.status_key || item?.statusKey || '').trim().toLowerCase();
+                                  const itemStatus = String(
+                                    item?.status_label || item?.statusLabel || item?.status || item?.result || ''
+                                  ).trim();
+                                  const itemStatusClass =
+                                    statusKey === 'applied'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : statusKey === 'partial'
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : statusKey === 'unmet'
+                                          ? 'bg-rose-100 text-rose-800'
+                                          : 'bg-[#f2f4f7] text-[#344054]';
+                                  const itemReason = String(
+                                    item?.reason || item?.comment || item?.report || item?.explanation || ''
+                                  ).trim();
+                                  return (
+                                    <>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
+                                  {itemStatus && (
+                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${itemStatusClass}`}>
+                                      {itemStatus}
+                                    </span>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                                {itemReason && <p className="mt-1 text-[#475467]">{itemReason}</p>}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

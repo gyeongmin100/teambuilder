@@ -31,7 +31,8 @@ const CHECKLIST_SYSTEM_CONTEXT = `# SYSTEM: Prompt Relevance Judge for Team Assi
 ## Rules
 - Return JSON object only.
 - Do not create team assignment in this step.
-- Keep decisions grounded in the given user prompt text.`;
+- Keep decisions grounded in the given user prompt text.
+- status_label must be exactly one of: 반영, 일부반영, 미반영.`;
 
 const normalizePromptChecklist = (value) => {
   const rawList = Array.isArray(value) ? value : [];
@@ -42,24 +43,26 @@ const normalizePromptChecklist = (value) => {
       ).trim();
       if (!text) return null;
 
-      const explicitRelevant = item?.is_relevant;
-      const statusText = String(item?.status || item?.result || item?.label || '').toLowerCase();
-      const isRelevant =
-        typeof explicitRelevant === 'boolean'
-          ? explicitRelevant
-          : !/(irrelevant|ignored|무관|무시)/.test(statusText);
-
       const reason = String(
         item?.reason || item?.ignore_reason || item?.comment || item?.explanation || ''
       ).trim();
+      const isRelevant = item?.is_relevant === true;
+      const rawStatusKey = String(item?.status_key || item?.statusKey || '').trim().toLowerCase();
+      const statusKey = ['applied', 'partial', 'unmet'].includes(rawStatusKey) ? rawStatusKey : 'unmet';
+      const rawStatusLabel = String(
+        item?.status_label || item?.statusLabel || item?.status || item?.result || ''
+      ).trim();
+      const statusLabel = ['반영', '일부반영', '미반영'].includes(rawStatusLabel) ? rawStatusLabel : '미반영';
 
       return {
         item: text,
         is_relevant: isRelevant,
         ignore_reason: isRelevant ? '' : reason,
-        status: isRelevant ? 'applied' : 'ignored',
-        statusLabel: isRelevant ? '반영' : '무시',
-        reason: reason || (isRelevant ? '팀 배정 관련 요청으로 판단되어 반영 대상입니다.' : '팀 배정과 직접 관련이 없어 무시했습니다.'),
+        status_key: statusKey,
+        status_label: statusLabel,
+        status: statusLabel,
+        statusLabel: statusLabel,
+        reason,
         intent_id: String(item?.intent_id || `I${idx + 1}`)
       };
     })
@@ -103,9 +106,10 @@ const buildPrompt = ({
     prompt_checklist: [
       {
         item: 'One atomic request item interpreted from user_prompt',
+        status_key: 'applied | partial | unmet',
+        status_label: '반영 | 일부반영 | 미반영',
         is_relevant: true,
         ignore_reason: '',
-        status: 'applied | ignored | partially_applied',
         reason: 'Why this checklist item has this status'
       }
     ],
@@ -116,8 +120,12 @@ const buildPrompt = ({
     '- Use participant ids from input.',
     '- Interpret user_prompt directly as request items, without omitting ambiguous parts.',
     '- For multiple requests, evaluate each item and return per-item status.',
-    '- Build prompt_checklist as atomic items and include is_relevant per item.',
+    '- Build prompt_checklist as atomic items and include status_key/status_label per item.',
     '- If an item is irrelevant to team assignment, set is_relevant=false and fill ignore_reason.',
+    '- status_key must be one of: applied, partial, unmet.',
+    '- status_label must be exactly one of: 반영, 일부반영, 미반영.',
+    '- Write reason in free natural language. Do NOT use fixed/template phrases.',
+    '- reason must be specific to that request item, not generic policy text.',
     '- Write global_report as a detailed free-form overall report (no fixed format/template), and end with a concise summary within 2 lines.',
     '- Respect remainderPolicy and targetTeamSizes.',
     '- If remainderPolicy=one_team, put all remainder members into one existing team.',
@@ -154,6 +162,8 @@ const buildChecklistPrompt = ({ customPrompt }) => {
       {
         intent_id: 'I1',
         item: 'Atomic request item from user prompt',
+        status_key: 'applied | partial | unmet',
+        status_label: '반영 | 일부반영 | 미반영',
         is_relevant: true,
         ignore_reason: '',
         reason: 'Why this item is relevant or irrelevant to team assignment'
@@ -168,6 +178,11 @@ const buildChecklistPrompt = ({ customPrompt }) => {
     '# RULES',
     '- Split the user prompt into atomic request items.',
     '- For each item, set is_relevant=true only when it can directly affect team assignment.',
+    '- Fill status_key and status_label for every item.',
+    '- status_key must be one of: applied, partial, unmet.',
+    '- status_label must be exactly one of: 반영, 일부반영, 미반영.',
+    '- Write reason in free natural language for each item.',
+    '- Keep each reason specific to the request item context.',
     '- If is_relevant=false, fill ignore_reason with a concrete reason in user language.',
     '- Fill reason for every item.',
     '- Return JSON object only (no markdown/code fences).',
