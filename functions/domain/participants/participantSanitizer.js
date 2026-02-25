@@ -15,9 +15,18 @@ const compactFeatures = (features) => {
 
 export const compactParticipant = (participant, index) => {
   const id = String(participant.internalId || participant.id || `participant-${index + 1}`).trim();
+  const displayName = [
+    participant.identifierValue,
+    participant.name,
+    participant.originalName,
+    id
+  ]
+    .map((value) => String(value || '').trim())
+    .find((value) => value.length > 0) || id;
+
   return {
     id,
-    displayName: String(participant.originalName || participant.name || id).trim(),
+    displayName,
     intro: String(participant.intro || '').trim(),
     features: compactFeatures(participant.features || {}),
     identifierKey: String(participant.identifierKey || '').trim()
