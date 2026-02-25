@@ -224,7 +224,8 @@ const mapRowsToParticipants = (rows, source) => {
         originalName: fallbackName,
         intro,
         source,
-        features
+        features,
+        enabled: true
       };
     })
     .filter(Boolean);
@@ -314,6 +315,7 @@ const mapFormResponsesToParticipants = (form, responses) => {
         name: guessedName,
         originalName: guessedName,
         source: 'google-form',
+        enabled: true,
         features,
         intro: [
           studentId ? `학번: ${studentId}` : '',
@@ -1046,6 +1048,7 @@ function App() {
             originalName: tr('새 참여자', 'New participant'),
             intro: '',
             source: 'manual',
+            enabled: true,
             features
           };
           next.push(created);
@@ -1106,20 +1109,40 @@ function App() {
     }
   };
 
-  const validParticipants = useMemo(
-    () => participants.filter((p) => p.name || Object.keys(p.features || {}).length > 0),
+  const hasParticipantData = (participant) =>
+    Boolean(participant?.name || Object.keys(participant?.features || {}).length > 0);
+
+  const tableParticipants = useMemo(
+    () => participants.filter(hasParticipantData),
     [participants]
+  );
+
+  const validParticipants = useMemo(
+    () => tableParticipants.filter((p) => p?.enabled !== false),
+    [tableParticipants]
   );
 
   const filteredParticipants = useMemo(() => {
     const q = participantQuery.trim().toLowerCase();
-    if (!q) return validParticipants;
-    return validParticipants.filter((p) => {
+    if (!q) return tableParticipants;
+    return tableParticipants.filter((p) => {
       const idValue = String(selectedIdentifierKey ? p?.features?.[selectedIdentifierKey] || '' : '').toLowerCase();
       const featureText = Object.values(p.features || {}).join(' ').toLowerCase();
       return idValue.includes(q) || featureText.includes(q);
     });
-  }, [participantQuery, validParticipants, selectedIdentifierKey]);
+  }, [participantQuery, tableParticipants, selectedIdentifierKey]);
+
+  const toggleParticipantEnabled = (participant, checked) => {
+    const rowKey = participant.internalId || participant.id;
+    recordHistorySnapshot();
+    setParticipants((prev) =>
+      prev.map((p) => {
+        const currentKey = p.internalId || p.id;
+        if (currentKey !== rowKey) return p;
+        return { ...p, enabled: Boolean(checked) };
+      })
+    );
+  };
 
   const [excludedFeatureKeys, setExcludedFeatureKeys] = useState([]);
 
@@ -1439,6 +1462,7 @@ function App() {
         originalName: '새 참여자',
         intro: '',
         source: 'manual',
+        enabled: true,
         features
       }
     ]);
@@ -1679,6 +1703,14 @@ function App() {
     setMessage('');
   };
 
+  const goLandingAndReset = () => {
+    resetInputState();
+    clearAllReportCaches();
+    setTeams([]);
+    setAssignmentReport(null);
+    goPage('landing');
+  };
+
   return (
     <div className="min-h-screen bg-[#f5f6f1] text-[#1a1f2e] p-4 md:p-6">
       <div className="max-w-[1280px] mx-auto">
@@ -1686,7 +1718,7 @@ function App() {
           <CardContent className="flex justify-between items-center py-3 px-4 md:px-5">
             <button
             type="button"
-            onClick={() => goPage('landing')}
+            onClick={goLandingAndReset}
             className="inline-flex items-center gap-2 font-extrabold text-lg text-[#141b2d] tracking-tight"
             >
               <Users className="size-5 text-[#1570ef]" /> TeamBuilder
@@ -1992,8 +2024,9 @@ function App() {
                 <Table className="min-w-full text-sm">
                   <TableHeader className="bg-[#f7f9fc]">
                     <TableRow>
+                      <TableHead className="w-10 px-3 py-2 text-left text-[#4b556b]"></TableHead>
                       <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
-                        {validParticipants.length > 0 ? 'No' : ''}
+                        {tableParticipants.length > 0 ? 'No' : ''}
                       </TableHead>
                       {hasIdentifierColumn && (
                         <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
@@ -2010,7 +2043,18 @@ function App() {
                   </TableHeader>
                   <TableBody>
                     {shownParticipants.map((p, idx) => (
-                      <TableRow key={p.internalId || p.id} className="border-b hover:bg-[#f7f9fc]">
+                      <TableRow
+                        key={p.internalId || p.id}
+                        className={`border-b hover:bg-[#f7f9fc] ${p?.enabled === false ? 'opacity-50' : ''}`}
+                      >
+                        <TableCell className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            checked={p?.enabled !== false}
+                            onChange={(e) => toggleParticipantEnabled(p, e.target.checked)}
+                            aria-label={tr('행 사용 여부', 'Row enabled')}
+                          />
+                        </TableCell>
                         <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
                         {hasIdentifierColumn && (
                           <TableCell className="px-3 py-2">
@@ -2025,6 +2069,7 @@ function App() {
                               onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
                               onPaste={(e) => handleTablePaste(e, idx, selectedIdentifierKey)}
                               onKeyDown={(e) => handleTableInputKeyDown(e, idx, selectedIdentifierKey)}
+                              disabled={p?.enabled === false}
                               className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={tx.valueInput}
                             />
@@ -2043,6 +2088,7 @@ function App() {
                               onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
                               onPaste={(e) => handleTablePaste(e, idx, key)}
                               onKeyDown={(e) => handleTableInputKeyDown(e, idx, key)}
+                              disabled={p?.enabled === false}
                               className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={isEn ? `${key} value` : `${key} 값 입력`}
                             />
@@ -2063,8 +2109,8 @@ function App() {
                     ))}
                     {shownParticipants.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={tableFeatureKeys.length + (hasIdentifierColumn ? 3 : 2)} className="px-3 py-6 text-center text-[#667085]">
-                          {validParticipants.length === 0 ? tx.noData : tx.noResult}
+                        <TableCell colSpan={tableFeatureKeys.length + (hasIdentifierColumn ? 4 : 3)} className="px-3 py-6 text-center text-[#667085]">
+                          {tableParticipants.length === 0 ? tx.noData : tx.noResult}
                         </TableCell>
                       </TableRow>
                     )}
