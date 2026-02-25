@@ -21,6 +21,51 @@ const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Optimizer
 - Explain what was reflected / partially reflected / not reflected in user language.
 - The server will trust this output directly, so provide final teams carefully.`;
 
+const CHECKLIST_SYSTEM_CONTEXT = `# SYSTEM: Prompt Relevance Judge for Team Assignment
+
+## Mission
+- Split user prompt into atomic request items.
+- Decide whether each item is relevant to team assignment.
+- If irrelevant, explain why briefly and concretely.
+
+## Rules
+- Return JSON object only.
+- Do not create team assignment in this step.
+- Keep decisions grounded in the given user prompt text.`;
+
+const normalizePromptChecklist = (value) => {
+  const rawList = Array.isArray(value) ? value : [];
+  return rawList
+    .map((item, idx) => {
+      const text = String(
+        item?.item || item?.text || item?.request || item?.original_text || item?.content || ''
+      ).trim();
+      if (!text) return null;
+
+      const explicitRelevant = item?.is_relevant;
+      const statusText = String(item?.status || item?.result || item?.label || '').toLowerCase();
+      const isRelevant =
+        typeof explicitRelevant === 'boolean'
+          ? explicitRelevant
+          : !/(irrelevant|ignored|무관|무시)/.test(statusText);
+
+      const reason = String(
+        item?.reason || item?.ignore_reason || item?.comment || item?.explanation || ''
+      ).trim();
+
+      return {
+        item: text,
+        is_relevant: isRelevant,
+        ignore_reason: isRelevant ? '' : reason,
+        status: isRelevant ? 'applied' : 'ignored',
+        statusLabel: isRelevant ? '반영' : '무시',
+        reason: reason || (isRelevant ? '팀 배정 관련 요청으로 판단되어 반영 대상입니다.' : '팀 배정과 직접 관련이 없어 무시했습니다.'),
+        intent_id: String(item?.intent_id || `I${idx + 1}`)
+      };
+    })
+    .filter(Boolean);
+};
+
 const buildPrompt = ({
   participants,
   teamSize,
@@ -58,7 +103,9 @@ const buildPrompt = ({
     prompt_checklist: [
       {
         item: 'One atomic request item interpreted from user_prompt',
-        status: 'satisfied | partially_satisfied | unmet',
+        is_relevant: true,
+        ignore_reason: '',
+        status: 'applied | ignored | partially_applied',
         reason: 'Why this checklist item has this status'
       }
     ],
@@ -69,7 +116,8 @@ const buildPrompt = ({
     '- Use participant ids from input.',
     '- Interpret user_prompt directly as request items, without omitting ambiguous parts.',
     '- For multiple requests, evaluate each item and return per-item status.',
-    '- Build prompt_checklist as atomic items; each item should include rich explanation (reflection, evidence, and trade-off when partially/unmet).',
+    '- Build prompt_checklist as atomic items and include is_relevant per item.',
+    '- If an item is irrelevant to team assignment, set is_relevant=false and fill ignore_reason.',
     '- Write global_report as a detailed free-form overall report (no fixed format/template), and end with a concise summary within 2 lines.',
     '- Respect remainderPolicy and targetTeamSizes.',
     '- If remainderPolicy=one_team, put all remainder members into one existing team.',
@@ -92,6 +140,37 @@ const buildPrompt = ({
     '',
     '# participants(JSON)',
     JSON.stringify(participants),
+    '',
+    '# OUTPUT_SCHEMA',
+    JSON.stringify(schema)
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
+const buildChecklistPrompt = ({ customPrompt }) => {
+  const schema = {
+    prompt_checklist: [
+      {
+        intent_id: 'I1',
+        item: 'Atomic request item from user prompt',
+        is_relevant: true,
+        ignore_reason: '',
+        reason: 'Why this item is relevant or irrelevant to team assignment'
+      }
+    ]
+  };
+
+  return [
+    '# INPUT',
+    `user_prompt: ${customPrompt || '(none)'}`,
+    '',
+    '# RULES',
+    '- Split the user prompt into atomic request items.',
+    '- For each item, set is_relevant=true only when it can directly affect team assignment.',
+    '- If is_relevant=false, fill ignore_reason with a concrete reason in user language.',
+    '- Fill reason for every item.',
+    '- Return JSON object only (no markdown/code fences).',
     '',
     '# OUTPUT_SCHEMA',
     JSON.stringify(schema)
@@ -221,5 +300,37 @@ const callOpenAIRequestVerifier = async ({
   };
 };
 
-export { callOpenAIOnce, callOpenAIRequestVerifier };
+const callOpenAIPromptChecklist = async ({ customPrompt, env }) => {
+  const prompt = buildChecklistPrompt({ customPrompt });
+
+  const res = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: CHECKLIST_SYSTEM_CONTEXT },
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0
+    })
+  });
+
+  if (!res.ok) {
+    const failText = await res.text();
+    throw new Error(`OpenAI checklist API error: ${failText}`);
+  }
+
+  const data = await res.json();
+  const raw = data?.choices?.[0]?.message?.content;
+  if (!raw) throw new Error('OpenAI checklist response is empty.');
+  const parsed = parseJsonSafe(raw, {});
+  return normalizePromptChecklist(parsed?.prompt_checklist);
+};
+
+export { callOpenAIOnce, callOpenAIRequestVerifier, callOpenAIPromptChecklist };
 

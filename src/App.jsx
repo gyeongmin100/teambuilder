@@ -1453,9 +1453,9 @@ function App() {
     primaryColumn: isEn ? 'Primary column' : '기준 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
     customPromptHelp: isEn
-      ? 'Turn ON to use paid AI assignment. Turn OFF to use free internal random assignment.'
-      : 'ON이면 유료 AI 배정, OFF이면 무료 내부 랜덤 배정입니다.',
-    customPromptToggle: isEn ? 'Use custom prompt (Paid)' : '맞춤 프롬프트 사용(유료)',
+      ? 'Write detailed team-building requirements here. The AI uses this prompt to reflect your constraints in the assignment.'
+      : '팀 편성 조건을 구체적으로 적는 입력란입니다. 입력한 내용을 AI가 분석해 배정 결과에 반영합니다.',
+    customPromptToggle: isEn ? 'Enable' : '사용',
     promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
     promptOpen: isEn ? 'Open' : '열기',
@@ -1485,8 +1485,8 @@ function App() {
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
     importTools: isEn ? 'Import external data' : '외부데이터 가져오기',
     hideImportTools: isEn ? 'Close import panel' : '외부데이터 가져오기 닫기',
-    runAssignPaid: isEn ? 'Run assignment after payment' : '결제 후 팀 배정 실행',
-    runAssignFree: isEn ? 'Run free random assignment' : '무료 랜덤 배정 실행',
+    runAssignPaid: isEn ? 'Assign teams' : '팀 배정하기',
+    runAssignFree: isEn ? 'Assign teams' : '팀 배정하기',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
     assigning: isEn ? 'Assigning teams...' : '팀 배정 중...',
     analyzingDesc: isEn ? 'Analyzing. Please wait a moment.' : '분석 중입니다. 잠시만 기다려주세요.',
@@ -1514,7 +1514,7 @@ function App() {
     loadFormFirstHint: isEn ? 'Import a form first to show feature columns.' : '폼을 먼저 불러오면 특성 목록이 표시됩니다.',
     noPrimaryColumn: isEn ? 'Not set' : '미설정',
     valueInput: isEn ? 'Enter value' : '값 입력',
-    moreView: isEn ? 'Show all' : '전체보기',
+    moreView: isEn ? 'Expand' : '펼쳐보기',
     collapse: isEn ? 'Collapse' : '접기',
     waitingCheckoutLinkMissing: isEn ? 'No recoverable checkout link. Please start payment again.' : '복구 가능한 결제 링크가 없습니다. 다시 결제를 시작해 주세요.',
     reportMetaPrefix: isEn ? 'Constraint parse source' : '제약 파싱 소스',
@@ -1809,29 +1809,29 @@ function App() {
               )}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#334155]">
-                    <input
-                      type="checkbox"
-                      checked={customPromptEnabled}
-                      onChange={(e) => setCustomPromptEnabled(e.target.checked)}
-                    />
-                    {tx.customPromptToggle}
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold">{tx.customPrompt}</p>
-                  <span className="relative inline-flex group">
-                    <button
-                      type="button"
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-bold text-[#475467] bg-white"
-                      aria-label={tx.customPromptHelp}
-                    >
-                      ?
-                    </button>
-                    <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
-                      {tx.customPromptHelp}
+                  <div className="flex items-center gap-2">
+                    <span className="relative inline-flex group">
+                      <button
+                        type="button"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-bold text-[#475467] bg-white"
+                        aria-label={tx.customPromptHelp}
+                      >
+                        ?
+                      </button>
+                      <span className="pointer-events-none absolute right-0 top-6 z-20 hidden w-72 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
+                        {tx.customPromptHelp}
+                      </span>
                     </span>
-                  </span>
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-[#334155]">
+                      <input
+                        type="checkbox"
+                        checked={customPromptEnabled}
+                        onChange={(e) => setCustomPromptEnabled(e.target.checked)}
+                      />
+                      {tx.customPromptToggle}
+                    </label>
+                  </div>
                 </div>
                 <textarea
                   value={customPrompt}
@@ -2042,9 +2042,7 @@ function App() {
               >
                 {showAllParticipants
                   ? tx.collapse
-                  : isEn
-                    ? `${tx.moreView} (+${filteredParticipants.length - maxInitialRows})`
-                    : `${tx.moreView} (${filteredParticipants.length - maxInitialRows}명 더 보기)`}
+                  : tx.moreView}
               </Button>
               )}
               </div>
