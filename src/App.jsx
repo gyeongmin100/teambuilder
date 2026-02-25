@@ -402,6 +402,7 @@ function App() {
   const [importPanelOpen, setImportPanelOpen] = useState(false);
   const runAssignLockRef = useRef(false);
   const checkoutResumeLockRef = useRef(false);
+  const tableInputRefs = useRef(new Map());
   const historyRef = useRef({ past: [], future: [] });
   const isApplyingHistoryRef = useRef(false);
   const [, setHistoryTick] = useState(0);
@@ -1150,6 +1151,27 @@ function App() {
   const shownParticipants = filteredParticipants;
   const compactTableMaxHeight = 10 * 44 + 52;
 
+  const buildTableInputRefKey = (participant, columnKey) =>
+    `${participant?.internalId || participant?.id || ''}::${String(columnKey || '')}`;
+
+  const focusNextRowInput = (rowIndex, columnKey) => {
+    const nextParticipant = shownParticipants[rowIndex + 1];
+    if (!nextParticipant) return;
+    const key = buildTableInputRefKey(nextParticipant, columnKey);
+    const nextInput = tableInputRefs.current.get(key);
+    if (nextInput && typeof nextInput.focus === 'function') {
+      nextInput.focus();
+      if (typeof nextInput.select === 'function') nextInput.select();
+    }
+  };
+
+  const handleTableInputKeyDown = (event, rowIndex, columnKey) => {
+    if (event.key !== 'Enter') return;
+    if (event.nativeEvent?.isComposing) return;
+    event.preventDefault();
+    focusNextRowInput(rowIndex, columnKey);
+  };
+
   const duplicateIdentifierCount = useMemo(() => {
     if (!selectedIdentifierKey) return 0;
     const counts = new Map();
@@ -1455,7 +1477,7 @@ function App() {
     customPromptHelp: isEn
       ? 'Write detailed team-building requirements here. The AI uses this prompt to reflect your constraints in the assignment.'
       : '팀 편성 조건을 구체적으로 적는 입력란입니다. 입력한 내용을 AI가 분석해 배정 결과에 반영합니다.',
-    customPromptToggle: isEn ? 'Enable' : '사용',
+    customPromptToggle: isEn ? 'Enable (Paid)' : '사용(유료)',
     promptChecklistTitle: isEn ? 'Prompt Checklist' : '요청 체크리스트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
     promptOpen: isEn ? 'Open' : '열기',
@@ -1544,7 +1566,11 @@ function App() {
     reviewFixAction: isEn ? 'Fix in page' : '페이지에서 바로 수정'
   };
 
-  const canRunAssignment = Boolean(selectedIdentifierKey) && validParticipants.length > 0;
+  const canRunAssignment =
+    Boolean(selectedIdentifierKey) &&
+    validParticipants.length > 0 &&
+    Number.isFinite(Number(config.teamSize)) &&
+    Number(config.teamSize) >= 1;
   const hasIdentifierColumn = Boolean(selectedIdentifierKey);
   const maxTeamSizeInput = Math.max(validParticipants.length, 1);
   const normalizedTeamSize = Number(config.teamSize) || 0;
@@ -1809,8 +1835,8 @@ function App() {
               )}
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">{tx.customPrompt}</p>
                   <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">{tx.customPrompt}</p>
                     <span className="relative inline-flex group">
                       <button
                         type="button"
@@ -1819,7 +1845,7 @@ function App() {
                       >
                         ?
                       </button>
-                      <span className="pointer-events-none absolute right-0 top-6 z-20 hidden w-72 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
+                      <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
                         {tx.customPromptHelp}
                       </span>
                     </span>
@@ -1989,9 +2015,16 @@ function App() {
                         {hasIdentifierColumn && (
                           <TableCell className="px-3 py-2">
                             <Input
+                              ref={(node) => {
+                                const key = buildTableInputRefKey(p, selectedIdentifierKey);
+                                if (!key) return;
+                                if (node) tableInputRefs.current.set(key, node);
+                                else tableInputRefs.current.delete(key);
+                              }}
                               value={String(p?.features?.[selectedIdentifierKey] || '')}
                               onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
                               onPaste={(e) => handleTablePaste(e, idx, selectedIdentifierKey)}
+                              onKeyDown={(e) => handleTableInputKeyDown(e, idx, selectedIdentifierKey)}
                               className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={tx.valueInput}
                             />
@@ -2000,9 +2033,16 @@ function App() {
                         {tableFeatureKeys.map((key) => (
                           <TableCell key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
                             <Input
+                              ref={(node) => {
+                                const refKey = buildTableInputRefKey(p, key);
+                                if (!refKey) return;
+                                if (node) tableInputRefs.current.set(refKey, node);
+                                else tableInputRefs.current.delete(refKey);
+                              }}
                               value={String(p?.features?.[key] || '')}
                               onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
                               onPaste={(e) => handleTablePaste(e, idx, key)}
+                              onKeyDown={(e) => handleTableInputKeyDown(e, idx, key)}
                               className="h-8 w-full border-[#d9deea] text-sm"
                               placeholder={isEn ? `${key} value` : `${key} 값 입력`}
                             />
