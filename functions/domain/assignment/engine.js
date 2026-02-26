@@ -92,6 +92,42 @@ const flattenAiMemberOrder = (aiTeams = [], allIdSet) => {
   return { ordered, used, duplicateInAi, unknownInAi };
 };
 
+const normalizeChecklistKey = (item = {}) => {
+  const intentId = String(item?.intent_id || item?.intentId || '').trim();
+  if (intentId) return `id:${intentId}`;
+  const text = String(item?.item || item?.text || item?.request || '').trim().toLowerCase();
+  return text ? `text:${text}` : '';
+};
+
+const mergePromptChecklists = (precheckChecklist = [], aiChecklist = []) => {
+  const base = Array.isArray(precheckChecklist) ? precheckChecklist : [];
+  const details = Array.isArray(aiChecklist) ? aiChecklist : [];
+  if (base.length === 0) return details;
+  if (details.length === 0) return base;
+
+  const detailMap = new Map();
+  details.forEach((item) => {
+    const key = normalizeChecklistKey(item);
+    if (key) detailMap.set(key, item);
+  });
+
+  const merged = base.map((item) => {
+    const key = normalizeChecklistKey(item);
+    const matched = key ? detailMap.get(key) : null;
+    return matched ? { ...item, ...matched } : item;
+  });
+
+  const existingKeys = new Set(merged.map((item) => normalizeChecklistKey(item)).filter(Boolean));
+  details.forEach((item) => {
+    const key = normalizeChecklistKey(item);
+    if (!key || existingKeys.has(key)) return;
+    merged.push(item);
+    existingKeys.add(key);
+  });
+
+  return merged;
+};
+
 const buildSlottedTeams = ({ ai, memberById, allIds, targetTeamSizes }) => {
   if (!Array.isArray(ai?.teams) || ai.teams.length === 0) return null;
 
@@ -179,7 +215,14 @@ const validateIntegrity = ({ teams, allIds, targetTeamSizes }) => {
 };
 
 const buildRetryFeedback = (integrity) => {
-  if (!integrity) return '배정 결과가 비어 있습니다. targetTeamSizes를 정확히 만족하도록 다시 배정하세요.';
+  if (!integrity) {
+    return [
+      '배정 결과가 비어 있습니다.',
+      'targetTeamSizes를 정확히 만족하도록 다시 배정하세요.',
+      '중요: 팀 틀 제약과 사용자 요청 프롬프트 조건을 동시에 만족하도록 전체 배치를 다시 최적화하세요.',
+      '중요: 수정된 최종 팀 배치 기준으로 prompt_checklist, applied_detail, evidence를 다시 작성하세요.'
+    ].join(' | ');
+  }
 
   const messages = [];
   if (!integrity.teamCountMatch) {
@@ -196,7 +239,13 @@ const buildRetryFeedback = (integrity) => {
   if (integrity.missingCount > 0) messages.push(`누락 id: ${integrity.missingIds.join(', ')}`);
   if (integrity.invalidCount > 0) messages.push(`미등록 id: ${integrity.invalidIds.join(', ')}`);
 
-  return messages.join(' | ');
+  const retryInstructions = [
+    '중요: 위 위반사항을 해결하면서 targetTeamSizes(팀 수/팀별 인원수) 제약을 정확히 만족하도록 다시 배정하세요.',
+    '중요: 동시에 사용자 요청 프롬프트 조건을 최대한 반영하도록 전체 배치를 다시 최적화하세요.',
+    '중요: 최종 수정된 팀 배치를 기준으로 prompt_checklist, applied_detail, evidence를 다시 작성하세요.'
+  ];
+
+  return [...messages, ...retryInstructions].join(' | ');
 };
 
 const shuffleIds = (ids = []) => {
@@ -424,7 +473,7 @@ export const assignTeamsWithValidation = async ({
     const aiChecklist = Array.isArray(attempt?.ai?.prompt_checklist) ? attempt.ai.prompt_checklist : [];
     attempt.ai = {
       ...(attempt.ai || {}),
-      prompt_checklist: aiChecklist.length > 0 ? aiChecklist : precheckChecklist,
+      prompt_checklist: mergePromptChecklists(precheckChecklist, aiChecklist),
       final_strategy: finalStrategy
     };
   }

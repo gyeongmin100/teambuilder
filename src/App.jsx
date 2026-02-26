@@ -414,6 +414,7 @@ function App() {
   const [resultActionLoading, setResultActionLoading] = useState(false);
   const resultCaptureRef = useRef(null);
   const bypassReportRedirectRef = useRef(false);
+  const [reportCollapsed, setReportCollapsed] = useState(false);
 
   const maxInitialRows = 10;
   const historyLimit = 60;
@@ -1373,18 +1374,14 @@ function App() {
     });
 
     const featureColumns = [...preferredFeatureColumns, ...discoveredFeatureColumns];
-    const fields = ['Team', 'Identifier', ...featureColumns];
+    const fields = ['Team', ...featureColumns];
     const rows = [];
 
     teams.forEach((team) => {
       (team?.members || []).forEach((member) => {
         const featureMap = member?.features || {};
-        const identifier = selectedIdentifierKey
-          ? String(featureMap?.[selectedIdentifierKey] || member?.name || member?.id || '')
-          : String(member?.name || member?.id || '');
         const row = {
-          Team: team.id,
-          Identifier: identifier
+          Team: team.id
         };
         featureColumns.forEach((key) => {
           row[key] = String(featureMap?.[key] || '');
@@ -2243,6 +2240,18 @@ function App() {
             <div className="space-y-4">
               {assignmentReport && (
                 <div className="bg-white border rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
+                    <button
+                      type="button"
+                      onClick={() => setReportCollapsed((prev) => !prev)}
+                      className="rounded border border-[#d9deea] px-2 py-1 text-xs font-semibold text-[#344054] hover:bg-[#f8fafc]"
+                    >
+                      {reportCollapsed ? tr('📂 펼치기', '📂 Expand') : tr('📁 접기', '📁 Collapse')}
+                    </button>
+                  </div>
+                  {!reportCollapsed && (
+                    <>
                   {(() => {
                     const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
                       ? assignmentReport.rawAi.prompt_checklist
@@ -2340,6 +2349,8 @@ function App() {
                         )}
                       </div>
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               )}
