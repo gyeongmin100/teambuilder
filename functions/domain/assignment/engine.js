@@ -1,7 +1,7 @@
 ﻿import { trimText } from '../../shared/text.js';
 import { compactParticipant, ensureUniqueIds } from '../participants/participantSanitizer.js';
 import { buildSpreadTargetSizes, annotateTeams } from '../teams/teamFormation.js';
-import { buildAssignmentReport, callOpenAIOnce, callOpenAIPromptChecklist } from '../constraints/constraintEngine.js';
+import { buildAssignmentReport, callOpenAIOnce } from '../constraints/constraintEngine.js';
 
 const hasExplicitTeamCountChangeIntent = (customPrompt = '') => {
   const text = String(customPrompt || '').toLowerCase();
@@ -90,42 +90,6 @@ const flattenAiMemberOrder = (aiTeams = [], allIdSet) => {
   }
 
   return { ordered, used, duplicateInAi, unknownInAi };
-};
-
-const normalizeChecklistKey = (item = {}) => {
-  const intentId = String(item?.intent_id || item?.intentId || '').trim();
-  if (intentId) return `id:${intentId}`;
-  const text = String(item?.item || item?.text || item?.request || '').trim().toLowerCase();
-  return text ? `text:${text}` : '';
-};
-
-const mergePromptChecklists = (precheckChecklist = [], aiChecklist = []) => {
-  const base = Array.isArray(precheckChecklist) ? precheckChecklist : [];
-  const details = Array.isArray(aiChecklist) ? aiChecklist : [];
-  if (base.length === 0) return details;
-  if (details.length === 0) return base;
-
-  const detailMap = new Map();
-  details.forEach((item) => {
-    const key = normalizeChecklistKey(item);
-    if (key) detailMap.set(key, item);
-  });
-
-  const merged = base.map((item) => {
-    const key = normalizeChecklistKey(item);
-    const matched = key ? detailMap.get(key) : null;
-    return matched ? { ...item, ...matched } : item;
-  });
-
-  const existingKeys = new Set(merged.map((item) => normalizeChecklistKey(item)).filter(Boolean));
-  details.forEach((item) => {
-    const key = normalizeChecklistKey(item);
-    if (!key || existingKeys.has(key)) return;
-    merged.push(item);
-    existingKeys.add(key);
-  });
-
-  return merged;
 };
 
 const buildSlottedTeams = ({ ai, memberById, allIds, targetTeamSizes }) => {
@@ -389,35 +353,11 @@ export const assignTeamsWithValidation = async ({
   let attempt = null;
   let retryUsed = false;
   let filteredPrompt = String(customPrompt || '').trim();
-  let precheckChecklist = [];
-  let finalStrategy = 'ai_with_filtered_requests';
-
-  if (hasCustomPrompt) {
-    precheckChecklist = await callOpenAIPromptChecklist({
-      customPrompt,
-      env
-    });
-
-    const relevantItems = precheckChecklist
-      .filter((item) => item?.is_relevant === true)
-      .map((item) => String(item?.item || '').trim())
-      .filter(Boolean);
-
-    if (precheckChecklist.length > 0 && relevantItems.length === 0) {
-      finalStrategy = 'local_random_due_to_irrelevant_prompt';
-    } else {
-      filteredPrompt = relevantItems.join('\n');
-      if (!filteredPrompt) filteredPrompt = String(customPrompt || '').trim();
-    }
-  }
-
-  const useLocalRandom = useLocalRandomByNoPrompt || finalStrategy === 'local_random_due_to_irrelevant_prompt';
+  const finalStrategy = hasCustomPrompt ? 'ai_single_call' : 'local_random_no_prompt';
+  const useLocalRandom = useLocalRandomByNoPrompt;
 
   if (useLocalRandom) {
-    const randomAnalysis =
-      finalStrategy === 'local_random_due_to_irrelevant_prompt'
-        ? '맞춤 프롬프트가 팀 배정과 무관하다고 판단되어 내부 랜덤 배정을 수행했습니다.'
-        : '맞춤 프롬프트 미사용: 내부 랜덤 로직으로 배정했습니다.';
+    const randomAnalysis = '맞춤 프롬프트 미사용: 내부 랜덤 로직으로 배정했습니다.';
     const localTeams = buildLocalRandomTeams({
       memberById,
       allIds,
@@ -427,8 +367,8 @@ export const assignTeamsWithValidation = async ({
     attempt = {
       ai: {
         reason: randomAnalysis,
-        final_strategy: finalStrategy === 'local_random_due_to_irrelevant_prompt' ? finalStrategy : 'local_random_no_prompt',
-        prompt_checklist: precheckChecklist,
+        final_strategy: finalStrategy,
+        prompt_checklist: [],
         warnings: []
       },
       teams: localTeams,
@@ -468,15 +408,10 @@ export const assignTeamsWithValidation = async ({
     hasExplicitTeamCountChangeIntent(filteredPrompt) &&
     remainderDecision.allowedTeamCountChange &&
     remainderDecision.mode === 'new_team';
-
-  if (precheckChecklist.length > 0) {
-    const aiChecklist = Array.isArray(attempt?.ai?.prompt_checklist) ? attempt.ai.prompt_checklist : [];
-    attempt.ai = {
-      ...(attempt.ai || {}),
-      prompt_checklist: mergePromptChecklists(precheckChecklist, aiChecklist),
-      final_strategy: finalStrategy
-    };
-  }
+  attempt.ai = {
+    ...(attempt.ai || {}),
+    final_strategy: finalStrategy
+  };
 
   const reason = trimText(attempt.ai?.reason || '', 180);
   const annotatedTeams = annotateTeams(attempt.teams, reason);

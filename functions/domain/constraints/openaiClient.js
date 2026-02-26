@@ -16,8 +16,10 @@ const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Optimizer
 - Think step-by-step internally before writing output:
   1) Parse request item intent precisely.
   2) Compare intent against final team assignment.
-  3) Decide status (applied/partial/unmet) based on evidence.
+  3) Decide status (full/partial/unmet) based on evidence.
   4) Write user-facing explanation from evidence.
+- Internally follow a ReAct-style verification loop before final output:
+  - Draft assignment/checklist -> Self-check for constraint violations -> Revise -> Finalize JSON.
 - Do not reveal internal chain-of-thought. Output only the requested JSON fields.
 
 ## Remainder Handling
@@ -41,7 +43,7 @@ const CHECKLIST_SYSTEM_CONTEXT = `# SYSTEM: Prompt Relevance Judge for Team Assi
 - Return JSON object only.
 - Do not create team assignment in this step.
 - Keep decisions grounded in the given user prompt text.
-- status_label must be exactly one of: 반영, 일부반영, 미반영.`;
+- status_label must be exactly one of: 완벽반영, 일부반영, 미반영.`;
 
 const normalizePromptChecklist = (value) => {
   const rawList = Array.isArray(value) ? value : [];
@@ -128,8 +130,8 @@ const buildPrompt = ({
     prompt_checklist: [
       {
         item: 'One atomic request item interpreted from user_prompt',
-        status_key: 'applied | partial | unmet',
-        status_label: '반영 | 일부반영 | 미반영',
+        status_key: 'full | partial | unmet',
+        status_label: '완벽반영 | 일부반영 | 미반영',
         is_relevant: true,
         ignore_reason: '',
         reason: 'Status decision in user language',
@@ -146,12 +148,14 @@ const buildPrompt = ({
     '- Use participant ids from input.',
     '- Interpret user_prompt directly as request items, without omitting ambiguous parts.',
     '- Internally follow this order: intent parsing -> assignment comparison -> status decision -> evidence-based explanation.',
+    '- Internally run ReAct-style validation: draft -> self-check -> revise -> finalize.',
+    '- In self-check, verify exact targetTeamSizes match, no duplicate/missing ids, and checklist evidence consistency with final teams.',
     '- For multiple requests, evaluate each item and return per-item status.',
     '- Build prompt_checklist as atomic items and include status_key/status_label per item.',
     '- If an item is irrelevant to team assignment, set is_relevant=false and fill ignore_reason.',
-    '- status_key must be one of: applied, partial, unmet.',
-    '- status_label must be exactly one of: 반영, 일부반영, 미반영.',
-    '- Status criteria: applied = core request directly satisfied in output; partial = intent reflected but not fully satisfied due to constraints; unmet = request not reflected in output.',
+    '- status_key must be one of: full, partial, unmet.',
+    '- status_label must be exactly one of: 완벽반영, 일부반영, 미반영.',
+    '- Status criteria: full = core request fully satisfied in output; partial = intent reflected but not fully satisfied due to constraints; unmet = request not reflected in output.',
     '- Do not output global_report/full_report/report/summary fields.',
     '- Write reason in detailed and concrete free natural language. Do NOT use fixed/template phrases.',
     '- Use the same language as user_prompt (any language), with a friendly, clear, beginner-friendly tone.',
@@ -160,7 +164,7 @@ const buildPrompt = ({
     '- applied_detail must not be a generic sentence like "최대한 반영".',
     '- For every relevant checklist item, explain with concrete evidence in evidence array.',
     '- evidence entries should include verifiable facts such as team id, member placement, team size, or attribute distribution when available.',
-    '- Always fill consistency_note. If status_key=applied while limitations exist, explicitly justify why status is still applied.',
+    '- Always fill consistency_note. If status_key=full while limitations exist, explicitly justify why status is still full.',
     '- If status_key is partial or unmet, limitation_reason is mandatory and must describe the blocking constraint concretely.',
     '- Respect remainderPolicy and targetTeamSizes.',
     '- If remainderPolicy=one_team, put all remainder members into one existing team.',
@@ -199,8 +203,8 @@ const buildChecklistPrompt = ({ customPrompt }) => {
       {
         intent_id: 'I1',
         item: 'Atomic request item from user prompt',
-        status_key: 'applied | partial | unmet',
-        status_label: '반영 | 일부반영 | 미반영',
+        status_key: 'full | partial | unmet',
+        status_label: '완벽반영 | 일부반영 | 미반영',
         is_relevant: true,
         ignore_reason: '',
         reason: 'Why this item is relevant or irrelevant to team assignment',
@@ -220,8 +224,8 @@ const buildChecklistPrompt = ({ customPrompt }) => {
     '- Split the user prompt into atomic request items.',
     '- For each item, set is_relevant=true only when it can directly affect team assignment.',
     '- Fill status_key and status_label for every item.',
-    '- status_key must be one of: applied, partial, unmet.',
-    '- status_label must be exactly one of: 반영, 일부반영, 미반영.',
+    '- status_key must be one of: full, partial, unmet.',
+    '- status_label must be exactly one of: 완벽반영, 일부반영, 미반영.',
     '- Write reason in detailed and concrete free natural language for each item.',
     '- Use the same language as user_prompt (any language), with a friendly, clear, beginner-friendly tone.',
     '- Keep each reason specific to the request item context.',

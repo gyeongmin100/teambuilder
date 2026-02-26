@@ -1565,6 +1565,7 @@ function App() {
     analyzingDesc: isEn ? 'Analyzing. Please wait a moment.' : '분석 중입니다. 잠시만 기다려주세요.',
     pendingTitle: isEn ? 'Analyzing for team assignment.' : '팀 배정을 위해 분석 중입니다.',
     pendingVerifying: isEn ? '' : '',
+    pendingDuration: isEn ? 'Analysis usually takes about 1 minute.' : '분석에는 1분 정도 소요됩니다.',
     pendingStay: isEn ? 'Please do not leave this page until analysis is complete.' : '분석이 완료될 때까지 이 페이지를 이탈하지 마세요.',
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
     saveImage: isEn ? 'Save as image' : '이미지로 저장',
@@ -2205,6 +2206,7 @@ function App() {
                   className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
                 />
                 {tx.pendingVerifying ? <p className="text-[#4b556b]">{tx.pendingVerifying}</p> : null}
+                <p className="text-sm text-[#4b556b]">{tx.pendingDuration}</p>
                 <p className="text-sm font-semibold text-rose-600">{tx.pendingStay}</p>
               </div>
             </div>
@@ -2247,7 +2249,7 @@ function App() {
                       onClick={() => setReportCollapsed((prev) => !prev)}
                       className="rounded border border-[#d9deea] px-2 py-1 text-xs font-semibold text-[#344054] hover:bg-[#f8fafc]"
                     >
-                      {reportCollapsed ? tr('📂 펼치기', '📂 Expand') : tr('📁 접기', '📁 Collapse')}
+                      {reportCollapsed ? tr('펼치기', 'Expand') : tr('접기', 'Collapse')}
                     </button>
                   </div>
                   {!reportCollapsed && (
@@ -2260,11 +2262,7 @@ function App() {
                         : [];
                     return String(assignmentReport.originalPrompt || '').trim() || rawChecklist.length > 0;
                   })() && (
-                    <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
-                      </div>
-                      <div className="space-y-2">
+                    <div className="space-y-2">
                         {String(assignmentReport.originalPrompt || '').trim() && (
                           <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
                             <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
@@ -2297,7 +2295,7 @@ function App() {
                                     item?.status_label || item?.statusLabel || item?.status || item?.result || ''
                                   ).trim();
                                   const itemStatusClass =
-                                    statusKey === 'applied'
+                                    statusKey === 'full'
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : statusKey === 'partial'
                                         ? 'bg-orange-100 text-orange-800'
@@ -2347,7 +2345,6 @@ function App() {
                             ))}
                           </div>
                         )}
-                      </div>
                     </div>
                   )}
                     </>
