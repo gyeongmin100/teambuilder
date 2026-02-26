@@ -2257,9 +2257,7 @@ function App() {
                   {(() => {
                     const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
                       ? assignmentReport.rawAi.prompt_checklist
-                      : Array.isArray(assignmentReport?.promptChecklist)
-                        ? assignmentReport.promptChecklist
-                        : [];
+                      : [];
                     return String(assignmentReport.originalPrompt || '').trim() || rawChecklist.length > 0;
                   })() && (
                     <div className="space-y-2">
@@ -2274,17 +2272,13 @@ function App() {
                         {(() => {
                           const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
                             ? assignmentReport.rawAi.prompt_checklist
-                            : Array.isArray(assignmentReport?.promptChecklist)
-                              ? assignmentReport.promptChecklist
-                              : [];
+                            : [];
                           return rawChecklist.length > 0;
                         })() && (
                           <div className="space-y-1">
                             {(Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
                               ? assignmentReport.rawAi.prompt_checklist
-                              : Array.isArray(assignmentReport?.promptChecklist)
-                                ? assignmentReport.promptChecklist
-                                : []).map((item, idx) => (
+                              : []).map((item, idx) => (
                               <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
                                 {(() => {
                                   const itemTitle = String(
