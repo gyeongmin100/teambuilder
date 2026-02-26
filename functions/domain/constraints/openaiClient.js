@@ -11,6 +11,7 @@ const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Optimizer
 ## Prompt-First Interpretation
 - Treat the prompt as request items and reflect them directly.
 - If requests conflict, choose the best trade-off and explain briefly.
+- Split mixed prompts into separate atomic request items. Never merge multiple intents into one checklist item.
 
 ## Internal Thinking Procedure
 - Think step-by-step internally before writing output:
@@ -145,13 +146,15 @@ const buildPrompt = ({
   };
 
   const ruleLines = [
+    '- Priority order is strict: (1) targetTeamSizes and valid member assignment, (2) user_prompt intent satisfaction, (3) narrative quality.',
     '- Use participant ids from input.',
     '- Interpret user_prompt directly as request items, without omitting ambiguous parts.',
     '- Internally follow this order: intent parsing -> assignment comparison -> status decision -> evidence-based explanation.',
     '- Internally run ReAct-style validation: draft -> self-check -> revise -> finalize.',
     '- In self-check, verify exact targetTeamSizes match, no duplicate/missing ids, and checklist evidence consistency with final teams.',
     '- For multiple requests, evaluate each item and return per-item status.',
-    '- Build prompt_checklist as atomic items and include status_key/status_label per item.',
+    '- Build prompt_checklist as strictly atomic items and include status_key/status_label per item.',
+    '- One checklist item must contain exactly one intent. Do not merge two or more intents into one item.',
     '- If an item is irrelevant to team assignment, set is_relevant=false and fill ignore_reason.',
     '- status_key must be one of: full, partial, unmet.',
     '- status_label must be exactly one of: 완벽반영, 일부반영, 미반영.',
@@ -171,6 +174,7 @@ const buildPrompt = ({
     '- If team count is changed, set remainder_decision.allowed_team_count_change=true.',
     '- If validationFeedback is provided, regenerate the assignment to satisfy targetTeamSizes and user_prompt conditions together.',
     '- If validationFeedback is provided, rewrite prompt_checklist/applied_detail/evidence based on the corrected final teams.',
+    '- Final self-check before output: teams.length===targetTeamCount, each team size exactly matches targetTeamSizes, every participant id appears exactly once, and checklist items are not merged.',
     '- Fill request_reflection.intent_results and prompt_checklist.',
     '- Return JSON object only (no markdown/code fences).'
   ];
