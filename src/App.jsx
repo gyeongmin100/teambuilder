@@ -1359,13 +1359,41 @@ function App() {
   };
 
   const exportCSV = () => {
-    let csv = '\uFEFFTeam,Identifier\n';
-    teams.forEach((t) =>
-      t.members.forEach((m) => {
-        const identifier = String(m.name || m.id || '').replaceAll('"', '""');
-        csv += `${t.id},"${identifier}"\n`;
-      })
-    );
+    const preferredFeatureColumns = (columnOrder || []).filter((key) => key && key !== selectedIdentifierKey);
+    const discoveredFeatureColumns = [];
+    teams.forEach((team) => {
+      (team?.members || []).forEach((member) => {
+        Object.keys(member?.features || {}).forEach((key) => {
+          if (!key || key === selectedIdentifierKey) return;
+          if (!preferredFeatureColumns.includes(key) && !discoveredFeatureColumns.includes(key)) {
+            discoveredFeatureColumns.push(key);
+          }
+        });
+      });
+    });
+
+    const featureColumns = [...preferredFeatureColumns, ...discoveredFeatureColumns];
+    const fields = ['Team', 'Identifier', ...featureColumns];
+    const rows = [];
+
+    teams.forEach((team) => {
+      (team?.members || []).forEach((member) => {
+        const featureMap = member?.features || {};
+        const identifier = selectedIdentifierKey
+          ? String(featureMap?.[selectedIdentifierKey] || member?.name || member?.id || '')
+          : String(member?.name || member?.id || '');
+        const row = {
+          Team: team.id,
+          Identifier: identifier
+        };
+        featureColumns.forEach((key) => {
+          row[key] = String(featureMap?.[key] || '');
+        });
+        rows.push(row);
+      });
+    });
+
+    const csv = `\uFEFF${Papa.unparse({ fields, data: rows })}`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1506,6 +1534,8 @@ function App() {
     customPromptToggle: isEn ? 'Enable (Paid)' : '사용하기(유료)',
     promptChecklistTitle: isEn ? 'Team Building Report' : '팀 빌딩 리포트',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
+    promptAppliedDetail: isEn ? 'How reflected' : '반영 상세',
+    promptEvidence: isEn ? 'Evidence' : '근거',
     progressStatus: isEn ? 'Ready Status' : '준비 상태',
     ready: isEn ? 'Ready for assignment' : '배정 준비 완료',
     needPrimary: isEn ? 'Primary column required' : '기준 열 확인 필요',
@@ -2213,7 +2243,14 @@ function App() {
             <div className="space-y-4">
               {assignmentReport && (
                 <div className="bg-white border rounded-2xl p-4 space-y-3">
-                  {(String(assignmentReport.originalPrompt || '').trim() || (assignmentReport.promptChecklist || []).length > 0) && (
+                  {(() => {
+                    const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
+                      ? assignmentReport.rawAi.prompt_checklist
+                      : Array.isArray(assignmentReport?.promptChecklist)
+                        ? assignmentReport.promptChecklist
+                        : [];
+                    return String(assignmentReport.originalPrompt || '').trim() || rawChecklist.length > 0;
+                  })() && (
                     <div className="rounded-xl border border-[#d9deea] bg-white p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
@@ -2227,9 +2264,20 @@ function App() {
                             </p>
                           </div>
                         )}
-                        {(assignmentReport.promptChecklist || []).length > 0 && (
+                        {(() => {
+                          const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
+                            ? assignmentReport.rawAi.prompt_checklist
+                            : Array.isArray(assignmentReport?.promptChecklist)
+                              ? assignmentReport.promptChecklist
+                              : [];
+                          return rawChecklist.length > 0;
+                        })() && (
                           <div className="space-y-1">
-                            {(assignmentReport.promptChecklist || []).map((item, idx) => (
+                            {(Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
+                              ? assignmentReport.rawAi.prompt_checklist
+                              : Array.isArray(assignmentReport?.promptChecklist)
+                                ? assignmentReport.promptChecklist
+                                : []).map((item, idx) => (
                               <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
                                 {(() => {
                                   const itemTitle = String(
@@ -2250,6 +2298,12 @@ function App() {
                                   const itemReason = String(
                                     item?.reason || item?.comment || item?.report || item?.explanation || ''
                                   ).trim();
+                                  const itemAppliedDetail = String(
+                                    item?.applied_detail || item?.reflection_detail || item?.how_applied || ''
+                                  ).trim();
+                                  const itemEvidence = Array.isArray(item?.evidence)
+                                    ? item.evidence.map((v) => String(v || '').trim()).filter(Boolean)
+                                    : [];
                                   return (
                                     <>
                                 <div className="flex items-center gap-2">
@@ -2261,6 +2315,22 @@ function App() {
                                   )}
                                 </div>
                                 {itemReason && <p className="mt-1 text-[#475467]">{itemReason}</p>}
+                                {itemAppliedDetail && (
+                                  <div className="mt-2 rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
+                                    <p className="text-[11px] font-semibold text-[#475467]">{tx.promptAppliedDetail}</p>
+                                    <p className="mt-1 whitespace-pre-wrap text-[#344054]">{itemAppliedDetail}</p>
+                                  </div>
+                                )}
+                                {itemEvidence.length > 0 && (
+                                  <div className="mt-2 rounded border border-[#e5e7eb] bg-white p-2">
+                                    <p className="text-[11px] font-semibold text-[#475467]">{tx.promptEvidence}</p>
+                                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[#344054]">
+                                      {itemEvidence.map((evidence, evidenceIdx) => (
+                                        <li key={`prompt-check-${idx}-evidence-${evidenceIdx}`}>{evidence}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                                     </>
                                   );
                                 })()}

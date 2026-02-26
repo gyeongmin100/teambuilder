@@ -421,9 +421,10 @@ export const assignTeamsWithValidation = async ({
     remainderDecision.mode === 'new_team';
 
   if (precheckChecklist.length > 0) {
+    const aiChecklist = Array.isArray(attempt?.ai?.prompt_checklist) ? attempt.ai.prompt_checklist : [];
     attempt.ai = {
       ...(attempt.ai || {}),
-      prompt_checklist: precheckChecklist,
+      prompt_checklist: aiChecklist.length > 0 ? aiChecklist : precheckChecklist,
       final_strategy: finalStrategy
     };
   }

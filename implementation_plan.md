@@ -916,3 +916,28 @@ pm run build)
   - 남은 작업:
     - 2차 결과 품질 열화 시 1차 롤백 게이트
     - 문제 구간 중심 부분 보정/잠금 전략
+
+## 47. 2026-02-26 Report Format Migration: Checklist-first Detailed Reflection
+- Goal:
+  - 전역 서술 필드(`global_report/full_report/summary`) 중심 리포트에서 벗어나,
+    체크리스트 항목마다 "어떻게 반영되었는지"를 구체적으로 설명하는 포맷으로 전환.
+- Applied:
+  - `functions/domain/constraints/openaiClient.js`
+    - 배정 출력 규칙에서 `global_report/full_report/report/summary` 비출력을 명시.
+    - `prompt_checklist` 항목에 `applied_detail`, `evidence[]` 필드를 스키마로 추가.
+    - 항목별 상세 설명(관련 항목은 최소 2문장) + 근거 배열(관련 항목은 최소 2개) 작성 규칙 추가.
+  - `functions/domain/assignment/engine.js`
+    - 사전 relevance 체크리스트가 최종 결과 체크리스트를 덮어쓰던 경로 수정.
+    - 배정 단계에서 생성된 체크리스트가 있으면 이를 우선 사용하고, 없을 때만 사전 체크리스트 사용.
+  - `functions/domain/constraints/reporter.js`
+    - summary 생성에서 `global_report/full_report/report` 후보를 제거.
+    - 체크리스트 항목 기반 내러티브(summary)로 재구성.
+    - `appliedRequests` 생성 시 `applied_detail` 우선 사용.
+  - `src/App.jsx`
+    - 결과 체크리스트 카드에 항목별 `반영 상세`, `근거` 섹션 렌더링 추가.
+- Acceptance Criteria:
+  - 결과 리포트가 전역 텍스트 없이 체크리스트 상세 중심으로 제공된다.
+  - 각 항목에 반영 상세(`applied_detail`) 및 근거(`evidence[]`)가 노출된다.
+  - 사전 체크리스트가 배정 결과 체크리스트를 덮어쓰지 않는다.
+- Verification:
+  - `npm run build` 성공

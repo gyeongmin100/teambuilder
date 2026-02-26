@@ -1,6 +1,23 @@
 import { jsonResponse } from '../shared/http.js';
 import { assignTeamsWithValidation } from '../domain/assignment/engine.js';
 import { verifyPaidCheckout } from '../infrastructure/polar/checkoutVerification.js';
+import {
+  ruleBasedParseConstraints,
+  normalizeConstraints,
+  evaluateFeasibility,
+  softObjectivePenalty,
+  analyzeConstraintConsistency,
+  localSearchImprove
+} from '../domain/constraints/constraintEngine.js';
+
+export const __test__ = {
+  ruleBasedParseConstraints,
+  normalizeConstraints,
+  evaluateFeasibility,
+  softObjectivePenalty,
+  analyzeConstraintConsistency,
+  localSearchImprove
+};
 
 export async function onRequestPost(context) {
   const { request, env } = context;
