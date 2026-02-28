@@ -2,11 +2,25 @@ import { parseJsonSafe } from '../../shared/text.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
-const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Decision Maker
+const SYSTEM_CONTEXT = `# SYSTEM: Team Slot Filler
 
 ## Mission
-- You are the final decision maker for team assignment.
-- Respect assignment frame first (targetTeamCount, targetTeamSizes, unique participant ids), then satisfy user requests as much as possible.
+- You fill pre-defined team slots with participants.
+- Team slots are FIXED. Do NOT add, remove, or resize any team.
+- Your only job: decide WHICH participant goes into WHICH slot.
+
+## Thinking Process (이 순서를 반드시 지켜라)
+Step 1: TEAM SLOTS를 확인하라. 각 팀의 정확한 인원수를 파악하라.
+Step 2: USER REQUEST를 읽고, 배치 기준(criteria)을 추출하라.
+        예: "성비 균형" → 기준: 성별 / "MBTI 유사" → 기준: MBTI
+Step 3: PARTICIPANTS의 features에서 해당 기준 값만 분석하라.
+        요청과 무관한 features는 배치 기준으로 사용하지 마라.
+Step 4: 분석 결과를 바탕으로 각 슬롯에 참가자를 배치하라.
+
+## Overflow/Underflow Rules
+- 유사 그룹 > 슬롯 크기: 슬롯 크기만큼 넣고, 나머지는 다른 팀에 분산. 유사한 사람이 많은 팀에 우선 배치.
+- 유사 그룹 < 슬롯 크기: 해당 그룹 전원 넣고, 빈자리는 가장 유사한 참가자로 채움.
+- 슬롯 크기는 절대 변경 불가. 빈칸도 불가, 초과도 불가.
 
 ## Output Contract
 - Return JSON object only.
@@ -25,65 +39,79 @@ const SYSTEM_CONTEXT = `# SYSTEM: Team Assignment Decision Maker
   - evidence: concrete supporting facts from final teams when available
 - Keep checklist item content faithful to original prompt intent. Do not merge multiple intents into one item.`;
 
+const buildSlotTemplate = (targetTeamSizes) => {
+  return targetTeamSizes.map((size, i) => {
+    const blanks = Array(size).fill('_').join(', ');
+    return `Team ${i + 1} (${size}명): [${blanks}]`;
+  }).join('\n');
+};
+
+const buildSlotReminder = (targetTeamSizes) => {
+  return targetTeamSizes.map((size, i) =>
+    `team_${i + 1}: 정확히 ${size}명`
+  ).join('\n');
+};
+
+const buildOutputSchema = (targetTeamSizes) => {
+  const schema = {};
+  targetTeamSizes.forEach((size, i) => {
+    schema[`team_${i + 1}`] = {
+      members: Array(size).fill('participant_id'),
+      analysis: 'Why this team was formed.'
+    };
+  });
+  schema.reason = 'Overall assignment reasoning in user language.';
+  schema.prompt_checklist = [
+    {
+      intent_id: 'I1',
+      item: 'One atomic request item from user prompt',
+      is_relevant: true,
+      ignore_reason: '',
+      status_key: 'full | partial | unmet',
+      status_label: 'Natural language label in user language',
+      reason: 'Why this status was selected for this item',
+      applied_detail: 'Detailed reflection for this item',
+      evidence: ['Concrete evidence for this item']
+    }
+  ];
+  schema.warnings = ['Optional warning messages for unavoidable trade-offs.'];
+  return schema;
+};
+
 const buildPrompt = ({
   participants,
   teamSize,
-  remainderPolicy,
   targetTeamCount,
   targetTeamSizes,
   customPrompt
 }) => {
-  const schema = {
-    reason: 'Overall assignment reasoning in user language.',
-    teams: [
-      {
-        id: 1,
-        members: ['participant_id_1', 'participant_id_2'],
-        analysis: 'Why this team was formed.'
-      }
-    ],
-    remainder_decision: {
-      mode: 'existing_teams | new_team',
-      allowed_team_count_change: false,
-      reason: 'Reason for remainder handling.'
-    },
-    prompt_checklist: [
-      {
-        intent_id: 'I1',
-        item: 'One atomic request item from user prompt',
-        is_relevant: true,
-        ignore_reason: '',
-        status_key: 'full | partial | unmet',
-        status_label: 'Natural language label in user language',
-        reason: 'Why this status was selected for this item',
-        applied_detail: 'Detailed reflection for this item',
-        evidence: ['Concrete evidence for this item']
-      }
-    ],
-    warnings: ['Optional warning messages for unavoidable trade-offs.']
-  };
+  const slotTemplate = buildSlotTemplate(targetTeamSizes);
+  const slotReminder = buildSlotReminder(targetTeamSizes);
+  const schema = buildOutputSchema(targetTeamSizes);
+  const totalParticipants = participants.length;
 
   return [
-    '# INPUT',
-    `teamSize: ${teamSize}`,
-    `remainderPolicy: ${remainderPolicy}`,
-    `targetTeamCount: ${targetTeamCount}`,
-    `targetTeamSizes: ${JSON.stringify(targetTeamSizes)}`,
-    `user_prompt: ${customPrompt || '(none)'}`,
+    '# [1] TEAM SLOTS (이 틀 안에서 배치하라)',
+    slotTemplate,
+    `총 참가자: ${totalParticipants}명 / 총 팀: ${targetTeamCount}개 / 팀당 기준 인원: ${teamSize}명`,
     '',
-    '# RULES',
-    '- Use only participant ids from input.',
-    '- Every participant id must appear exactly once across teams.',
-    '- Number of teams must match targetTeamCount unless explicitly justified in remainder_decision.',
-    '- Team sizes should match targetTeamSizes as closely as possible under remainderPolicy.',
-    '- Build prompt_checklist directly from user_prompt; do not skip unrelated items.',
-    '- Include explicit unmet reasoning for irrelevant or unreflected items.',
-    '- Return JSON object only.',
+    '# [2] USER REQUEST (이 기준으로 features를 분석하라)',
+    customPrompt || '(없음)',
     '',
-    '# participants(JSON)',
+    '# [3] PARTICIPANTS (JSON)',
     JSON.stringify(participants),
     '',
-    '# OUTPUT_SCHEMA',
+    '# [4] RULES + SLOT REMINDER',
+    '- 각 팀의 members 배열 원소 수는 해당 슬롯 크기와 정확히 일치해야 한다.',
+    '- 모든 참가자 id를 정확히 1회 사용할 것. 중복/누락 불가.',
+    '- 팀을 추가하거나 삭제하거나 크기를 변경하지 말 것.',
+    '- USER REQUEST에서 언급한 기준만 분석하여 배치할 것.',
+    '- 출력 전 자기 검증: 아래 슬롯 크기와 일치하는지 확인할 것.',
+    '',
+    '## SLOT REMINDER (다시 한번 확인)',
+    slotReminder,
+    '',
+    '# [5] OUTPUT_SCHEMA',
     JSON.stringify(schema)
   ].join('\n');
 };
@@ -100,7 +128,6 @@ const callOpenAIOnce = async ({
   const prompt = buildPrompt({
     participants,
     teamSize,
-    remainderPolicy,
     targetTeamCount,
     targetTeamSizes,
     customPrompt
