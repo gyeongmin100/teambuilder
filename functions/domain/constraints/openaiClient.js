@@ -164,7 +164,9 @@ JSON object만 반환하라.
 
 ## 배치 전략
 1. priority가 must인 요청을 먼저 반영하라.
-2. cross_analysis의 member_tags를 참고하여, 복수 요청을 동시에 충족시킬 핵심 인원부터 배치하라.
+2. ANALYSIS의 cross_analysis.member_tags에서 핵심 인원을 확인하고, 해당 인원부터 먼저 배치하라.
+   ANALYSIS의 cross_analysis.conflicts를 확인하고, 상충하는 요청의 trade_off를 체크리스트에 반드시 서술하라.
+   ANALYSIS를 무시하고 자체 판단으로 배치하지 마라.
 3. individual_analysis의 groups를 기준으로 나머지 인원을 채우라.
 
 ## 슬롯 불일치 처리
@@ -172,14 +174,21 @@ JSON object만 반환하라.
 - 유사 그룹 < 슬롯 크기: 해당 그룹 전원 배치 후, 빈자리는 가장 유사한 그룹의 멤버로 채움.
 - 복수 요청 상충 시: must 우선 반영. 상충 사실을 체크리스트의 trade_off에 서술.
 
+## 무관 요청 처리
+REQUESTS 중 is_relevant: false인 항목도 체크리스트에 반드시 포함하라.
+status_key: "unmet", reason에 "팀 배정과 무관한 요청입니다" 등으로 표시하라.
+
 ## 체크리스트 작성 방법
 각 요청에 대해:
 - item: 요청 원문
 - status_key: full | partial | unmet
 - reason: "~하였으나 ~때문에 부분 충족으로 판단하였습니다" 형태로 서술
 - applied_detail: 각 팀에 어떻게 반영되었는지 팀별로 서술
-- evidence: 수치적 근거 (각 팀의 해당 feature 분포)
+- evidence: 팀별 수치 근거. 반드시 "Team N: 값 N명(비율)" 형태로 각 팀마다 기재. 전체 분포가 아닌 팀별 분포를 작성할 것. 전체 합계만 쓰면 안 된다.
 - trade_off: 다른 요청과 상충한 경우, 어떤 요청과 어떻게 상충했고 왜 양보했는지 서술. 상충 없으면 빈 문자열.
+
+## 체크리스트 작성 예시 (이 형태를 따라라)
+{"request_id":"R1","item":"MBTI 유사한 사람끼리 배치","status_key":"partial","reason":"INTJ 4명은 Team 1에 전원 배치하였으나, ENTP 3명은 슬롯 4명 중 나머지 1자리를 ENFP로 보완하여 부분 충족으로 판단하였습니다.","applied_detail":"Team 1에는 INTJ 4명과 INFJ 1명을 배치하여 IN형 중심으로 구성. Team 2에는 ENTP 3명과 ENFP 1명을 배치하여 EN형 중심으로 구성. Team 3에는 ISFJ 2명, INFJ 1명, ENFP 1명을 배치.","evidence":["Team1: INTJ 4명(80%), INFJ 1명(20%)","Team2: ENTP 3명(75%), ENFP 1명(25%)","Team3: ISFJ 2명(50%), INFJ 1명(25%), ENFP 1명(25%)"],"trade_off":""}
 
 ## 출력 전 자기 검증
 - 각 team_N.members 배열 길이가 슬롯 크기와 일치하는지 확인.
@@ -191,15 +200,15 @@ const callAssign = async ({
   const slotTemplate = buildSlotTemplate(targetTeamSizes);
   const slotReminder = buildSlotReminder(targetTeamSizes);
   const schema = buildOutputSchema(targetTeamSizes);
-  const relevantRequests = (requests || []).filter((r) => r.is_relevant !== false);
+  const allRequests = requests || [];
 
   const userPrompt = [
     '# [1] TEAM SLOTS (이 틀 안에서 배치하라)',
     slotTemplate,
     `총 참가자: ${participants.length}명 / 총 팀: ${targetTeamSizes.length}개 / 팀당 기준 인원: ${teamSize}명`,
     '',
-    '# [2] REQUESTS (분해된 요청)',
-    JSON.stringify(relevantRequests),
+    '# [2] REQUESTS (분해된 요청 — is_relevant: false 포함)',
+    JSON.stringify(allRequests),
     '',
     '# [3] ANALYSIS (2단계 분석 결과)',
     JSON.stringify(analysis),
