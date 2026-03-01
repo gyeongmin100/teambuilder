@@ -1,7 +1,7 @@
 import { trimText } from '../../shared/text.js';
 import { compactParticipant, ensureUniqueIds } from '../participants/participantSanitizer.js';
 import { buildSpreadTargetSizes, annotateTeams } from '../teams/teamFormation.js';
-import { buildAssignmentReport, callOpenAIOnce } from '../constraints/constraintEngine.js';
+import { buildAssignmentReport, callExtract, callAnalyze, callAssign } from '../constraints/constraintEngine.js';
 
 const resolveRemainderPolicy = (config = {}) => {
   if (config.remainderPolicy === 'new_team' || config.remainderMode === 'keep_partial') return 'new_team';
@@ -164,13 +164,24 @@ export const assignTeamsWithValidation = async ({
     return { teams: annotatedTeams, report };
   }
 
-  const ai = await callOpenAIOnce({
+  // 1단계: 프롬프트 분해
+  const extractResult = await callExtract({ customPrompt: normalizedPrompt, env });
+  const requests = Array.isArray(extractResult?.requests) ? extractResult.requests : [];
+
+  // 2단계: 요청 기준 데이터 분석
+  const analysisResult = await callAnalyze({
+    requests,
     participants: compactParticipants,
-    teamSize,
-    remainderPolicy,
-    targetTeamCount: targetTeamSizes.length,
+    env
+  });
+
+  // 3단계: 슬롯 배정
+  const ai = await callAssign({
+    requests,
+    analysis: analysisResult,
+    participants: compactParticipants,
     targetTeamSizes,
-    customPrompt: normalizedPrompt,
+    teamSize,
     env
   });
 
@@ -182,23 +193,17 @@ export const assignTeamsWithValidation = async ({
   const reason = trimText(ai?.reason || '', 180);
   const annotatedTeams = annotateTeams(teams, reason);
 
-  const remainderRaw = ai?.remainder_decision || {};
-  const remainderDecision = {
-    mode: remainderRaw?.mode === 'new_team' ? 'new_team' : 'existing_teams',
-    allowedTeamCountChange: Boolean(remainderRaw?.allowed_team_count_change),
-    reason: trimText(remainderRaw?.reason || '', 220)
-  };
-
   const report = buildAssignmentReport({
     reason,
     customPrompt: normalizedPrompt,
     integrityReport: null,
     aiOutput: {
       ...(ai || {}),
-      final_strategy: 'ai_single_call'
+      final_strategy: 'ai_three_stage',
+      prompt_checklist: Array.isArray(ai?.prompt_checklist) ? ai.prompt_checklist : []
     },
-    warnings: Array.isArray(ai?.warnings) ? ai.warnings : [],
-    remainderDecision
+    warnings: [],
+    remainderDecision: null
   });
 
   return { teams: annotatedTeams, report };
