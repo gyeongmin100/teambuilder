@@ -1511,12 +1511,13 @@ function App() {
     login: isEn ? 'Sign in' : '로그인',
     logout: isEn ? 'Sign out' : '로그아웃',
     landingBadge: isEn ? 'Data-Driven Team Assignment' : '데이터 기반 팀 편성 자동화',
-    landingHeadline: isEn
-      ? 'From 1-second random assignment to AI-designed data-driven team building.'
-      : '1초 만에 끝내는 랜덤 배정부터, AI가 설계하는 데이터 기반 팀 빌딩까지. ',
-    landingBody: isEn
-      ? 'Analyze Google Form data to design optimal teams considering roles and styles. Get data-proven reports instantly.'
-      : '구글폼 응답 데이터를 정밀 분석하여 역할 균형과 협업 성향을 고려한 최적의 팀 조합을 제안합니다. 번거로운 수작업 없이 데이터로 증명된 팀 리포트를 즉시 확인하세요.',
+    landingHeadlineLine1: isEn
+      ? 'From 1-second random assignment'
+      : '1초 만에 끝내는 랜덤 배정부터,',
+    landingHeadlineLine2: isEn
+      ? 'to AI-designed data-driven team building.'
+      : 'AI가 설계하는 데이터 기반 팀 빌딩까지.',
+    landingBody: '',
     start: isEn ? 'Get started' : '시작하기',
     quickFlowTitle: isEn ? 'How it works' : '사용 방법',
     flowStep1: isEn ? 'Import data' : '데이터 불러오기',
@@ -1771,11 +1772,6 @@ function App() {
                 <span className="px-1.5 opacity-30">|</span>
                 <span className={`${uiLang === 'en' ? 'text-black font-bold' : ''}`}>EN</span>
               </button>
-              {!user ? (
-                <Button type="button" size="sm" onClick={() => goPage('login')} className="h-9 rounded-full bg-[#1d1d1f] px-5 text-sm font-semibold text-white shadow-md hover:scale-105 hover:bg-black transition-all">{tx.login}</Button>
-              ) : (
-                <Button type="button" variant="secondary" size="sm" onClick={logout} className="h-9 rounded-full px-5 text-sm font-semibold hover:bg-gray-200 transition-all">{tx.logout}</Button>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -1796,8 +1792,10 @@ function App() {
                       </Badge>
                     </motion.div>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                      <h1 className="mt-8 text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-[#1d1d1f] via-[#434345] to-[#86868b]">
-                        {tx.landingHeadline}
+                      <h1 className="mt-8 text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-[#1d1d1f] via-[#434345] to-[#86868b] break-keep">
+                        {tx.landingHeadlineLine1}
+                        <br />
+                        {tx.landingHeadlineLine2}
                       </h1>
                     </motion.div>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
