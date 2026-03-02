@@ -2,9 +2,32 @@
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
-/* ??? 怨듯넻 ?ы띁 ??? */
+const HANGUL_REGEX = /[\u3131-\u318E\uAC00-\uD7A3]/g;
+const LATIN_REGEX = /[A-Za-z]/g;
 
-const callOpenAI = async (systemPrompt, userPrompt, env) => {
+const detectPromptLanguage = (text = '') => {
+  const source = String(text || '');
+  const hangulCount = (source.match(HANGUL_REGEX) || []).length;
+  const latinCount = (source.match(LATIN_REGEX) || []).length;
+
+  if (hangulCount === 0 && latinCount === 0) return 'unknown';
+  if (hangulCount >= latinCount) return 'ko';
+  return 'en';
+};
+
+const normalizeOutputLanguage = (lang) => (lang === 'en' ? 'en' : 'ko');
+
+const buildLanguageInstruction = (outputLanguage) => {
+  if (outputLanguage === 'en') {
+    return 'Write all natural-language output fields in English.';
+  }
+  return 'Write all natural-language output fields in Korean.';
+};
+
+const callOpenAI = async (systemPrompt, userPrompt, env, outputLanguage = 'ko') => {
+  const safeLanguage = normalizeOutputLanguage(outputLanguage);
+  const languageInstruction = buildLanguageInstruction(safeLanguage);
+
   const res = await fetch(OPENAI_URL, {
     method: 'POST',
     headers: {
@@ -14,7 +37,10 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
     body: JSON.stringify({
       model: 'gpt-5-mini',
       input: [
-        { role: 'system', content: systemPrompt },
+        {
+          role: 'system',
+          content: `${systemPrompt}\n\n## Output language\n${languageInstruction}`
+        },
         { role: 'user', content: userPrompt }
       ],
       text: { format: { type: 'json_object' } }
@@ -28,75 +54,72 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
 
   const data = await res.json();
   const raw =
-    data?.output?.find((item) => item?.type === 'message')?.content?.find((c) => c?.type === 'output_text')?.text;
+    data?.output
+      ?.find((item) => item?.type === 'message')
+      ?.content?.find((c) => c?.type === 'output_text')
+      ?.text;
+
   if (!raw) throw new Error('OpenAI response is empty.');
   return parseJsonSafe(raw, null);
 };
 
-/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   1?④퀎: ?꾨＼?꾪듃 遺꾪빐 (callExtract)
-   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
+const EXTRACT_SYSTEM = `You decompose a user prompt into atomic assignment requests.
+Return JSON object only.
 
-const EXTRACT_SYSTEM = `?덈뒗 ?ъ슜???꾨＼?꾪듃瑜?遺꾩꽍?섏뿬 媛쒕퀎 ?붿껌?쇰줈 遺꾪빐?섎뒗 遺꾩꽍湲곕떎.
-JSON object留?諛섑솚?섎씪.
-?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
+Task:
+- Split the user prompt into request items.
+- For each item return:
+  - id: R1, R2, ...
+  - request: original request text
+  - type: group_similar | group_different | balance | exclude | include | custom
+  - target_feature: referenced participant feature key (or empty string)
+  - priority: must | prefer
+  - is_relevant: true | false (false if unrelated to team assignment)
 
-## ?묒뾽
-?ъ슜???꾨＼?꾪듃瑜?媛쒕퀎 ?붿껌(request)?쇰줈 遺꾪빐?섎씪.
-媛??붿껌?????
-- id: R1, R2, ... ?쒖꽌
-- request: ?붿껌 ?먮Ц (?ъ슜?먭? ??洹몃?濡? ??臾몄옣)
-- type: group_similar | group_different | balance | exclude | include | custom
-- target_feature: ???붿껌??李몄“?섎뒗 李멸????띿꽦 (?? mbti, gender, age). ?놁쑝硫?鍮?臾몄옄??
-- priority: must | prefer (? 諛곗젙??吏곸젒???곹뼢 = must, 媛?ν븯硫?= prefer)
-- is_relevant: true | false (? 諛곗젙怨?臾닿????붿껌?대㈃ false)
-
-## few-shot ?덉떆
-?낅젰: "?ㅻ뒛 ?좎뵪 ?대븣? MBTI 鍮꾩듂???щ엺?쇰━ ? 吏쒖＜怨??깅퉬??留욎떠以?
-異쒕젰:
+Output shape:
 {"requests":[
-  {"id":"R1","request":"?ㅻ뒛 ?좎뵪 ?대븣?","type":"custom","target_feature":"","priority":"prefer","is_relevant":false},
-  {"id":"R2","request":"MBTI 鍮꾩듂???щ엺?쇰━ ? 諛곗튂","type":"group_similar","target_feature":"mbti","priority":"must","is_relevant":true},
-  {"id":"R3","request":"?깅퉬瑜?洹좊벑?섍쾶 留욎떠以?,"type":"balance","target_feature":"gender","priority":"prefer","is_relevant":true}
+  {
+    "id":"R1",
+    "request":"...",
+    "type":"group_similar",
+    "target_feature":"mbti",
+    "priority":"must",
+    "is_relevant":true
+  }
 ]}`;
 
-const callExtract = async ({ customPrompt, env }) => {
-  return callOpenAI(EXTRACT_SYSTEM, customPrompt, env);
+const callExtract = async ({ customPrompt, env, outputLanguage = 'ko' }) => {
+  return callOpenAI(EXTRACT_SYSTEM, customPrompt, env, outputLanguage);
 };
 
-/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   2?④퀎: ?곗씠??遺꾩꽍 (callAnalyze)
-   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
+const ANALYZE_SYSTEM = `You analyze decomposed requests against participant data.
+Return JSON object only.
+Do not assign teams in this stage.
 
-const ANALYZE_SYSTEM = `?덈뒗 遺꾪빐???붿껌怨?李멸????곗씠?곕? 援먯감 遺꾩꽍?섎뒗 遺꾩꽍媛??
-JSON object留?諛섑솚?섎씪.
-?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
+Task:
+1) individual_analysis
+- For each request_id, analyze groups and distribution by related feature.
+2) cross_analysis
+- Identify conflicts among requests.
+- Identify member tags useful for satisfying multiple requests together.`;
 
-## ?묒뾽
-1. individual_analysis: 媛??붿껌蹂꾨줈 李멸????곗씠?곕? 遺꾩꽍?섎씪.
-   - request_id, groups (?대떦 feature 湲곗? 洹몃９??, distribution (遺꾪룷)
-2. cross_analysis: 蹂듭닔 ?붿껌 媛?援먯감 遺꾩꽍.
-   - conflicts: ?대뼡 ?붿껌?쇰━ ?곸땐?섎뒗吏, ???곸땐?섎뒗吏
-   - member_tags: 蹂듭닔 ?붿껌???숈떆??留뚯”?쒗궗 ?듭떖 ?몄썝 ?앸퀎
-
-? 諛곗젙? ?섏? 留덈씪. 遺꾩꽍留??섑뻾?섎씪.`;
-
-const callAnalyze = async ({ requests, participants, env }) => {
+const callAnalyze = async ({ requests, participants, env, outputLanguage = 'ko' }) => {
   const userPrompt = [
-    '# REQUESTS (1?④퀎?먯꽌 遺꾪빐???붿껌)',
-    JSON.stringify(requests),
+    '# REQUESTS',
+    JSON.stringify(requests || []),
     '',
     '# PARTICIPANTS',
-    JSON.stringify(participants.map(p => ({
-      id: p.id,
-      name: p.name || p.displayName,
-      features: p.features || {}
-    })))
+    JSON.stringify(
+      (participants || []).map((p) => ({
+        id: p.id,
+        name: p.name || p.displayName,
+        features: p.features || {}
+      }))
+    )
   ].join('\n');
 
-  return callOpenAI(ANALYZE_SYSTEM, userPrompt, env);
+  return callOpenAI(ANALYZE_SYSTEM, userPrompt, env, outputLanguage);
 };
-
-/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   3?④퀎: ?щ’ 諛곗젙 (callAssign)
-   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
 
 const buildSlotTemplate = (sizes) =>
   sizes.map((s, i) => `Team ${i + 1} (${s} members): [${Array(s).fill('_').join(', ')}]`).join('\n');
@@ -111,42 +134,41 @@ const buildOutputSchema = (sizes) => {
   });
   schema.checklist = [
     {
-      item: '?붿껌 ?먮Ц',
+      item: 'original request',
       status: 'full|partial|unmet',
-      detail: '?붿껌 諛섏쁺 寃곌낵瑜?1~2臾몄옣?쇰줈 ?ㅻ챸',
+      detail: '1-2 sentence background explanation'
     }
   ];
   return schema;
 };
 
-const ASSIGN_SYSTEM = `?덈뒗 遺꾩꽍 寃곌낵瑜?諛뷀깢?쇰줈 ? ?щ’??李멸??먮? 諛곗튂?섎뒗 諛곗젙?먮떎.
-JSON object留?諛섑솚?섎씪.
-?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
+const ASSIGN_SYSTEM = `You assign participants to fixed team slots using extracted requests and analysis.
+Return JSON object only.
 
-## 諛곗튂 ?꾨왂
-1. priority媛 must???붿껌??癒쇱? 諛섏쁺?섎씪.
-2. ANALYSIS??cross_analysis.member_tags?먯꽌 ?듭떖 ?몄썝???뺤씤?섍퀬, ?대떦 ?몄썝遺??癒쇱? 諛곗튂?섎씪.
-   ANALYSIS??cross_analysis.conflicts瑜??뺤씤?섍퀬 諛섎뱶??怨좊젮?섎씪.
-   ANALYSIS瑜?臾댁떆?섍퀬 ?먯껜 ?먮떒?쇰줈 諛곗튂?섏? 留덈씪.
-3. individual_analysis??groups瑜?湲곗??쇰줈 ?섎㉧吏 ?몄썝??梨꾩슦??
+Rules:
+1) Prioritize requests with priority=must.
+2) Respect cross_analysis conflicts and member_tags.
+3) Fill every team slot exactly.
+4) Use each participant id exactly once.
+5) Do not create/delete teams or change team sizes.
 
-## ?щ’ 遺덉씪移?泥섎━
-- ?좎궗 洹몃９ > ?щ’ ?ш린: ?щ’ ?ш린留뚰겮留?諛곗튂. ?섎㉧吏???좎궗 洹몃９??媛??留롮? ?ㅻⅨ ???諛곗튂.
-- ?좎궗 洹몃９ < ?щ’ ?ш린: ?대떦 洹몃９ ?꾩썝 諛곗튂 ?? 鍮덉옄由щ뒗 媛???좎궗??洹몃９??硫ㅻ쾭濡?梨꾩?.
-- 蹂듭닔 ?붿껌 ?곸땐 ?? must ?곗꽑 諛섏쁺.
-
-## 異쒕젰 ?뺤떇
-1. checklist: REQUESTS??紐⑤뱺 ??ぉ(is_relevant: false ?ы븿)??????꾨옒 ?꾨뱶瑜??묒꽦.
-   - item: ?붿껌 ?먮Ц
-   - status: full / partial / unmet
-   - detail: ?붿껌 諛섏쁺 寃곌낵瑜?1~2臾몄옣?쇰줈 ?ㅻ챸
-
-## 異쒕젰 ???먭린 寃利?- 媛?team_N.members 諛곗뿴 湲몄씠媛 ?щ’ ?ш린? ?쇱튂?섎뒗吏 ?뺤씤.
-- 紐⑤뱺 李멸???id媛 ?뺥솗??1???ъ슜?섏뿀?붿? ?뺤씤.`;
+Checklist output rules:
+- Include every request item.
+- For each checklist item return:
+  - item
+  - status: full | partial | unmet
+  - detail: short background explanation (1-2 sentences)
+- Do not return evidence field.`;
 
 const callAssign = async ({
   customPrompt = '',
-  requests, analysis, participants, targetTeamSizes, teamSize, env
+  requests,
+  analysis,
+  participants,
+  targetTeamSizes,
+  teamSize,
+  env,
+  outputLanguage = 'ko'
 }) => {
   const slotTemplate = buildSlotTemplate(targetTeamSizes);
   const slotReminder = buildSlotReminder(targetTeamSizes);
@@ -154,36 +176,41 @@ const callAssign = async ({
   const allRequests = requests || [];
 
   const userPrompt = [
-    '# [1] TEAM SLOTS (??? ?덉뿉??諛곗튂?섎씪)',
+    '# [1] TEAM SLOTS',
     slotTemplate,
     `Total participants: ${participants.length} / Total teams: ${targetTeamSizes.length} / Base team size: ${teamSize}`,
     '',
-    '# [2] USER_PROMPT (?먮Ц)',
+    '# [2] USER_PROMPT',
     String(customPrompt || '').trim(),
     '',
-    '# [3] REQUESTS (遺꾪빐???붿껌 ??is_relevant: false ?ы븿)',
+    '# [3] REQUESTS',
     JSON.stringify(allRequests),
     '',
-    '# [4] ANALYSIS (2?④퀎 遺꾩꽍 寃곌낵)',
-    JSON.stringify(analysis),
+    '# [4] ANALYSIS',
+    JSON.stringify(analysis || {}),
     '',
     '# [5] PARTICIPANTS',
-    JSON.stringify(participants),
+    JSON.stringify(participants || []),
     '',
     '# [6] RULES + SLOT REMINDER',
-    '- 媛????members 諛곗뿴 ?먯냼 ?섎뒗 ?대떦 ?щ’ ?ш린? ?뺥솗???쇱튂?댁빞 ?쒕떎.',
-    '- 紐⑤뱺 李멸???id瑜??뺥솗??1???ъ슜??寃? 以묐났/?꾨씫 遺덇?.',
-    '- ???異붽??섍굅????젣?섍굅???ш린瑜?蹂寃쏀븯吏 留?寃?',
+    '- Each team members length must exactly match slot size.',
+    '- Every participant id must be used exactly once (no duplicate, no missing).',
+    '- Do not add/remove teams or change team size.',
     '',
-    '## SLOT REMINDER (?ㅼ떆 ?쒕쾲 ?뺤씤)',
+    '## SLOT REMINDER',
     slotReminder,
     '',
     '# [7] OUTPUT_SCHEMA',
     JSON.stringify(schema)
   ].join('\n');
 
-  return callOpenAI(ASSIGN_SYSTEM, userPrompt, env);
+  return callOpenAI(ASSIGN_SYSTEM, userPrompt, env, outputLanguage);
 };
 
-export { callExtract, callAnalyze, callAssign };
-
+export {
+  detectPromptLanguage,
+  normalizeOutputLanguage,
+  callExtract,
+  callAnalyze,
+  callAssign
+};

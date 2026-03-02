@@ -1795,7 +1795,14 @@ function App() {
                       <h1 className="mt-8 text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-[#1d1d1f] via-[#434345] to-[#86868b] break-keep">
                         {tx.landingHeadlineLine1}
                         <br />
-                        {tx.landingHeadlineLine2}
+                        {isEn ? (
+                          tx.landingHeadlineLine2
+                        ) : (
+                          <>
+                            AI가 설계하는 데이터 기반{' '}
+                            <span className="whitespace-nowrap">팀 빌딩까지.</span>
+                          </>
+                        )}
                       </h1>
                     </motion.div>
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

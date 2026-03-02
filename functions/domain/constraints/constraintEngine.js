@@ -30,4 +30,10 @@ export {
 } from './evaluator.js';
 
 export { buildAssignmentReport } from './reporter.js';
-export { callExtract, callAnalyze, callAssign } from './openaiClient.js';
+export {
+  detectPromptLanguage,
+  normalizeOutputLanguage,
+  callExtract,
+  callAnalyze,
+  callAssign
+} from './openaiClient.js';

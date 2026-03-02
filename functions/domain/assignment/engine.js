@@ -1,7 +1,14 @@
 import { trimText } from '../../shared/text.js';
 import { compactParticipant, ensureUniqueIds } from '../participants/participantSanitizer.js';
 import { buildSpreadTargetSizes, annotateTeams } from '../teams/teamFormation.js';
-import { buildAssignmentReport, callExtract, callAnalyze, callAssign } from '../constraints/constraintEngine.js';
+import {
+  buildAssignmentReport,
+  callExtract,
+  callAnalyze,
+  callAssign,
+  detectPromptLanguage,
+  normalizeOutputLanguage
+} from '../constraints/constraintEngine.js';
 
 const resolveRemainderPolicy = (config = {}) => {
   if (config.remainderPolicy === 'new_team' || config.remainderMode === 'keep_partial') return 'new_team';
@@ -143,6 +150,7 @@ export const assignTeamsWithValidation = async ({
   const allIds = compactParticipants.map((participant) => participant.id);
   const memberById = normalizeMembersById(compactParticipants);
   const normalizedPrompt = String(customPrompt || '').trim();
+  const outputLanguage = normalizeOutputLanguage(detectPromptLanguage(normalizedPrompt));
 
   if (!normalizedPrompt) {
     const teams = buildLocalRandomTeams({ memberById, allIds, targetTeamSizes });
@@ -164,14 +172,19 @@ export const assignTeamsWithValidation = async ({
   }
 
   // 1단계: 프롬프트 분해
-  const extractResult = await callExtract({ customPrompt: normalizedPrompt, env });
+  const extractResult = await callExtract({
+    customPrompt: normalizedPrompt,
+    env,
+    outputLanguage
+  });
   const requests = Array.isArray(extractResult?.requests) ? extractResult.requests : [];
 
   // 2단계: 요청 기준 데이터 분석
   const analysisResult = await callAnalyze({
     requests,
     participants: compactParticipants,
-    env
+    env,
+    outputLanguage
   });
 
   // 3단계: 슬롯 배정
@@ -181,7 +194,8 @@ export const assignTeamsWithValidation = async ({
     participants: compactParticipants,
     targetTeamSizes,
     teamSize,
-    env
+    env,
+    outputLanguage
   });
 
   const teams = patchAiTeams({
