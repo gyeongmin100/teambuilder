@@ -854,7 +854,7 @@ function App() {
 
       const allResponses = [];
       let pageToken = '';
-      for (;;) {
+      for (; ;) {
         const pageQuery = new URLSearchParams({ pageSize: '500' });
         if (pageToken) pageQuery.set('pageToken', pageToken);
         const respRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses?${pageQuery.toString()}`, {
@@ -1746,9 +1746,9 @@ function App() {
         <Card className="sticky top-4 z-20 rounded-2xl border-[#d9deea] bg-white/90 backdrop-blur-md shadow-[0_8px_25px_rgba(18,24,40,0.06)]">
           <CardContent className="flex justify-between items-center py-3 px-4 md:px-5">
             <button
-            type="button"
-            onClick={goLandingAndReset}
-            className="inline-flex items-center gap-2 font-extrabold text-lg text-[#141b2d] tracking-tight"
+              type="button"
+              onClick={goLandingAndReset}
+              className="inline-flex items-center gap-2 font-extrabold text-lg text-[#141b2d] tracking-tight"
             >
               <Users className="size-5 text-[#1570ef]" /> TeamBuilder
             </button>
@@ -1776,621 +1776,597 @@ function App() {
         </Card>
 
         <AnimatePresence mode="wait">
-        {currentPage === 'landing' && (
-          <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-6">
-            <div className="grid grid-cols-1 gap-5">
-              <Card className="rounded-[28px] border-[#d9deea] shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                <CardContent className="px-6 py-7 md:px-9 md:py-10">
-                <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
-                  <Sparkles size={14} /> {tx.landingBadge}
-                </Badge>
-                <h1 className="mt-5 text-4xl lg:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
-                  Data-In, Teams-Out.
-                  <br />
-                  <span className="text-[#1570ef]">{tx.landingTitleLine2}</span>
-                </h1>
-                <p className="mt-4 text-[#4b556b] max-w-2xl leading-7">
-                  {tx.landingBody}
-                </p>
-                <div className="mt-7 flex flex-wrap gap-3">
-                  <Button onClick={() => (user ? goPage('input') : goPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-[#1a2138] px-5 py-3 text-white font-semibold hover:bg-[#12192d]">
-                    {tx.start} <ArrowRight size={16} />
-                  </Button>
-                </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        )}
-
-        {currentPage === 'login' && (
-          <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-14 max-w-md mx-auto">
-            <Card className="rounded-[24px] border-[#d9deea] bg-white p-7 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-              <div className="space-y-2">
-                <h3 className="text-2xl font-black tracking-tight">{tx.login}</h3>
-                <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
+          {currentPage === 'landing' && (
+            <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-6">
+              <div className="grid grid-cols-1 gap-5">
+                <Card className="rounded-[28px] border-[#d9deea] shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
+                  <CardContent className="px-6 py-7 md:px-9 md:py-10">
+                    <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
+                      <Sparkles size={14} /> {tx.landingBadge}
+                    </Badge>
+                    <h1 className="mt-5 text-4xl lg:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
+                      Data-In, Teams-Out.
+                      <br />
+                      <span className="text-[#1570ef]">{tx.landingTitleLine2}</span>
+                    </h1>
+                    <p className="mt-4 text-[#4b556b] max-w-2xl leading-7">
+                      {tx.landingBody}
+                    </p>
+                    <div className="mt-7 flex flex-wrap gap-3">
+                      <Button onClick={() => (user ? goPage('input') : goPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-[#1a2138] px-5 py-3 text-white font-semibold hover:bg-[#12192d]">
+                        {tx.start} <ArrowRight size={16} />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="mt-6">
-                <Button
-                  onClick={login}
-                  className="h-11 w-full rounded-xl border border-[#d9deea] bg-white text-[#111827] font-semibold hover:bg-[#f8fafc]"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-                      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z"/>
-                      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z"/>
-                      <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.9 26.7 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.1 16.2 44 24 44z"/>
-                      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 2.8-3 5-5.9 6.6l.1-.1 6.3 5.2C35.4 40 44 34 44 24c0-1.2-.1-2.4-.4-3.5z"/>
-                    </svg>
-                    {tx.googleLogin}
-                  </span>
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
-        {currentPage === 'input' && (
-          <div className="mt-6 space-y-4">
-            <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
-              <div className="flex flex-col gap-4">
-
-              <div className="order-2 space-y-4">
-              <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
-                <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <label className="inline-flex items-center gap-2">
-                  <span>{tx.teamSize}</span>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    min="1"
-                    max={maxTeamSizeInput}
-                    value={teamSizeInput}
-                    onChange={(e) => {
-                      const raw = String(e.target.value || '');
-                      if (/^\d*$/.test(raw)) setTeamSizeInput(raw);
-                    }}
-                    onBlur={commitTeamSizeInput}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        commitTeamSizeInput();
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
-                  />
-                </label>
-              </div>
-              {canSelectRemainderMode && (
-                <div className="space-y-2 text-sm">
-                  <span className="text-[#475467]">{tx.remainderModeTitle}</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                    <input
-                      type="radio"
-                      checked={remainderPolicy === 'spread'}
-                      onChange={() => setConfig({ ...config, remainderPolicy: 'spread' })}
-                    />
-                    {tx.remainderSpread}
-                  </label>
-                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                    <input
-                      type="radio"
-                      checked={remainderPolicy === 'one_team'}
-                      onChange={() => setConfig({ ...config, remainderPolicy: 'one_team' })}
-                    />
-                    {tx.remainderOneTeam}
-                  </label>
-                  <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
-                    <input
-                      type="radio"
-                      checked={remainderPolicy === 'new_team'}
-                      onChange={() => setConfig({ ...config, remainderPolicy: 'new_team' })}
-                    />
-                    {tx.remainderNewTeam}
-                  </label>
+          {currentPage === 'login' && (
+            <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-14 max-w-md mx-auto">
+              <Card className="rounded-[24px] border-[#d9deea] bg-white p-7 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black tracking-tight">{tx.login}</h3>
+                  <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
                 </div>
-                </div>
-              )}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{tx.customPrompt}</p>
-                    <span className="relative inline-flex group">
-                      <button
-                        type="button"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-bold text-[#475467] bg-white"
-                        aria-label={tx.customPromptHelp}
-                      >
-                        ?
-                      </button>
-                      <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
-                        {tx.customPromptHelp}
-                      </span>
+                <div className="mt-6">
+                  <Button
+                    onClick={login}
+                    className="h-11 w-full rounded-xl border border-[#d9deea] bg-white text-[#111827] font-semibold hover:bg-[#f8fafc]"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z" />
+                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z" />
+                        <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.9 26.7 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.1 16.2 44 24 44z" />
+                        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 2.8-3 5-5.9 6.6l.1-.1 6.3 5.2C35.4 40 44 34 44 24c0-1.2-.1-2.4-.4-3.5z" />
+                      </svg>
+                      {tx.googleLogin}
                     </span>
-                    <label className="inline-flex items-center gap-1 text-xs font-semibold text-[#334155]">
-                      <input
-                        type="checkbox"
-                        checked={customPromptEnabled}
-                        onChange={(e) => setCustomPromptEnabled(e.target.checked)}
-                      />
-                      {tx.customPromptToggle}
-                    </label>
-                  </div>
+                  </Button>
                 </div>
-                <textarea
-                  value={customPrompt}
-                  onChange={(e) => setCustomPrompt(e.target.value)}
-                  placeholder={tx.promptPlaceholder}
-                  disabled={!customPromptEnabled}
-                  className="w-full min-h-24 border rounded px-3 py-2 text-sm disabled:bg-[#f3f4f6] disabled:text-[#9ca3af]"
-                />
-              </div>
-              </div>
-              </div>
+              </Card>
+            </motion.div>
+          )}
 
-              <div className="order-1 space-y-5">
-              <div className="space-y-4">
-              <div className="rounded-xl border border-[#d9deea] overflow-hidden">
-              <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold flex items-center justify-between gap-2">
-                <span>{tx.tableTitle}</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (importPanelOpen) setSheetListOpen(false);
-                    setImportPanelOpen((v) => !v);
-                  }}
-                  className="inline-flex items-center gap-1"
-                >
-                  <Database size={14} />
-                  {importPanelOpen ? tx.hideImportTools : tx.importTools}
-                </Button>
-              </div>
-              {importPanelOpen && (
-                <div className="px-3 py-3 border-b bg-[#f8fafc] space-y-3">
-                  <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
-                  <p className="text-xs text-[#667085]">{tx.importHint}</p>
-                  <div className="flex flex-col gap-2 md:flex-row">
-                    <Input
-                      value={formUrl}
-                      onChange={(e) => setFormUrl(e.target.value)}
-                      placeholder={tx.formUrlPlaceholder}
-                      className="h-10 flex-1 border-[#d9deea] bg-white"
-                    />
-                    <Button
-                      onClick={() => importSheet()}
-                      disabled={sheetImportLoading}
-                      className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
-                    >
-                      {sheetImportLoading ? tx.loading : tx.load}
-                    </Button>
-                    <Button
-                      onClick={openSheets}
-                      disabled={sheetListLoading}
-                      variant="secondary"
-                      className="h-10 rounded-md"
-                    >
-                      {sheetListLoading ? tx.loadingList : tx.myForms}
-                    </Button>
-                    <label className="inline-flex h-10 w-fit items-center gap-2 px-3 bg-[#f2f5fa] rounded cursor-pointer">
-                      <Upload size={16} /> {tx.uploadCsv}
-                      <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
-                    </label>
-                  </div>
-                  {sheetListOpen && driveForms.length > 0 && (
-                    <div className="max-h-52 overflow-y-auto border rounded bg-white">
-                      {driveForms.map((f) => (
-                        <button
-                          key={f.id}
-                          onClick={() => {
-                            setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
-                            importSheet(f.id);
-                            setSheetListOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 border-b hover:bg-[#f7f9fc]"
-                        >
-                          <div className="font-semibold text-sm">{f.name}</div>
-                          <div className="text-xs text-[#667085]">{f.id}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
-                <div className="flex items-center gap-2">
-                  <Search size={14} className="text-[#667085]" />
-                  <Input
-                    value={participantQuery}
-                    onChange={(e) => setParticipantQuery(e.target.value)}
-                    placeholder={tx.search}
-                    className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
-                  />
-                  <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
-                    {tx.addRow}
-                  </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
-                    {tx.addColumn}
-                  </Button>
-                </div>
-              </div>
-              <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
-                    <select
-                      value={selectedIdentifierKey}
-                      onChange={(e) => pinColumnAsIdentifier(e.target.value)}
-                      className="h-8 rounded-md border border-[#d9deea] bg-white px-2 text-sm"
-                    >
-                      {columnOrder.map((key) => (
-                        <option key={`identifier-${key}`} value={key}>
-                          {key}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {validParticipants.length > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={resetInputState}
-                    >
-                      {tx.clearIdentifier}
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div
-                className={`overflow-x-auto bg-white ${showAllParticipants ? '' : 'overflow-y-auto'}`}
-                style={showAllParticipants ? undefined : { maxHeight: `${compactTableMaxHeight}px` }}
-              >
-                <Table className="min-w-full text-sm">
-                  <TableHeader className="bg-[#f7f9fc]">
-                    <TableRow>
-                      <TableHead className="w-10 px-3 py-2 text-left text-[#4b556b]"></TableHead>
-                      <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
-                        {tableParticipants.length > 0 ? 'No' : ''}
-                      </TableHead>
-                      {hasIdentifierColumn && (
-                        <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                          {renderEditableHeader(selectedIdentifierKey, '')}
-                        </TableHead>
-                      )}
-                      {tableFeatureKeys.map((key) => (
-                        <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
-                          {renderEditableHeader(key, key)}
-                        </TableHead>
-                      ))}
-                      <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {shownParticipants.map((p, idx) => (
-                      <TableRow
-                        key={p.internalId || p.id}
-                        className={`border-b hover:bg-[#f7f9fc] ${p?.enabled === false ? 'opacity-50' : ''}`}
-                      >
-                        <TableCell className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={p?.enabled !== false}
-                            onChange={(e) => toggleParticipantEnabled(p, e.target.checked)}
-                            aria-label={tr('행 사용 여부', 'Row enabled')}
+          {currentPage === 'input' && (
+            <div className="mt-6 space-y-4">
+              <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
+                <div className="flex flex-col gap-4">
+
+                  <div className="order-2 space-y-4">
+                    <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
+                      <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <label className="inline-flex items-center gap-2">
+                          <span>{tx.teamSize}</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            min="1"
+                            max={maxTeamSizeInput}
+                            value={teamSizeInput}
+                            onChange={(e) => {
+                              const raw = String(e.target.value || '');
+                              if (/^\d*$/.test(raw)) setTeamSizeInput(raw);
+                            }}
+                            onBlur={commitTeamSizeInput}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                commitTeamSizeInput();
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="h-8 w-20 rounded-md border-[#d9deea] bg-white px-2 py-1"
                           />
-                        </TableCell>
-                        <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
-                        {hasIdentifierColumn && (
-                          <TableCell className="px-3 py-2">
-                            <Input
-                              ref={(node) => {
-                                const key = buildTableInputRefKey(p, selectedIdentifierKey);
-                                if (!key) return;
-                                if (node) tableInputRefs.current.set(key, node);
-                                else tableInputRefs.current.delete(key);
-                              }}
-                              value={String(p?.features?.[selectedIdentifierKey] || '')}
-                              onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
-                              onPaste={(e) => handleTablePaste(e, idx, selectedIdentifierKey)}
-                              onKeyDown={(e) => handleTableInputKeyDown(e, idx, selectedIdentifierKey)}
-                              disabled={p?.enabled === false}
-                              className="h-8 w-full border-[#d9deea] text-sm"
-                              placeholder={tx.valueInput}
-                            />
-                          </TableCell>
-                        )}
-                        {tableFeatureKeys.map((key) => (
-                          <TableCell key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
-                            <Input
-                              ref={(node) => {
-                                const refKey = buildTableInputRefKey(p, key);
-                                if (!refKey) return;
-                                if (node) tableInputRefs.current.set(refKey, node);
-                                else tableInputRefs.current.delete(refKey);
-                              }}
-                              value={String(p?.features?.[key] || '')}
-                              onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
-                              onPaste={(e) => handleTablePaste(e, idx, key)}
-                              onKeyDown={(e) => handleTableInputKeyDown(e, idx, key)}
-                              disabled={p?.enabled === false}
-                              className="h-8 w-full border-[#d9deea] text-sm"
-                              placeholder={isEn ? `${key} value` : `${key} 값 입력`}
-                            />
-                          </TableCell>
-                        ))}
-                        <TableCell className="px-3 py-2">
-                          <Button
-                            onClick={() => removeParticipantRow(p)}
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-rose-600 hover:bg-rose-50"
-                            aria-label={tx.deleteLabel}
-                          >
-                            <Trash2 size={15} />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {shownParticipants.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={tableFeatureKeys.length + (hasIdentifierColumn ? 4 : 3)} className="px-3 py-6 text-center text-[#667085]">
-                          {tableParticipants.length === 0 ? tx.noData : tx.noResult}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              </div>
-
-              {filteredParticipants.length > maxInitialRows && (
-              <Button
-                type="button"
-                onClick={() => setShowAllParticipants((v) => !v)}
-                variant="outline"
-                className="border-[#d9deea] bg-white hover:bg-[#f7f9fc]"
-              >
-                {showAllParticipants
-                  ? tx.collapse
-                  : tx.moreView}
-              </Button>
-              )}
-              </div>
-              </div>
-
-              <div className="order-3 space-y-4">
-                <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
-                  <p className="text-sm font-bold">{tx.reviewSummary}</p>
-                  <div className="grid gap-2 md:grid-cols-3">
-                    {reviewItems.map((item) => (
-                      <div key={item.label} className="rounded-lg border border-[#d9deea] bg-white p-3">
-                        <p className="text-xs text-[#667085]">{item.label}</p>
-                        <p className="text-sm font-bold mt-1">{item.value}</p>
+                        </label>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="order-3 flex justify-end">
-              <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
-                {paymentLoading ? (customPromptEnabled ? tx.moveToPayment : tx.assigning) : (customPromptEnabled ? tx.runAssignPaid : tx.runAssignFree)}
-              </Button>
-              </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {currentPage === 'loading' && (
-          <motion.div key="loading" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
-            <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center">
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1.4 }} className="mx-auto h-12 w-12 rounded-full border-4 border-[#d9deea] border-t-cyan-600" />
-              <p className="mt-6 text-[#4b556b]">{tx.analyzingDesc}</p>
-            </div>
-          </motion.div>
-        )}
-
-        {currentPage === 'polar_wait' && (
-          <motion.div key="polar-wait" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
-            <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center space-y-4">
-              <h3 className="text-2xl font-black">{tx.pendingTitle}</h3>
-              <div className="space-y-3">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
-                  className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
-                />
-                {tx.pendingVerifying ? <p className="text-[#4b556b]">{tx.pendingVerifying}</p> : null}
-                <p className="text-sm text-[#4b556b]">{tx.pendingDuration}</p>
-                <p className="text-sm font-semibold text-rose-600">{tx.pendingStay}</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {currentPage === 'result' && (
-          <motion.div key="result" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-6 space-y-4">
-            <div className="flex gap-2">
-              <Button
-                onClick={exportCSV}
-                className="bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-2"
-              >
-                <Download size={16} /> {tx.downloadCsv}
-              </Button>
-              <Button
-                onClick={saveResultImage}
-                disabled={resultActionLoading}
-                variant="outline"
-                className="border-[#d9deea] bg-white"
-              >
-                <ImageDown size={16} /> {tx.saveImage}
-              </Button>
-              <Button
-                onClick={shareResult}
-                disabled={resultActionLoading}
-                variant="outline"
-                className="border-[#d9deea] bg-white"
-              >
-                <Share2 size={16} /> {tx.shareResult}
-              </Button>
-            </div>
-            <div className="space-y-4">
-              {assignmentReport && (
-                <div className="bg-white border rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
-                    <button
-                      type="button"
-                      onClick={() => setReportCollapsed((prev) => !prev)}
-                      className="rounded border border-[#d9deea] px-2 py-1 text-xs font-semibold text-[#344054] hover:bg-[#f8fafc]"
-                    >
-                      {reportCollapsed ? tr('펼치기', 'Expand') : tr('접기', 'Collapse')}
-                    </button>
-                  </div>
-                  {!reportCollapsed && (
-                    <>
-                  {(() => {
-                    const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
-                      ? assignmentReport.rawAi.prompt_checklist
-                      : [];
-                    return String(assignmentReport.originalPrompt || '').trim() || rawChecklist.length > 0;
-                  })() && (
-                    <div className="space-y-2">
-                        {String(assignmentReport.originalPrompt || '').trim() && (
-                          <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
-                            <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
-                            <p className="mt-1 whitespace-pre-wrap text-xs text-[#111827]">
-                              {assignmentReport.originalPrompt}
-                            </p>
+                      {canSelectRemainderMode && (
+                        <div className="space-y-2 text-sm">
+                          <span className="text-[#475467]">{tx.remainderModeTitle}</span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                              <input
+                                type="radio"
+                                checked={remainderPolicy === 'spread'}
+                                onChange={() => setConfig({ ...config, remainderPolicy: 'spread' })}
+                              />
+                              {tx.remainderSpread}
+                            </label>
+                            <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                              <input
+                                type="radio"
+                                checked={remainderPolicy === 'one_team'}
+                                onChange={() => setConfig({ ...config, remainderPolicy: 'one_team' })}
+                              />
+                              {tx.remainderOneTeam}
+                            </label>
+                            <label className="inline-flex items-center gap-2 px-2 py-1 border rounded">
+                              <input
+                                type="radio"
+                                checked={remainderPolicy === 'new_team'}
+                                onChange={() => setConfig({ ...config, remainderPolicy: 'new_team' })}
+                              />
+                              {tx.remainderNewTeam}
+                            </label>
                           </div>
-                        )}
-                        {(() => {
-                          const rawChecklist = Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
-                            ? assignmentReport.rawAi.prompt_checklist
-                            : [];
-                          return rawChecklist.length > 0;
-                        })() && (
-                          <div className="space-y-1">
-                            {(Array.isArray(assignmentReport?.rawAi?.prompt_checklist)
-                              ? assignmentReport.rawAi.prompt_checklist
-                              : []).map((item, idx) => (
-                              <div key={`prompt-check-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs">
-                                {(() => {
-                                  const itemTitle = String(
-                                    item?.item || item?.text || item?.request || item?.original_text || `${idx + 1}`
-                                  ).trim();
-                                  const statusKey = String(item?.status_key || item?.statusKey || '').trim().toLowerCase();
-                                  const itemStatus = String(
-                                    item?.status_label || item?.statusLabel || item?.status || item?.result || ''
-                                  ).trim();
-                                  const itemStatusClass =
-                                    statusKey === 'full'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : statusKey === 'partial'
-                                        ? 'bg-orange-100 text-orange-800'
-                                        : statusKey === 'unmet'
-                                          ? 'bg-rose-100 text-rose-800'
-                                          : 'bg-[#f2f4f7] text-[#344054]';
-                                  const itemReason = String(
-                                    item?.reason || item?.comment || item?.report || item?.explanation || ''
-                                  ).trim();
-                                  const itemAppliedDetail = String(
-                                    item?.applied_detail || item?.reflection_detail || item?.how_applied || ''
-                                  ).trim();
-                                  const itemEvidence = Array.isArray(item?.evidence)
-                                    ? item.evidence.map((v) => String(v || '').trim()).filter(Boolean)
-                                    : [];
-                                  return (
-                                    <>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
-                                  {itemStatus && (
-                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${itemStatusClass}`}>
-                                      {itemStatus}
-                                    </span>
-                                  )}
-                                </div>
-                                {itemReason && <p className="mt-1 text-[#475467]">{itemReason}</p>}
-                                {itemAppliedDetail && (
-                                  <div className="mt-2 rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
-                                    <p className="text-[11px] font-semibold text-[#475467]">{tx.promptAppliedDetail}</p>
-                                    <p className="mt-1 whitespace-pre-wrap text-[#344054]">{itemAppliedDetail}</p>
-                                  </div>
-                                )}
-                                {itemEvidence.length > 0 && (
-                                  <div className="mt-2 rounded border border-[#e5e7eb] bg-white p-2">
-                                    <p className="text-[11px] font-semibold text-[#475467]">{tx.promptEvidence}</p>
-                                    <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[#344054]">
-                                      {itemEvidence.map((evidence, evidenceIdx) => (
-                                        <li key={`prompt-check-${idx}-evidence-${evidenceIdx}`}>{evidence}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                    </div>
-                  )}
-                    </>
-                  )}
-                </div>
-              )}
-              <div ref={resultCaptureRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {teams.map((t) => {
-                  return (
-                    <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
-                      <h3 className="font-black mb-2">Team {t.id}</h3>
-                      {t.members.map((m, i) => {
-                        const memberKey = `${t.id}::${m.id || i}`;
-                        const isExpanded = Boolean(expandedMemberKeys[memberKey]);
-                        const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
-
-                        return (
-                          <div key={memberKey} className="text-sm border rounded p-2 mb-2 bg-white">
-                            <button
-                              type="button"
-                              onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                              className="w-full flex items-center justify-between gap-2"
-                            >
-                              <span className="font-bold text-left">{m.name || m.id || '-'}</span>
-                              <span className="inline-flex items-center gap-1 text-xs text-[#344054]">
-                                {isExpanded ? tx.hideDetails : tx.memberDetails}
-                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">{tx.customPrompt}</p>
+                            <span className="relative inline-flex group">
+                              <button
+                                type="button"
+                                className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[10px] font-bold text-[#475467] bg-white"
+                                aria-label={tx.customPromptHelp}
+                              >
+                                ?
+                              </button>
+                              <span className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 rounded-md border border-[#d9deea] bg-white px-2 py-1 text-[11px] font-medium leading-4 text-[#334155] shadow-md group-hover:block group-focus-within:block">
+                                {tx.customPromptHelp}
                               </span>
-                            </button>
-                            {isExpanded && (
-                              <div className="mt-2 grid grid-cols-1 gap-1 rounded bg-[#f8fafc] p-2">
-                                {features.length === 0 ? (
-                                  <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
-                                ) : (
-                                  features.map(([key, value]) => (
-                                    <p key={`${memberKey}-${key}`} className="text-xs text-[#344054]">
-                                      <span className="font-semibold">{key}</span>: {String(value)}
-                                    </p>
-                                  ))
-                                )}
+                            </span>
+                            <label className="inline-flex items-center gap-1 text-xs font-semibold text-[#334155]">
+                              <input
+                                type="checkbox"
+                                checked={customPromptEnabled}
+                                onChange={(e) => setCustomPromptEnabled(e.target.checked)}
+                              />
+                              {tx.customPromptToggle}
+                            </label>
+                          </div>
+                        </div>
+                        <textarea
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                          placeholder={tx.promptPlaceholder}
+                          disabled={!customPromptEnabled}
+                          className="w-full min-h-24 border rounded px-3 py-2 text-sm disabled:bg-[#f3f4f6] disabled:text-[#9ca3af]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="order-1 space-y-5">
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-[#d9deea] overflow-hidden">
+                        <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold flex items-center justify-between gap-2">
+                          <span>{tx.tableTitle}</span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (importPanelOpen) setSheetListOpen(false);
+                              setImportPanelOpen((v) => !v);
+                            }}
+                            className="inline-flex items-center gap-1"
+                          >
+                            <Database size={14} />
+                            {importPanelOpen ? tx.hideImportTools : tx.importTools}
+                          </Button>
+                        </div>
+                        {importPanelOpen && (
+                          <div className="px-3 py-3 border-b bg-[#f8fafc] space-y-3">
+                            <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
+                            <p className="text-xs text-[#667085]">{tx.importHint}</p>
+                            <div className="flex flex-col gap-2 md:flex-row">
+                              <Input
+                                value={formUrl}
+                                onChange={(e) => setFormUrl(e.target.value)}
+                                placeholder={tx.formUrlPlaceholder}
+                                className="h-10 flex-1 border-[#d9deea] bg-white"
+                              />
+                              <Button
+                                onClick={() => importSheet()}
+                                disabled={sheetImportLoading}
+                                className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
+                              >
+                                {sheetImportLoading ? tx.loading : tx.load}
+                              </Button>
+                              <Button
+                                onClick={openSheets}
+                                disabled={sheetListLoading}
+                                variant="secondary"
+                                className="h-10 rounded-md"
+                              >
+                                {sheetListLoading ? tx.loadingList : tx.myForms}
+                              </Button>
+                              <label className="inline-flex h-10 w-fit items-center gap-2 px-3 bg-[#f2f5fa] rounded cursor-pointer">
+                                <Upload size={16} /> {tx.uploadCsv}
+                                <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
+                              </label>
+                            </div>
+                            {sheetListOpen && driveForms.length > 0 && (
+                              <div className="max-h-52 overflow-y-auto border rounded bg-white">
+                                {driveForms.map((f) => (
+                                  <button
+                                    key={f.id}
+                                    onClick={() => {
+                                      setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
+                                      importSheet(f.id);
+                                      setSheetListOpen(false);
+                                    }}
+                                    className="w-full text-left px-3 py-2 border-b hover:bg-[#f7f9fc]"
+                                  >
+                                    <div className="font-semibold text-sm">{f.name}</div>
+                                    <div className="text-xs text-[#667085]">{f.id}</div>
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
-                        );
-                      })}
+                        )}
+                        <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
+                          <div className="flex items-center gap-2">
+                            <Search size={14} className="text-[#667085]" />
+                            <Input
+                              value={participantQuery}
+                              onChange={(e) => setParticipantQuery(e.target.value)}
+                              placeholder={tx.search}
+                              className="h-8 w-72 max-w-full border-[#d9deea] text-sm bg-white"
+                            />
+                            <Button type="button" size="sm" variant="outline" onClick={addEmptyParticipantRow}>
+                              {tx.addRow}
+                            </Button>
+                            <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
+                              {tx.addColumn}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-[#475467]">{tx.selectIdentifier}</span>
+                              <select
+                                value={selectedIdentifierKey}
+                                onChange={(e) => pinColumnAsIdentifier(e.target.value)}
+                                className="h-8 rounded-md border border-[#d9deea] bg-white px-2 text-sm"
+                              >
+                                {columnOrder.map((key) => (
+                                  <option key={`identifier-${key}`} value={key}>
+                                    {key}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {validParticipants.length > 0 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={resetInputState}
+                              >
+                                {tx.clearIdentifier}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div
+                          className={`overflow-x-auto bg-white ${showAllParticipants ? '' : 'overflow-y-auto'}`}
+                          style={showAllParticipants ? undefined : { maxHeight: `${compactTableMaxHeight}px` }}
+                        >
+                          <Table className="min-w-full text-sm">
+                            <TableHeader className="bg-[#f7f9fc]">
+                              <TableRow>
+                                <TableHead className="w-10 px-3 py-2 text-left text-[#4b556b]"></TableHead>
+                                <TableHead className="w-14 px-3 py-2 text-left text-[#4b556b]">
+                                  {tableParticipants.length > 0 ? 'No' : ''}
+                                </TableHead>
+                                {hasIdentifierColumn && (
+                                  <TableHead className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
+                                    {renderEditableHeader(selectedIdentifierKey, '')}
+                                  </TableHead>
+                                )}
+                                {tableFeatureKeys.map((key) => (
+                                  <TableHead key={key} className="min-w-44 px-3 py-2 text-left text-[#4b556b]">
+                                    {renderEditableHeader(key, key)}
+                                  </TableHead>
+                                ))}
+                                <TableHead className="w-12 px-3 py-2 text-left text-[#4b556b]"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {shownParticipants.map((p, idx) => (
+                                <TableRow
+                                  key={p.internalId || p.id}
+                                  className={`border-b hover:bg-[#f7f9fc] ${p?.enabled === false ? 'opacity-50' : ''}`}
+                                >
+                                  <TableCell className="px-3 py-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={p?.enabled !== false}
+                                      onChange={(e) => toggleParticipantEnabled(p, e.target.checked)}
+                                      aria-label={tr('행 사용 여부', 'Row enabled')}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-[#667085]">{idx + 1}</TableCell>
+                                  {hasIdentifierColumn && (
+                                    <TableCell className="px-3 py-2">
+                                      <Input
+                                        ref={(node) => {
+                                          const key = buildTableInputRefKey(p, selectedIdentifierKey);
+                                          if (!key) return;
+                                          if (node) tableInputRefs.current.set(key, node);
+                                          else tableInputRefs.current.delete(key);
+                                        }}
+                                        value={String(p?.features?.[selectedIdentifierKey] || '')}
+                                        onChange={(e) => updateParticipantFeature(p, selectedIdentifierKey, e.target.value)}
+                                        onPaste={(e) => handleTablePaste(e, idx, selectedIdentifierKey)}
+                                        onKeyDown={(e) => handleTableInputKeyDown(e, idx, selectedIdentifierKey)}
+                                        disabled={p?.enabled === false}
+                                        className="h-8 w-full border-[#d9deea] text-sm"
+                                        placeholder={tx.valueInput}
+                                      />
+                                    </TableCell>
+                                  )}
+                                  {tableFeatureKeys.map((key) => (
+                                    <TableCell key={`${p.internalId || p.id}-${key}`} className="px-3 py-2">
+                                      <Input
+                                        ref={(node) => {
+                                          const refKey = buildTableInputRefKey(p, key);
+                                          if (!refKey) return;
+                                          if (node) tableInputRefs.current.set(refKey, node);
+                                          else tableInputRefs.current.delete(refKey);
+                                        }}
+                                        value={String(p?.features?.[key] || '')}
+                                        onChange={(e) => updateParticipantFeature(p, key, e.target.value)}
+                                        onPaste={(e) => handleTablePaste(e, idx, key)}
+                                        onKeyDown={(e) => handleTableInputKeyDown(e, idx, key)}
+                                        disabled={p?.enabled === false}
+                                        className="h-8 w-full border-[#d9deea] text-sm"
+                                        placeholder={isEn ? `${key} value` : `${key} 값 입력`}
+                                      />
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="px-3 py-2">
+                                    <Button
+                                      onClick={() => removeParticipantRow(p)}
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-rose-600 hover:bg-rose-50"
+                                      aria-label={tx.deleteLabel}
+                                    >
+                                      <Trash2 size={15} />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {shownParticipants.length === 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={tableFeatureKeys.length + (hasIdentifierColumn ? 4 : 3)} className="px-3 py-6 text-center text-[#667085]">
+                                    {tableParticipants.length === 0 ? tx.noData : tx.noResult}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+
+                      {filteredParticipants.length > maxInitialRows && (
+                        <Button
+                          type="button"
+                          onClick={() => setShowAllParticipants((v) => !v)}
+                          variant="outline"
+                          className="border-[#d9deea] bg-white hover:bg-[#f7f9fc]"
+                        >
+                          {showAllParticipants
+                            ? tx.collapse
+                            : tx.moreView}
+                        </Button>
+                      )}
                     </div>
-                  );
-                })}
+                  </div>
+
+                  <div className="order-3 space-y-4">
+                    <div className="rounded-xl border border-[#d9deea] p-4 space-y-3 bg-[#f8fafc]">
+                      <p className="text-sm font-bold">{tx.reviewSummary}</p>
+                      <div className="grid gap-2 md:grid-cols-3">
+                        {reviewItems.map((item) => (
+                          <div key={item.label} className="rounded-lg border border-[#d9deea] bg-white p-3">
+                            <p className="text-xs text-[#667085]">{item.label}</p>
+                            <p className="text-sm font-bold mt-1">{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="order-3 flex justify-end">
+                    <Button onClick={runAssign} disabled={paymentLoading || !canRunAssignment} className="bg-cyan-700 text-white hover:bg-cyan-800 disabled:opacity-60">
+                      {paymentLoading ? (customPromptEnabled ? tx.moveToPayment : tx.assigning) : (customPromptEnabled ? tx.runAssignPaid : tx.runAssignFree)}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
-          </motion.div>
-        )}
+          )}
+
+          {currentPage === 'loading' && (
+            <motion.div key="loading" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
+              <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center">
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1.4 }} className="mx-auto h-12 w-12 rounded-full border-4 border-[#d9deea] border-t-cyan-600" />
+                <p className="mt-6 text-[#4b556b]">{tx.analyzingDesc}</p>
+              </div>
+            </motion.div>
+          )}
+
+          {currentPage === 'polar_wait' && (
+            <motion.div key="polar-wait" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-16 max-w-2xl mx-auto">
+              <div className="rounded-3xl border border-[#d9deea] bg-white p-10 text-center space-y-4">
+                <h3 className="text-2xl font-black">{tx.pendingTitle}</h3>
+                <div className="space-y-3">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, ease: 'linear', duration: 1.2 }}
+                    className="mx-auto h-10 w-10 rounded-full border-4 border-[#d9deea] border-t-cyan-600"
+                  />
+                  {tx.pendingVerifying ? <p className="text-[#4b556b]">{tx.pendingVerifying}</p> : null}
+                  <p className="text-sm text-[#4b556b]">{tx.pendingDuration}</p>
+                  <p className="text-sm font-semibold text-rose-600">{tx.pendingStay}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {currentPage === 'result' && (
+            <motion.div key="result" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-6 space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  onClick={exportCSV}
+                  className="bg-emerald-600 text-white hover:bg-emerald-700 inline-flex items-center gap-2"
+                >
+                  <Download size={16} /> {tx.downloadCsv}
+                </Button>
+                <Button
+                  onClick={saveResultImage}
+                  disabled={resultActionLoading}
+                  variant="outline"
+                  className="border-[#d9deea] bg-white"
+                >
+                  <ImageDown size={16} /> {tx.saveImage}
+                </Button>
+                <Button
+                  onClick={shareResult}
+                  disabled={resultActionLoading}
+                  variant="outline"
+                  className="border-[#d9deea] bg-white"
+                >
+                  <Share2 size={16} /> {tx.shareResult}
+                </Button>
+              </div>
+              <div className="space-y-4">
+                {assignmentReport && (
+                  <div className="bg-white border rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-[#1f2937]">{tx.promptChecklistTitle}</p>
+                      <button
+                        type="button"
+                        onClick={() => setReportCollapsed((prev) => !prev)}
+                        className="rounded border border-[#d9deea] px-2 py-1 text-xs font-semibold text-[#344054] hover:bg-[#f8fafc]"
+                      >
+                        {reportCollapsed ? tr('펼치기', 'Expand') : tr('접기', 'Collapse')}
+                      </button>
+                    </div>
+                    {!reportCollapsed && (
+                      <>
+                        {(() => {
+                          const checklist = Array.isArray(assignmentReport?.rawAi?.checklist)
+                            ? assignmentReport.rawAi.checklist
+                            : [];
+                          const aiReport = String(assignmentReport?.rawAi?.report || '').trim();
+                          return String(assignmentReport.originalPrompt || '').trim() || checklist.length > 0 || aiReport;
+                        })() && (
+                            <div className="space-y-2">
+                              {String(assignmentReport.originalPrompt || '').trim() && (
+                                <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-2">
+                                  <p className="text-[11px] font-semibold text-[#475467]">{tx.promptOriginal}</p>
+                                  <p className="mt-1 whitespace-pre-wrap text-xs text-[#111827]">
+                                    {assignmentReport.originalPrompt}
+                                  </p>
+                                </div>
+                              )}
+                              {(() => {
+                                const checklist = Array.isArray(assignmentReport?.rawAi?.checklist)
+                                  ? assignmentReport.rawAi.checklist
+                                  : [];
+                                const aiReport = String(assignmentReport?.rawAi?.report || '').trim();
+                                return checklist.length > 0 || aiReport;
+                              })() && (
+                                  <>
+                                    {Array.isArray(assignmentReport?.rawAi?.checklist) && assignmentReport.rawAi.checklist.length > 0 && (
+                                      <div className="space-y-1">
+                                        <p className="text-[11px] font-semibold text-[#475467]">{tx.promptChecklist || '요청사항'}</p>
+                                        {assignmentReport.rawAi.checklist.map((item, idx) => {
+                                          const itemTitle = String(item?.item || `${idx + 1}`).trim();
+                                          const statusKey = String(item?.status || item?.status_key || '').trim().toLowerCase();
+                                          const statusLabel = statusKey === 'full' ? '충족' : statusKey === 'partial' ? '부분 충족' : statusKey === 'unmet' ? '미충족' : '';
+                                          const statusClass = statusKey === 'full'
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : statusKey === 'partial'
+                                              ? 'bg-orange-100 text-orange-800'
+                                              : statusKey === 'unmet'
+                                                ? 'bg-rose-100 text-rose-800'
+                                                : 'bg-[#f2f4f7] text-[#344054]';
+                                          return (
+                                            <div key={`checklist-${idx}`} className="flex items-center gap-2 rounded border border-[#e5e7eb] p-2 text-xs">
+                                              <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
+                                              {statusLabel && (
+                                                <span className={`ml-auto whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
+                                                  {statusLabel}
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                    {String(assignmentReport?.rawAi?.report || '').trim() && (
+                                      <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-3">
+                                        <p className="text-[11px] font-semibold text-[#475467]">AI 분석 리포트</p>
+                                        <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-[#111827]">
+                                          {assignmentReport.rawAi.report}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                            </div>
+                          )}
+                      </>
+                    )}
+                  </div>
+                )}
+                <div ref={resultCaptureRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {teams.map((t) => {
+                    return (
+                      <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
+                        <h3 className="font-black mb-2">Team {t.id}</h3>
+                        {t.members.map((m, i) => {
+                          const memberKey = `${t.id}::${m.id || i}`;
+                          const isExpanded = Boolean(expandedMemberKeys[memberKey]);
+                          const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
+
+                          return (
+                            <div key={memberKey} className="text-sm border rounded p-2 mb-2 bg-white">
+                              <button
+                                type="button"
+                                onClick={() => toggleMemberDetail(t.id, m.id || i)}
+                                className="w-full flex items-center justify-between gap-2"
+                              >
+                                <span className="font-bold text-left">{m.name || m.id || '-'}</span>
+                                <span className="inline-flex items-center gap-1 text-xs text-[#344054]">
+                                  {isExpanded ? tx.hideDetails : tx.memberDetails}
+                                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                </span>
+                              </button>
+                              {isExpanded && (
+                                <div className="mt-2 grid grid-cols-1 gap-1 rounded bg-[#f8fafc] p-2">
+                                  {features.length === 0 ? (
+                                    <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
+                                  ) : (
+                                    features.map(([key, value]) => (
+                                      <p key={`${memberKey}-${key}`} className="text-xs text-[#344054]">
+                                        <span className="font-semibold">{key}</span>: {String(value)}
+                                      </p>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
 
       </div>

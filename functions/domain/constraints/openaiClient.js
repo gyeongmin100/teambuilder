@@ -12,7 +12,7 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
       Authorization: `Bearer ${env.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -147,14 +147,10 @@ const buildSlotReminder = (sizes) =>
 const buildOutputSchema = (sizes) => {
   const schema = {};
   sizes.forEach((s, i) => {
-    schema[`team_${i + 1}`] = { members: Array(s).fill('participant_id'), analysis: '이 팀 구성 이유 서술' };
+    schema[`team_${i + 1}`] = { members: Array(s).fill('participant_id') };
   });
-  schema.reason = '전체 배정 사유 서술';
-  schema.prompt_checklist = [{
-    request_id: 'R1', item: '요청 원문', status_key: 'full|partial|unmet',
-    reason: '이 status인 이유 서술', applied_detail: '팀별 반영 내용 서술',
-    evidence: ['수치적 근거'], trade_off: '상충 시 어떤 요청을 양보했는지 서술'
-  }];
+  schema.checklist = [{ item: '요청 원문', status: 'full|partial|unmet' }];
+  schema.report = '배정 과정과 결과를 구체적으로 서술';
   return schema;
 };
 
@@ -165,30 +161,24 @@ JSON object만 반환하라.
 ## 배치 전략
 1. priority가 must인 요청을 먼저 반영하라.
 2. ANALYSIS의 cross_analysis.member_tags에서 핵심 인원을 확인하고, 해당 인원부터 먼저 배치하라.
-   ANALYSIS의 cross_analysis.conflicts를 확인하고, 상충하는 요청의 trade_off를 체크리스트에 반드시 서술하라.
+   ANALYSIS의 cross_analysis.conflicts를 확인하고 반드시 고려하라.
    ANALYSIS를 무시하고 자체 판단으로 배치하지 마라.
 3. individual_analysis의 groups를 기준으로 나머지 인원을 채우라.
 
 ## 슬롯 불일치 처리
 - 유사 그룹 > 슬롯 크기: 슬롯 크기만큼만 배치. 나머지는 유사 그룹이 가장 많은 다른 팀에 배치.
 - 유사 그룹 < 슬롯 크기: 해당 그룹 전원 배치 후, 빈자리는 가장 유사한 그룹의 멤버로 채움.
-- 복수 요청 상충 시: must 우선 반영. 상충 사실을 체크리스트의 trade_off에 서술.
+- 복수 요청 상충 시: must 우선 반영.
 
-## 무관 요청 처리
-REQUESTS 중 is_relevant: false인 항목도 체크리스트에 반드시 포함하라.
-status_key: "unmet", reason에 "팀 배정과 무관한 요청입니다" 등으로 표시하라.
+## 출력 형식
+1. checklist: REQUESTS의 모든 항목(is_relevant: false 포함)에 대해 item(요청 원문)과 status(full/partial/unmet)만 기입.
+2. report: 배정 과정과 결과를 구체적으로 자유서술.
 
-## 체크리스트 작성 방법
-각 요청에 대해:
-- item: 요청 원문
-- status_key: full | partial | unmet
-- reason: "~하였으나 ~때문에 부분 충족으로 판단하였습니다" 형태로 서술
-- applied_detail: 각 팀에 어떻게 반영되었는지 팀별로 서술
-- evidence: 팀별 수치 근거. 반드시 "Team N: 값 N명(비율)" 형태로 각 팀마다 기재. 전체 분포가 아닌 팀별 분포를 작성할 것. 전체 합계만 쓰면 안 된다.
-- trade_off: 다른 요청과 상충한 경우, 어떤 요청과 어떻게 상충했고 왜 양보했는지 서술. 상충 없으면 빈 문자열.
-
-## 체크리스트 작성 예시 (이 형태를 따라라)
-{"request_id":"R1","item":"MBTI 유사한 사람끼리 배치","status_key":"partial","reason":"INTJ 4명은 Team 1에 전원 배치하였으나, ENTP 3명은 슬롯 4명 중 나머지 1자리를 ENFP로 보완하여 부분 충족으로 판단하였습니다.","applied_detail":"Team 1에는 INTJ 4명과 INFJ 1명을 배치하여 IN형 중심으로 구성. Team 2에는 ENTP 3명과 ENFP 1명을 배치하여 EN형 중심으로 구성. Team 3에는 ISFJ 2명, INFJ 1명, ENFP 1명을 배치.","evidence":["Team1: INTJ 4명(80%), INFJ 1명(20%)","Team2: ENTP 3명(75%), ENFP 1명(25%)","Team3: ISFJ 2명(50%), INFJ 1명(25%), ENFP 1명(25%)"],"trade_off":""}
+## report 작성 규칙
+- 팀별 수치(비율, 인원수)를 포함하라.
+- 요청 간 상충이 있었으면 무엇을 우선하고 무엇을 양보했는지 쓰라.
+- 무관 요청은 왜 반영하지 않았는지 간단히 언급하라.
+- 추상적이거나 일반적인 표현("팀별로 구성하였습니다")을 쓰지 마라.
 
 ## 출력 전 자기 검증
 - 각 team_N.members 배열 길이가 슬롯 크기와 일치하는지 확인.

@@ -58,8 +58,7 @@ const parseSlotResponse = (aiOutput, targetTeamSizes, memberById) => {
 
     return {
       id: i + 1,
-      members,
-      analysis: trimText(team.analysis || '', 220)
+      members
     };
   });
 };
@@ -190,7 +189,7 @@ export const assignTeamsWithValidation = async ({
     memberById,
     allIds
   });
-  const reason = trimText(ai?.reason || '', 180);
+  const reason = trimText(ai?.report || '', 2000);
   const annotatedTeams = annotateTeams(teams, reason);
 
   const report = buildAssignmentReport({
@@ -200,7 +199,8 @@ export const assignTeamsWithValidation = async ({
     aiOutput: {
       ...(ai || {}),
       final_strategy: 'ai_three_stage',
-      prompt_checklist: Array.isArray(ai?.prompt_checklist) ? ai.prompt_checklist : []
+      checklist: Array.isArray(ai?.checklist) ? ai.checklist : [],
+      report: ai?.report || ''
     },
     warnings: [],
     remainderDecision: null
