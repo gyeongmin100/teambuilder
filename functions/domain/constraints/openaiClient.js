@@ -1,8 +1,8 @@
-import { parseJsonSafe } from '../../shared/text.js';
+﻿import { parseJsonSafe } from '../../shared/text.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
-/* ─── 공통 헬퍼 ─── */
+/* ??? 怨듯넻 ?ы띁 ??? */
 
 const callOpenAI = async (systemPrompt, userPrompt, env) => {
   const res = await fetch(OPENAI_URL, {
@@ -33,57 +33,55 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
   return parseJsonSafe(raw, null);
 };
 
-/* ═══════════════════════════════════════════
-   1단계: 프롬프트 분해 (callExtract)
-   ═══════════════════════════════════════════ */
+/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   1?④퀎: ?꾨＼?꾪듃 遺꾪빐 (callExtract)
+   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
 
-const EXTRACT_SYSTEM = `너는 사용자 프롬프트를 분석하여 개별 요청으로 분해하는 분석기다.
-JSON object만 반환하라.
-사용자 프롬프트와 같은 언어로 작성하라.
+const EXTRACT_SYSTEM = `?덈뒗 ?ъ슜???꾨＼?꾪듃瑜?遺꾩꽍?섏뿬 媛쒕퀎 ?붿껌?쇰줈 遺꾪빐?섎뒗 遺꾩꽍湲곕떎.
+JSON object留?諛섑솚?섎씪.
+?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
 
-## 작업
-사용자 프롬프트를 개별 요청(request)으로 분해하라.
-각 요청에 대해:
-- id: R1, R2, ... 순서
-- request: 요청 원문 (사용자가 쓴 그대로, 한 문장)
+## ?묒뾽
+?ъ슜???꾨＼?꾪듃瑜?媛쒕퀎 ?붿껌(request)?쇰줈 遺꾪빐?섎씪.
+媛??붿껌?????
+- id: R1, R2, ... ?쒖꽌
+- request: ?붿껌 ?먮Ц (?ъ슜?먭? ??洹몃?濡? ??臾몄옣)
 - type: group_similar | group_different | balance | exclude | include | custom
-- target_feature: 이 요청이 참조하는 참가자 속성 (예: mbti, gender, age). 없으면 빈 문자열.
-- priority: must | prefer (팀 배정에 직접적 영향 = must, 가능하면 = prefer)
-- is_relevant: true | false (팀 배정과 무관한 요청이면 false)
+- target_feature: ???붿껌??李몄“?섎뒗 李멸????띿꽦 (?? mbti, gender, age). ?놁쑝硫?鍮?臾몄옄??
+- priority: must | prefer (? 諛곗젙??吏곸젒???곹뼢 = must, 媛?ν븯硫?= prefer)
+- is_relevant: true | false (? 諛곗젙怨?臾닿????붿껌?대㈃ false)
 
-## few-shot 예시
-입력: "오늘 날씨 어때? MBTI 비슷한 사람끼리 팀 짜주고 성비도 맞춰줘"
-출력:
+## few-shot ?덉떆
+?낅젰: "?ㅻ뒛 ?좎뵪 ?대븣? MBTI 鍮꾩듂???щ엺?쇰━ ? 吏쒖＜怨??깅퉬??留욎떠以?
+異쒕젰:
 {"requests":[
-  {"id":"R1","request":"오늘 날씨 어때?","type":"custom","target_feature":"","priority":"prefer","is_relevant":false},
-  {"id":"R2","request":"MBTI 비슷한 사람끼리 팀 배치","type":"group_similar","target_feature":"mbti","priority":"must","is_relevant":true},
-  {"id":"R3","request":"성비를 균등하게 맞춰줘","type":"balance","target_feature":"gender","priority":"prefer","is_relevant":true}
+  {"id":"R1","request":"?ㅻ뒛 ?좎뵪 ?대븣?","type":"custom","target_feature":"","priority":"prefer","is_relevant":false},
+  {"id":"R2","request":"MBTI 鍮꾩듂???щ엺?쇰━ ? 諛곗튂","type":"group_similar","target_feature":"mbti","priority":"must","is_relevant":true},
+  {"id":"R3","request":"?깅퉬瑜?洹좊벑?섍쾶 留욎떠以?,"type":"balance","target_feature":"gender","priority":"prefer","is_relevant":true}
 ]}`;
 
 const callExtract = async ({ customPrompt, env }) => {
   return callOpenAI(EXTRACT_SYSTEM, customPrompt, env);
 };
 
-/* ═══════════════════════════════════════════
-   2단계: 데이터 분석 (callAnalyze)
-   ═══════════════════════════════════════════ */
+/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   2?④퀎: ?곗씠??遺꾩꽍 (callAnalyze)
+   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
 
-const ANALYZE_SYSTEM = `너는 분해된 요청과 참가자 데이터를 교차 분석하는 분석가다.
-JSON object만 반환하라.
-사용자 프롬프트와 같은 언어로 작성하라.
+const ANALYZE_SYSTEM = `?덈뒗 遺꾪빐???붿껌怨?李멸????곗씠?곕? 援먯감 遺꾩꽍?섎뒗 遺꾩꽍媛??
+JSON object留?諛섑솚?섎씪.
+?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
 
-## 작업
-1. individual_analysis: 각 요청별로 참가자 데이터를 분석하라.
-   - request_id, groups (해당 feature 기준 그룹핑), distribution (분포)
-2. cross_analysis: 복수 요청 간 교차 분석.
-   - conflicts: 어떤 요청끼리 상충하는지, 왜 상충하는지
-   - member_tags: 복수 요청을 동시에 만족시킬 핵심 인원 식별
+## ?묒뾽
+1. individual_analysis: 媛??붿껌蹂꾨줈 李멸????곗씠?곕? 遺꾩꽍?섎씪.
+   - request_id, groups (?대떦 feature 湲곗? 洹몃９??, distribution (遺꾪룷)
+2. cross_analysis: 蹂듭닔 ?붿껌 媛?援먯감 遺꾩꽍.
+   - conflicts: ?대뼡 ?붿껌?쇰━ ?곸땐?섎뒗吏, ???곸땐?섎뒗吏
+   - member_tags: 蹂듭닔 ?붿껌???숈떆??留뚯”?쒗궗 ?듭떖 ?몄썝 ?앸퀎
 
-팀 배정은 하지 마라. 분석만 수행하라.`;
+? 諛곗젙? ?섏? 留덈씪. 遺꾩꽍留??섑뻾?섎씪.`;
 
 const callAnalyze = async ({ requests, participants, env }) => {
   const userPrompt = [
-    '# REQUESTS (1단계에서 분해된 요청)',
+    '# REQUESTS (1?④퀎?먯꽌 遺꾪빐???붿껌)',
     JSON.stringify(requests),
     '',
     '# PARTICIPANTS',
@@ -97,15 +95,14 @@ const callAnalyze = async ({ requests, participants, env }) => {
   return callOpenAI(ANALYZE_SYSTEM, userPrompt, env);
 };
 
-/* ═══════════════════════════════════════════
-   3단계: 슬롯 배정 (callAssign)
-   ═══════════════════════════════════════════ */
+/* ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??   3?④퀎: ?щ’ 諛곗젙 (callAssign)
+   ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
 
 const buildSlotTemplate = (sizes) =>
-  sizes.map((s, i) => `Team ${i + 1} (${s}명): [${Array(s).fill('_').join(', ')}]`).join('\n');
+  sizes.map((s, i) => `Team ${i + 1} (${s}紐?: [${Array(s).fill('_').join(', ')}]`).join('\n');
 
 const buildSlotReminder = (sizes) =>
-  sizes.map((s, i) => `team_${i + 1}: 정확히 ${s}명`).join('\n');
+  sizes.map((s, i) => `team_${i + 1}: ?뺥솗??${s}紐?).join('\n');
 
 const buildOutputSchema = (sizes) => {
   const schema = {};
@@ -114,41 +111,38 @@ const buildOutputSchema = (sizes) => {
   });
   schema.checklist = [
     {
-      item: '요청 원문',
+      item: '?붿껌 ?먮Ц',
       status: 'full|partial|unmet',
-      detail: '요청 반영 결과를 1~2문장으로 설명',
-      evidence: ['짧은 근거 1', '짧은 근거 2']
+      detail: '?붿껌 諛섏쁺 寃곌낵瑜?1~2臾몄옣?쇰줈 ?ㅻ챸',
     }
   ];
   return schema;
 };
 
-const ASSIGN_SYSTEM = `너는 분석 결과를 바탕으로 팀 슬롯에 참가자를 배치하는 배정자다.
-JSON object만 반환하라.
-사용자 프롬프트와 같은 언어로 작성하라.
+const ASSIGN_SYSTEM = `?덈뒗 遺꾩꽍 寃곌낵瑜?諛뷀깢?쇰줈 ? ?щ’??李멸??먮? 諛곗튂?섎뒗 諛곗젙?먮떎.
+JSON object留?諛섑솚?섎씪.
+?ъ슜???꾨＼?꾪듃? 媛숈? ?몄뼱濡??묒꽦?섎씪.
 
-## 배치 전략
-1. priority가 must인 요청을 먼저 반영하라.
-2. ANALYSIS의 cross_analysis.member_tags에서 핵심 인원을 확인하고, 해당 인원부터 먼저 배치하라.
-   ANALYSIS의 cross_analysis.conflicts를 확인하고 반드시 고려하라.
-   ANALYSIS를 무시하고 자체 판단으로 배치하지 마라.
-3. individual_analysis의 groups를 기준으로 나머지 인원을 채우라.
+## 諛곗튂 ?꾨왂
+1. priority媛 must???붿껌??癒쇱? 諛섏쁺?섎씪.
+2. ANALYSIS??cross_analysis.member_tags?먯꽌 ?듭떖 ?몄썝???뺤씤?섍퀬, ?대떦 ?몄썝遺??癒쇱? 諛곗튂?섎씪.
+   ANALYSIS??cross_analysis.conflicts瑜??뺤씤?섍퀬 諛섎뱶??怨좊젮?섎씪.
+   ANALYSIS瑜?臾댁떆?섍퀬 ?먯껜 ?먮떒?쇰줈 諛곗튂?섏? 留덈씪.
+3. individual_analysis??groups瑜?湲곗??쇰줈 ?섎㉧吏 ?몄썝??梨꾩슦??
 
-## 슬롯 불일치 처리
-- 유사 그룹 > 슬롯 크기: 슬롯 크기만큼만 배치. 나머지는 유사 그룹이 가장 많은 다른 팀에 배치.
-- 유사 그룹 < 슬롯 크기: 해당 그룹 전원 배치 후, 빈자리는 가장 유사한 그룹의 멤버로 채움.
-- 복수 요청 상충 시: must 우선 반영.
+## ?щ’ 遺덉씪移?泥섎━
+- ?좎궗 洹몃９ > ?щ’ ?ш린: ?щ’ ?ш린留뚰겮留?諛곗튂. ?섎㉧吏???좎궗 洹몃９??媛??留롮? ?ㅻⅨ ???諛곗튂.
+- ?좎궗 洹몃９ < ?щ’ ?ш린: ?대떦 洹몃９ ?꾩썝 諛곗튂 ?? 鍮덉옄由щ뒗 媛???좎궗??洹몃９??硫ㅻ쾭濡?梨꾩?.
+- 蹂듭닔 ?붿껌 ?곸땐 ?? must ?곗꽑 諛섏쁺.
 
-## 출력 형식
-1. checklist: REQUESTS의 모든 항목(is_relevant: false 포함)에 대해 아래 필드를 작성.
-   - item: 요청 원문
+## 異쒕젰 ?뺤떇
+1. checklist: REQUESTS??紐⑤뱺 ??ぉ(is_relevant: false ?ы븿)??????꾨옒 ?꾨뱶瑜??묒꽦.
+   - item: ?붿껌 ?먮Ц
    - status: full / partial / unmet
-   - detail: 요청 반영 결과를 1~2문장으로 설명
-   - evidence: 1~2개의 짧은 근거 문장
+   - detail: ?붿껌 諛섏쁺 寃곌낵瑜?1~2臾몄옣?쇰줈 ?ㅻ챸
 
-## 출력 전 자기 검증
-- 각 team_N.members 배열 길이가 슬롯 크기와 일치하는지 확인.
-- 모든 참가자 id가 정확히 1회 사용되었는지 확인.`;
+## 異쒕젰 ???먭린 寃利?- 媛?team_N.members 諛곗뿴 湲몄씠媛 ?щ’ ?ш린? ?쇱튂?섎뒗吏 ?뺤씤.
+- 紐⑤뱺 李멸???id媛 ?뺥솗??1???ъ슜?섏뿀?붿? ?뺤씤.`;
 
 const callAssign = async ({
   customPrompt = '',
@@ -160,28 +154,28 @@ const callAssign = async ({
   const allRequests = requests || [];
 
   const userPrompt = [
-    '# [1] TEAM SLOTS (이 틀 안에서 배치하라)',
+    '# [1] TEAM SLOTS (??? ?덉뿉??諛곗튂?섎씪)',
     slotTemplate,
-    `총 참가자: ${participants.length}명 / 총 팀: ${targetTeamSizes.length}개 / 팀당 기준 인원: ${teamSize}명`,
+    `珥?李멸??? ${participants.length}紐?/ 珥??: ${targetTeamSizes.length}媛?/ ???湲곗? ?몄썝: ${teamSize}紐?,
     '',
-    '# [2] USER_PROMPT (원문)',
+    '# [2] USER_PROMPT (?먮Ц)',
     String(customPrompt || '').trim(),
     '',
-    '# [3] REQUESTS (분해된 요청 — is_relevant: false 포함)',
+    '# [3] REQUESTS (遺꾪빐???붿껌 ??is_relevant: false ?ы븿)',
     JSON.stringify(allRequests),
     '',
-    '# [4] ANALYSIS (2단계 분석 결과)',
+    '# [4] ANALYSIS (2?④퀎 遺꾩꽍 寃곌낵)',
     JSON.stringify(analysis),
     '',
     '# [5] PARTICIPANTS',
     JSON.stringify(participants),
     '',
     '# [6] RULES + SLOT REMINDER',
-    '- 각 팀의 members 배열 원소 수는 해당 슬롯 크기와 정확히 일치해야 한다.',
-    '- 모든 참가자 id를 정확히 1회 사용할 것. 중복/누락 불가.',
-    '- 팀을 추가하거나 삭제하거나 크기를 변경하지 말 것.',
+    '- 媛????members 諛곗뿴 ?먯냼 ?섎뒗 ?대떦 ?щ’ ?ш린? ?뺥솗???쇱튂?댁빞 ?쒕떎.',
+    '- 紐⑤뱺 李멸???id瑜??뺥솗??1???ъ슜??寃? 以묐났/?꾨씫 遺덇?.',
+    '- ???異붽??섍굅????젣?섍굅???ш린瑜?蹂寃쏀븯吏 留?寃?',
     '',
-    '## SLOT REMINDER (다시 한번 확인)',
+    '## SLOT REMINDER (?ㅼ떆 ?쒕쾲 ?뺤씤)',
     slotReminder,
     '',
     '# [7] OUTPUT_SCHEMA',
@@ -192,3 +186,4 @@ const callAssign = async ({
 };
 
 export { callExtract, callAnalyze, callAssign };
+

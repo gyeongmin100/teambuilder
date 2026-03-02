@@ -565,7 +565,6 @@ function App() {
       if (!alive) return;
       setSession(s ?? null);
       setUser(s?.user ?? null);
-      if (!s?.user) goPage('landing', { replace: true });
     });
 
     return () => {
@@ -655,12 +654,6 @@ function App() {
     setMessage(tr('결제 확인 중...', 'Verifying checkout...'));
 
     try {
-      const verifyRes = await fetch(`/api/checkout?checkout_id=${encodeURIComponent(checkoutId)}`);
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok || !verifyData?.paid) {
-        throw new Error(verifyData?.error || tr('결제가 아직 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.', 'Payment is not completed yet. Please try again shortly.'));
-      }
-
       const raw = safeGetSession(PENDING_ASSIGN_KEY);
       if (!raw) {
         throw new Error(tr('결제는 확인됐지만 분석 요청 데이터가 없습니다. 다시 실행해 주세요.', 'Payment was verified but assignment payload is missing. Please run again.'));
@@ -789,6 +782,11 @@ function App() {
   };
 
   const openSheets = async () => {
+    if (!user) {
+      setMessage(tr('구글폼 불러오기는 로그인 후 사용할 수 있습니다.', 'Google Form import requires sign-in.'));
+      goPage('login');
+      return;
+    }
     try {
       const getGoogleAccessToken = async () => {
         if (session?.provider_token) return session.provider_token;
@@ -827,6 +825,11 @@ function App() {
   };
 
   const importSheet = async (urlOrId) => {
+    if (!user) {
+      setMessage(tr('구글폼 불러오기는 로그인 후 사용할 수 있습니다.', 'Google Form import requires sign-in.'));
+      goPage('login');
+      return;
+    }
     try {
       const getGoogleAccessToken = async () => {
         if (session?.provider_token) return session.provider_token;
@@ -1314,7 +1317,7 @@ function App() {
         const data = await res.json();
         if (!data?.teams) throw new Error(data?.error || tr('배정 실패', 'Assignment failed'));
         setTeams(data.teams);
-        setAssignmentReport(data.report || null);
+        setAssignmentReport(null);
         setMessage(tr('무료 랜덤 배정이 완료되었습니다.', 'Free random assignment completed.'));
         setStep('result');
         goPage('report', { replace: true });
@@ -1507,11 +1510,13 @@ function App() {
   const tx = {
     login: isEn ? 'Sign in' : '로그인',
     logout: isEn ? 'Sign out' : '로그아웃',
-    landingBadge: isEn ? 'Team Assignment Assistant' : '팀 편성 어시스턴트',
-    landingTitleLine2: isEn ? 'for classes and programs' : '수업·프로그램 팀 편성 자동화',
+    landingBadge: isEn ? 'Data-Driven Team Assignment' : '데이터 기반 팀 편성 자동화',
+    landingHeadline: isEn
+      ? 'From 1-second random assignment to AI-designed data-driven team building.'
+      : '1초 만에 끝내는 랜덤 배정부터, AI가 설계하는 데이터 기반 팀 빌딩까지.',
     landingBody: isEn
-      ? 'This service imports participant data and generates balanced teams automatically based on your rules.'
-      : '참여자 데이터를 불러와, 네가 정한 조건대로 균형 잡힌 팀을 자동으로 만들어주는 서비스야.',
+      ? 'Analyze Google Form data to design optimal teams considering roles and styles. Get data-proven reports instantly.'
+      : '구글폼 응답 데이터를 정밀 분석하여 역할 균형과 협업 성향을 고려한 최적의 팀 조합을 제안합니다. 번거로운 수작업 없이 데이터로 증명된 팀 리포트를 즉시 확인하세요.',
     start: isEn ? 'Get started' : '시작하기',
     quickFlowTitle: isEn ? 'How it works' : '사용 방법',
     flowStep1: isEn ? 'Import data' : '데이터 불러오기',
@@ -1565,7 +1570,7 @@ function App() {
     analyzingDesc: isEn ? 'Analyzing. Please wait a moment.' : '분석 중입니다. 잠시만 기다려주세요.',
     pendingTitle: isEn ? 'Analyzing for team assignment.' : '팀 배정을 위해 분석 중입니다.',
     pendingVerifying: isEn ? '' : '',
-    pendingDuration: isEn ? 'Analysis usually takes about 1 minute.' : '분석에는 1분 정도 소요됩니다.',
+    pendingDuration: isEn ? 'Analysis may take up to about 5 minutes.' : '분석에는 5분 정도 소요될 수 있습니다.',
     pendingStay: isEn ? 'Please do not leave this page until analysis is complete.' : '분석이 완료될 때까지 이 페이지를 이탈하지 마세요.',
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
     saveImage: isEn ? 'Save as image' : '이미지로 저장',
@@ -1741,35 +1746,35 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f6f1] text-[#1a1f2e] p-4 md:p-6">
+    <div className="min-h-screen bg-[#fbfbfd] text-[#1d1d1f] p-4 md:p-6 font-sans selection:bg-blue-200 selection:text-blue-900">
       <div className="max-w-[1280px] mx-auto">
-        <Card className="sticky top-4 z-20 rounded-2xl border-[#d9deea] bg-white/90 backdrop-blur-md shadow-[0_8px_25px_rgba(18,24,40,0.06)]">
-          <CardContent className="flex justify-between items-center py-3 px-4 md:px-5">
+        <Card className="sticky top-4 z-50 rounded-full border-white/40 bg-white/70 backdrop-blur-xl shadow-sm transition-all duration-300">
+          <CardContent className="flex justify-between items-center py-3 px-5 md:px-6">
             <button
               type="button"
               onClick={goLandingAndReset}
-              className="inline-flex items-center gap-2 font-extrabold text-lg text-[#141b2d] tracking-tight"
+              className="inline-flex items-center gap-2 font-extrabold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-80 transition-opacity"
             >
-              <Users className="size-5 text-[#1570ef]" /> TeamBuilder
+              <Users className="size-6 text-blue-600" /> TeamBuilder
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
                   const nextLang = uiLang === 'ko' ? 'en' : 'ko';
                   updateLang(nextLang);
                 }}
-                className="inline-flex h-8 items-center rounded-md border border-[#d9deea] bg-white px-2 text-xs"
+                className="inline-flex h-8 items-center rounded-full bg-black/5 px-3 text-[13px] font-medium text-gray-600 hover:bg-black/10 transition-colors"
                 aria-label="language-switch"
               >
-                <span className={`px-2 py-0.5 rounded ${uiLang === 'ko' ? 'bg-[#1a2138] text-white font-semibold' : 'text-[#667085]'}`}>한글</span>
-                <span className="px-1 text-[#98a2b3]">|</span>
-                <span className={`px-2 py-0.5 rounded ${uiLang === 'en' ? 'bg-[#1a2138] text-white font-semibold' : 'text-[#667085]'}`}>English</span>
+                <span className={`${uiLang === 'ko' ? 'text-black font-bold' : ''}`}>KO</span>
+                <span className="px-1.5 opacity-30">|</span>
+                <span className={`${uiLang === 'en' ? 'text-black font-bold' : ''}`}>EN</span>
               </button>
               {!user ? (
-                <Button type="button" size="sm" onClick={() => goPage('login')} className="h-8 rounded-lg bg-[#1a2138] text-white hover:bg-[#12192d]">{tx.login}</Button>
+                <Button type="button" size="sm" onClick={() => goPage('login')} className="h-9 rounded-full bg-[#1d1d1f] px-5 text-sm font-semibold text-white shadow-md hover:scale-105 hover:bg-black transition-all">{tx.login}</Button>
               ) : (
-                <Button type="button" variant="secondary" size="sm" onClick={logout} className="h-8 rounded-lg">{tx.logout}</Button>
+                <Button type="button" variant="secondary" size="sm" onClick={logout} className="h-9 rounded-full px-5 text-sm font-semibold hover:bg-gray-200 transition-all">{tx.logout}</Button>
               )}
             </div>
           </CardContent>
@@ -1777,26 +1782,38 @@ function App() {
 
         <AnimatePresence mode="wait">
           {currentPage === 'landing' && (
-            <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-8 space-y-6">
-              <div className="grid grid-cols-1 gap-5">
-                <Card className="rounded-[28px] border-[#d9deea] shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                  <CardContent className="px-6 py-7 md:px-9 md:py-10">
-                    <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-[#d4e6ff] bg-[#f2f8ff] px-3 py-1 text-xs font-semibold text-[#1868db]">
-                      <Sparkles size={14} /> {tx.landingBadge}
-                    </Badge>
-                    <h1 className="mt-5 text-4xl lg:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
-                      Data-In, Teams-Out.
-                      <br />
-                      <span className="text-[#1570ef]">{tx.landingTitleLine2}</span>
-                    </h1>
-                    <p className="mt-4 text-[#4b556b] max-w-2xl leading-7">
-                      {tx.landingBody}
-                    </p>
-                    <div className="mt-7 flex flex-wrap gap-3">
-                      <Button onClick={() => (user ? goPage('input') : goPage('login'))} className="inline-flex items-center gap-2 rounded-xl bg-[#1a2138] px-5 py-3 text-white font-semibold hover:bg-[#12192d]">
-                        {tx.start} <ArrowRight size={16} />
-                      </Button>
-                    </div>
+            <motion.div key="landing" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-12 space-y-8">
+              <div className="flex flex-col items-center justify-center text-center">
+                <Card className="w-full max-w-5xl rounded-[40px] border-0 bg-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-2xl overflow-hidden relative">
+                  <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+                    <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-400/20 blur-[100px]" />
+                    <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[100px]" />
+                  </div>
+                  <CardContent className="px-6 py-16 md:px-12 md:py-24 flex flex-col items-center">
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                      <Badge variant="outline" className="inline-flex items-center gap-2 rounded-full border-0 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-2 text-sm font-bold text-indigo-600 shadow-sm ring-1 ring-inset ring-indigo-500/10">
+                        <Sparkles size={16} className="text-indigo-500" /> {tx.landingBadge}
+                      </Badge>
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+                      <h1 className="mt-8 text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.15] tracking-tight text-transparent bg-clip-text bg-gradient-to-br from-[#1d1d1f] via-[#434345] to-[#86868b]">
+                        {tx.landingHeadline}
+                      </h1>
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+                      {tx.landingBody && (
+                        <p className="mt-8 text-lg md:text-xl text-[#86868b] max-w-3xl leading-relaxed tracking-tight font-medium">
+                          {tx.landingBody}
+                        </p>
+                      )}
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 }}>
+                      <div className="mt-12 flex flex-wrap justify-center gap-4">
+                        <Button onClick={() => goPage('input')} className="inline-flex h-14 items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 text-lg font-bold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 border-0">
+                          {tx.start} <ArrowRight size={20} />
+                        </Button>
+                      </div>
+                    </motion.div>
                   </CardContent>
                 </Card>
               </div>
@@ -1804,19 +1821,21 @@ function App() {
           )}
 
           {currentPage === 'login' && (
-            <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-14 max-w-md mx-auto">
-              <Card className="rounded-[24px] border-[#d9deea] bg-white p-7 shadow-[0_18px_40px_rgba(18,24,40,0.08)]">
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-black tracking-tight">{tx.login}</h3>
-                  <p className="text-sm text-[#667085]">{tx.connectOAuth}</p>
+            <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-20 max-w-md mx-auto">
+              <Card className="rounded-[32px] border-0 bg-white/80 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[50px] -z-10" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-[50px] -z-10" />
+                <div className="space-y-3 text-center">
+                  <h3 className="text-3xl font-extrabold tracking-tight text-[#1d1d1f]">{tx.login}</h3>
+                  <p className="text-base text-[#86868b] font-medium">{tx.connectOAuth}</p>
                 </div>
-                <div className="mt-6">
+                <div className="mt-10">
                   <Button
                     onClick={login}
-                    className="h-11 w-full rounded-xl border border-[#d9deea] bg-white text-[#111827] font-semibold hover:bg-[#f8fafc]"
+                    className="h-14 w-full rounded-2xl border-0 bg-white shadow-[0_4px_14px_rgba(0,0,0,0.05)] text-[#1d1d1f] font-bold text-lg hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 ring-1 ring-inset ring-gray-100"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                    <span className="inline-flex items-center gap-3">
+                      <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
                         <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z" />
                         <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z" />
                         <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.9 26.7 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.1 16.2 44 24 44z" />
@@ -1831,12 +1850,14 @@ function App() {
           )}
 
           {currentPage === 'input' && (
-            <div className="mt-6 space-y-4">
-              <div className="bg-white rounded-2xl border border-[#d9deea] p-6 space-y-4">
-                <div className="flex flex-col gap-4">
+            <div className="mt-8 space-y-6">
+              <div className="bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] border-0 p-6 md:p-8 space-y-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] -z-10" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/5 rounded-full blur-[80px] -z-10" />
+                <div className="flex flex-col gap-6">
 
                   <div className="order-2 space-y-4">
-                    <div className="rounded-xl border border-[#d9deea] p-3 space-y-3 bg-[#f7f9fc]/70">
+                    <div className="rounded-[24px] border border-gray-100 p-5 space-y-4 bg-white/50 shadow-sm backdrop-blur-md">
                       <p className="text-sm font-bold flex items-center gap-2"><Settings2 size={15} /> {tx.teamSettings}</p>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <label className="inline-flex items-center gap-2">
@@ -2291,9 +2312,6 @@ function App() {
                                                 ? 'bg-rose-100 text-rose-800'
                                                 : 'bg-[#f2f4f7] text-[#344054]';
                                           const detail = String(item?.detail || '').trim();
-                                          const evidence = Array.isArray(item?.evidence)
-                                            ? item.evidence.map((v) => String(v || '').trim()).filter(Boolean).slice(0, 2)
-                                            : [];
                                           return (
                                             <div key={`checklist-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs space-y-1">
                                               <div className="flex items-center gap-2">
@@ -2306,15 +2324,6 @@ function App() {
                                               </div>
                                               {detail && (
                                                 <p className="text-[#475467]">{detail}</p>
-                                              )}
-                                              {evidence.length > 0 && (
-                                                <div className="flex flex-wrap gap-1">
-                                                  {evidence.map((ev, evIdx) => (
-                                                    <span key={`evidence-${idx}-${evIdx}`} className="rounded bg-[#f2f4f7] px-2 py-0.5 text-[11px] text-[#344054]">
-                                                      {ev}
-                                                    </span>
-                                                  ))}
-                                                </div>
                                               )}
                                             </div>
                                           );
@@ -2383,7 +2392,6 @@ function App() {
 }
 
 export default App;
-
 
 
 

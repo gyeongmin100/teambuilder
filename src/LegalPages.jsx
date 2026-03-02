@@ -26,7 +26,7 @@ const LegalLayout = ({ title, children, onBack, lang = 'ko', onSwitchLang }) => 
             onClick={() => onSwitchLang?.('ko')}
             className={`px-3 py-1.5 ${lang === 'ko' ? 'bg-[#1a2138] text-white' : 'bg-white text-[#667085]'}`}
           >
-            한글
+            한국어
           </button>
           <button
             type="button"
