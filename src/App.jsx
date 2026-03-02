@@ -1510,7 +1510,7 @@ function App() {
   const tx = {
     login: isEn ? 'Sign in' : '로그인',
     logout: isEn ? 'Sign out' : '로그아웃',
-    landingBadge: isEn ? 'Data-Driven Team Assignment' : '데이터 기반 팀 편성 자동화',
+    landingBadge: isEn ? 'AI-Optimized Team Building' : 'AI기반 최적화 팀빌딩',
     landingHeadlineLine1: isEn
       ? 'From 1-second random assignment'
       : '1초 만에 끝내는 랜덤 배정부터,',
