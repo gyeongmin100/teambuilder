@@ -1,6 +1,6 @@
 import { parseJsonSafe } from '../../shared/text.js';
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_URL = 'https://api.openai.com/v1/responses';
 
 /* ─── 공통 헬퍼 ─── */
 
@@ -13,11 +13,11 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
     },
     body: JSON.stringify({
       model: 'gpt-5-mini',
-      messages: [
+      input: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      response_format: { type: 'json_object' }
+      text: { format: { type: 'json_object' } }
     })
   });
 
@@ -27,7 +27,8 @@ const callOpenAI = async (systemPrompt, userPrompt, env) => {
   }
 
   const data = await res.json();
-  const raw = data?.choices?.[0]?.message?.content;
+  const raw =
+    data?.output?.find((item) => item?.type === 'message')?.content?.find((c) => c?.type === 'output_text')?.text;
   if (!raw) throw new Error('OpenAI response is empty.');
   return parseJsonSafe(raw, null);
 };
@@ -111,8 +112,14 @@ const buildOutputSchema = (sizes) => {
   sizes.forEach((s, i) => {
     schema[`team_${i + 1}`] = { members: Array(s).fill('participant_id') };
   });
-  schema.checklist = [{ item: '요청 원문', status: 'full|partial|unmet' }];
-  schema.report = '배정 과정과 결과를 구체적으로 서술';
+  schema.checklist = [
+    {
+      item: '요청 원문',
+      status: 'full|partial|unmet',
+      detail: '요청 반영 결과를 1~2문장으로 설명',
+      evidence: ['짧은 근거 1', '짧은 근거 2']
+    }
+  ];
   return schema;
 };
 
@@ -133,20 +140,18 @@ JSON object만 반환하라.
 - 복수 요청 상충 시: must 우선 반영.
 
 ## 출력 형식
-1. checklist: REQUESTS의 모든 항목(is_relevant: false 포함)에 대해 item(요청 원문)과 status(full/partial/unmet)만 기입.
-2. report: 배정 과정과 결과를 구체적으로 자유서술.
-
-## report 작성 규칙
-- 팀별 수치(비율, 인원수)를 포함하라.
-- 요청 간 상충이 있었으면 무엇을 우선하고 무엇을 양보했는지 쓰라.
-- 무관 요청은 왜 반영하지 않았는지 간단히 언급하라.
-- 추상적이거나 일반적인 표현("팀별로 구성하였습니다")을 쓰지 마라.
+1. checklist: REQUESTS의 모든 항목(is_relevant: false 포함)에 대해 아래 필드를 작성.
+   - item: 요청 원문
+   - status: full / partial / unmet
+   - detail: 요청 반영 결과를 1~2문장으로 설명
+   - evidence: 1~2개의 짧은 근거 문장
 
 ## 출력 전 자기 검증
 - 각 team_N.members 배열 길이가 슬롯 크기와 일치하는지 확인.
 - 모든 참가자 id가 정확히 1회 사용되었는지 확인.`;
 
 const callAssign = async ({
+  customPrompt = '',
   requests, analysis, participants, targetTeamSizes, teamSize, env
 }) => {
   const slotTemplate = buildSlotTemplate(targetTeamSizes);
@@ -159,16 +164,19 @@ const callAssign = async ({
     slotTemplate,
     `총 참가자: ${participants.length}명 / 총 팀: ${targetTeamSizes.length}개 / 팀당 기준 인원: ${teamSize}명`,
     '',
-    '# [2] REQUESTS (분해된 요청 — is_relevant: false 포함)',
+    '# [2] USER_PROMPT (원문)',
+    String(customPrompt || '').trim(),
+    '',
+    '# [3] REQUESTS (분해된 요청 — is_relevant: false 포함)',
     JSON.stringify(allRequests),
     '',
-    '# [3] ANALYSIS (2단계 분석 결과)',
+    '# [4] ANALYSIS (2단계 분석 결과)',
     JSON.stringify(analysis),
     '',
-    '# [4] PARTICIPANTS',
+    '# [5] PARTICIPANTS',
     JSON.stringify(participants),
     '',
-    '# [5] RULES + SLOT REMINDER',
+    '# [6] RULES + SLOT REMINDER',
     '- 각 팀의 members 배열 원소 수는 해당 슬롯 크기와 정확히 일치해야 한다.',
     '- 모든 참가자 id를 정확히 1회 사용할 것. 중복/누락 불가.',
     '- 팀을 추가하거나 삭제하거나 크기를 변경하지 말 것.',
@@ -176,7 +184,7 @@ const callAssign = async ({
     '## SLOT REMINDER (다시 한번 확인)',
     slotReminder,
     '',
-    '# [6] OUTPUT_SCHEMA',
+    '# [7] OUTPUT_SCHEMA',
     JSON.stringify(schema)
   ].join('\n');
 

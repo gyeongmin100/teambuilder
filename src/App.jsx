@@ -2258,8 +2258,7 @@ function App() {
                           const checklist = Array.isArray(assignmentReport?.rawAi?.checklist)
                             ? assignmentReport.rawAi.checklist
                             : [];
-                          const aiReport = String(assignmentReport?.rawAi?.report || '').trim();
-                          return String(assignmentReport.originalPrompt || '').trim() || checklist.length > 0 || aiReport;
+                          return String(assignmentReport.originalPrompt || '').trim() || checklist.length > 0;
                         })() && (
                             <div className="space-y-2">
                               {String(assignmentReport.originalPrompt || '').trim() && (
@@ -2274,8 +2273,7 @@ function App() {
                                 const checklist = Array.isArray(assignmentReport?.rawAi?.checklist)
                                   ? assignmentReport.rawAi.checklist
                                   : [];
-                                const aiReport = String(assignmentReport?.rawAi?.report || '').trim();
-                                return checklist.length > 0 || aiReport;
+                                return checklist.length > 0;
                               })() && (
                                   <>
                                     {Array.isArray(assignmentReport?.rawAi?.checklist) && assignmentReport.rawAi.checklist.length > 0 && (
@@ -2292,25 +2290,35 @@ function App() {
                                               : statusKey === 'unmet'
                                                 ? 'bg-rose-100 text-rose-800'
                                                 : 'bg-[#f2f4f7] text-[#344054]';
+                                          const detail = String(item?.detail || '').trim();
+                                          const evidence = Array.isArray(item?.evidence)
+                                            ? item.evidence.map((v) => String(v || '').trim()).filter(Boolean).slice(0, 2)
+                                            : [];
                                           return (
-                                            <div key={`checklist-${idx}`} className="flex items-center gap-2 rounded border border-[#e5e7eb] p-2 text-xs">
-                                              <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
-                                              {statusLabel && (
-                                                <span className={`ml-auto whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
-                                                  {statusLabel}
-                                                </span>
+                                            <div key={`checklist-${idx}`} className="rounded border border-[#e5e7eb] p-2 text-xs space-y-1">
+                                              <div className="flex items-center gap-2">
+                                                <p className="font-semibold text-[#111827]">{idx + 1}. {itemTitle}</p>
+                                                {statusLabel && (
+                                                  <span className={`ml-auto whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClass}`}>
+                                                    {statusLabel}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {detail && (
+                                                <p className="text-[#475467]">{detail}</p>
+                                              )}
+                                              {evidence.length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                  {evidence.map((ev, evIdx) => (
+                                                    <span key={`evidence-${idx}-${evIdx}`} className="rounded bg-[#f2f4f7] px-2 py-0.5 text-[11px] text-[#344054]">
+                                                      {ev}
+                                                    </span>
+                                                  ))}
+                                                </div>
                                               )}
                                             </div>
                                           );
                                         })}
-                                      </div>
-                                    )}
-                                    {String(assignmentReport?.rawAi?.report || '').trim() && (
-                                      <div className="rounded border border-[#e5e7eb] bg-[#f8fafc] p-3">
-                                        <p className="text-[11px] font-semibold text-[#475467]">AI 분석 리포트</p>
-                                        <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-[#111827]">
-                                          {assignmentReport.rawAi.report}
-                                        </p>
                                       </div>
                                     )}
                                   </>
@@ -2375,8 +2383,6 @@ function App() {
 }
 
 export default App;
-
-
 
 
 
