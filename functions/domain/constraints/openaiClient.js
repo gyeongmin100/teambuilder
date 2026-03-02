@@ -99,10 +99,10 @@ const callAnalyze = async ({ requests, participants, env }) => {
    ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??*/
 
 const buildSlotTemplate = (sizes) =>
-  sizes.map((s, i) => `Team ${i + 1} (${s}紐?: [${Array(s).fill('_').join(', ')}]`).join('\n');
+  sizes.map((s, i) => `Team ${i + 1} (${s} members): [${Array(s).fill('_').join(', ')}]`).join('\n');
 
 const buildSlotReminder = (sizes) =>
-  sizes.map((s, i) => `team_${i + 1}: ?뺥솗??${s}紐?).join('\n');
+  sizes.map((s, i) => `team_${i + 1}: exactly ${s} members`).join('\n');
 
 const buildOutputSchema = (sizes) => {
   const schema = {};
@@ -156,7 +156,7 @@ const callAssign = async ({
   const userPrompt = [
     '# [1] TEAM SLOTS (??? ?덉뿉??諛곗튂?섎씪)',
     slotTemplate,
-    `珥?李멸??? ${participants.length}紐?/ 珥??: ${targetTeamSizes.length}媛?/ ???湲곗? ?몄썝: ${teamSize}紐?,
+    `Total participants: ${participants.length} / Total teams: ${targetTeamSizes.length} / Base team size: ${teamSize}`,
     '',
     '# [2] USER_PROMPT (?먮Ц)',
     String(customPrompt || '').trim(),
