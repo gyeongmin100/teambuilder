@@ -1513,7 +1513,7 @@ function App() {
     landingBadge: isEn ? 'Data-Driven Team Assignment' : '데이터 기반 팀 편성 자동화',
     landingHeadline: isEn
       ? 'From 1-second random assignment to AI-designed data-driven team building.'
-      : '1초 만에 끝내는 랜덤 배정부터, AI가 설계하는 데이터 기반 팀 빌딩까지.',
+      : '1초 만에 끝내는 랜덤 배정부터, AI가 설계하는 데이터 기반 팀 빌딩까지. ',
     landingBody: isEn
       ? 'Analyze Google Form data to design optimal teams considering roles and styles. Get data-proven reports instantly.'
       : '구글폼 응답 데이터를 정밀 분석하여 역할 균형과 협업 성향을 고려한 최적의 팀 조합을 제안합니다. 번거로운 수작업 없이 데이터로 증명된 팀 리포트를 즉시 확인하세요.',
@@ -2392,6 +2392,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
