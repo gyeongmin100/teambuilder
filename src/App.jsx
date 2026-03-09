@@ -1950,11 +1950,11 @@ function App() {
                           const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
 
                           return (
-                            <div key={memberKey} className="mb-0.5 rounded-md border bg-white text-sm last:mb-0">
+                            <div key={memberKey} className="mb-1 rounded-md border bg-white text-sm last:mb-0">
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className="block w-full rounded-md px-1.5 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:bg-blue-50 hover:text-blue-900"
+                                className="block w-full rounded-md px-2 py-1.5 text-left font-bold text-[#111827] transition-colors hover:bg-blue-50 hover:text-blue-900"
                               >
                                 <span className="block min-w-0 truncate">{m.name || m.id || '-'}</span>
                               </button>
