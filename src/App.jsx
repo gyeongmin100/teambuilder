@@ -2,7 +2,7 @@
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toBlob } from 'html-to-image';
-import { Users, Upload, Download, Search, Settings2, ArrowRight, Sparkles, Trash2, Share2, ImageDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, ArrowRight, Sparkles, Trash2, Share2, ImageDown } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
 import { Button } from '@/components/ui/button';
@@ -1939,34 +1939,27 @@ function App() {
                     )}
                   </div>
                 )}
-                <div ref={resultCaptureRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div ref={resultCaptureRef} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {teams.map((t) => {
                     return (
-                      <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
-                        <h3 className="font-black mb-2">Team {t.id}</h3>
+                      <div key={t.id} className="rounded-xl border bg-white p-3 space-y-2">
+                        <h3 className="mb-1 text-base font-black">Team {t.id}</h3>
                         {t.members.map((m, i) => {
                           const memberKey = `${t.id}::${m.id || i}`;
                           const isExpanded = Boolean(expandedMemberKeys[memberKey]);
                           const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
 
                           return (
-                            <div key={memberKey} className="mb-2 rounded-lg border bg-white text-sm">
+                            <div key={memberKey} className="mb-1 rounded-md border bg-white text-sm last:mb-0">
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
-                                  isExpanded
-                                    ? 'bg-blue-50 text-blue-900'
-                                    : 'text-[#111827] hover:bg-blue-50 hover:text-blue-900'
-                                }`}
+                                className="block w-full rounded-md px-2 py-1.5 text-left font-bold text-[#111827] transition-colors hover:bg-blue-50 hover:text-blue-900"
                               >
-                                <span className="min-w-0 font-bold">{m.name || m.id || '-'}</span>
-                                <span className={`shrink-0 ${isExpanded ? 'text-blue-700' : 'text-[#667085]'}`}>
-                                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                </span>
+                                <span className="block min-w-0 truncate">{m.name || m.id || '-'}</span>
                               </button>
                               {isExpanded && (
-                                <div className="mt-1 grid grid-cols-1 gap-1 rounded-b-lg bg-[#f8fafc] px-3 pb-3 pt-2">
+                                <div className="mt-1 grid grid-cols-1 gap-1 rounded-b-md bg-[#f8fafc] px-2 pb-2 pt-1.5">
                                   {features.length === 0 ? (
                                     <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
                                   ) : (
