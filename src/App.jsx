@@ -1947,34 +1947,34 @@ function App() {
                     return (
                       <div
                         key={t.id}
-                        className={`rounded-xl border bg-white p-2 space-y-1.5 transition-[width] duration-200 ${
+                        className={`rounded-xl border bg-white p-2.5 space-y-2 transition-[width] duration-200 ${
                           isTeamExpanded
                             ? 'w-full lg:w-[calc(66.666%-0.5rem)] xl:w-[calc(50%-0.375rem)]'
                             : 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)] xl:w-[calc(25%-0.5625rem)]'
                         }`}
                       >
-                        <h3 className="mb-1 text-lg font-black">Team {t.id}</h3>
+                        <h3 className="mb-1 text-base font-black">Team {t.id}</h3>
                         {t.members.map((m, i) => {
                           const memberKey = `${t.id}::${m.id || i}`;
                           const isExpanded = Boolean(expandedMemberKeys[memberKey]);
                           const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
 
                           return (
-                            <div key={memberKey} className="mb-0.5 text-[15px] last:mb-0">
+                            <div key={memberKey} className="mb-0.5 text-sm last:mb-0">
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className="inline-flex max-w-full rounded-md border bg-white px-2.5 py-1.5 text-left font-bold leading-tight text-[#111827] transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
+                                className="inline-flex max-w-full rounded-md border bg-white px-2 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
                               >
                                 <span className="block min-w-0 max-w-full truncate">{m.name || m.id || '-'}</span>
                               </button>
                               {isExpanded && (
                                 <div className="mt-1 grid grid-cols-1 gap-1 rounded-md border bg-[#f8fafc] px-2 pb-2 pt-1.5">
                                   {features.length === 0 ? (
-                                    <p className="text-sm text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
+                                    <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
                                   ) : (
                                     features.map(([key, value]) => (
-                                      <p key={`${memberKey}-${key}`} className="text-sm text-[#344054]">
+                                      <p key={`${memberKey}-${key}`} className="text-xs text-[#344054]">
                                         <span className="font-semibold">{key}</span>: {String(value)}
                                       </p>
                                     ))
