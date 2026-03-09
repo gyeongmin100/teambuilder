@@ -2,10 +2,9 @@
 import Papa from 'papaparse';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toBlob } from 'html-to-image';
-import { Users, Upload, Download, Search, Settings2, Database, ArrowRight, Sparkles, Trash2, Share2, ImageDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Upload, Download, Search, Settings2, ArrowRight, Sparkles, Trash2, Share2, ImageDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { TermsOfService, RefundPolicy, PrivacyPolicy } from './LegalPages';
-import { supabase } from './lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -60,7 +59,6 @@ const safeSetLocal = (key, value) => {
 };
 const APP_ROUTES = {
   landing: '/',
-  login: '/login',
   input: '/input',
   polar: '/checkout/pending',
   report: '/report',
@@ -77,7 +75,6 @@ const normalizeRoutePath = (pathname) => {
 
 const resolvePageByPathname = (pathname) => {
   const normalizedPath = normalizeRoutePath(pathname);
-  const normalizedLogin = normalizeRoutePath(APP_ROUTES.login);
   const normalizedInput = normalizeRoutePath(APP_ROUTES.input);
   const normalizedPolar = normalizeRoutePath(APP_ROUTES.polar);
   const normalizedReport = normalizeRoutePath(APP_ROUTES.report);
@@ -85,7 +82,6 @@ const resolvePageByPathname = (pathname) => {
   const normalizedPrivacy = normalizeRoutePath(APP_ROUTES.privacy);
   const normalizedRefund = normalizeRoutePath(APP_ROUTES.refund);
 
-  if (normalizedPath === normalizedLogin) return 'login';
   if (normalizedPath === normalizedInput) return 'input';
   if (normalizedPath === normalizedPolar) return 'polar';
   if (normalizedPath === normalizedReport) return 'report';
@@ -98,18 +94,6 @@ const pageVariants = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0, transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] } },
   exit: { opacity: 0, y: -8, transition: { duration: 0.22 } }
-};
-
-const parseFormId = (urlOrId) => {
-  const raw = String(urlOrId || '').trim();
-  if (!raw) return null;
-  const direct = raw.match(/^[a-zA-Z0-9-_]{20,}$/);
-  if (direct) return raw;
-  const fromPublicUrl = raw.match(/\/forms\/d\/e\/([a-zA-Z0-9-_]+)/);
-  if (fromPublicUrl) return fromPublicUrl[1];
-  const fromEditorUrl = raw.match(/\/forms\/d\/([a-zA-Z0-9-_]+)/);
-  if (fromEditorUrl) return fromEditorUrl[1];
-  return null;
 };
 
 const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -158,25 +142,6 @@ const createInternalId = () => {
     return crypto.randomUUID();
   }
   return `pid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-};
-
-const normalizeQuestionMap = (form) => {
-  const items = Array.isArray(form?.items) ? form.items : [];
-  return items
-    .map((item) => {
-      const qid = item?.questionItem?.question?.questionId;
-      const title = String(item?.title || '').trim();
-      return qid && title ? { qid, title } : null;
-    })
-    .filter(Boolean);
-};
-
-const findQuestionId = (questionMap, aliases) => {
-  const normalizedAliases = aliases.map(norm);
-  for (const q of questionMap) {
-    if (normalizedAliases.includes(norm(q.title))) return q.qid;
-  }
-  return null;
 };
 
 const guessNameFromRow = (row) => {
@@ -233,106 +198,6 @@ const mapRowsToParticipants = (rows, source) => {
   return { participants, mapped: participants.length, skipped };
 };
 
-const extractAnswerValue = (answerObj) => {
-  if (!answerObj) return '';
-
-  if (answerObj.textAnswers?.answers?.length) {
-    return answerObj.textAnswers.answers.map((a) => a.value).filter(Boolean).join(', ');
-  }
-
-  if (answerObj.choiceAnswers?.answers?.length) {
-    return answerObj.choiceAnswers.answers.map((a) => a.value).filter(Boolean).join(', ');
-  }
-
-  if (answerObj.fileUploadAnswers?.answers?.length) {
-    return answerObj.fileUploadAnswers.answers
-      .map((a) => a.fileName || a.fileId || '')
-      .filter(Boolean)
-      .join(', ');
-  }
-
-  if (answerObj.dateAnswers?.answers?.length) {
-    return answerObj.dateAnswers.answers
-      .map((a) => {
-        const year = a?.date?.year;
-        const month = a?.date?.month;
-        const day = a?.date?.day;
-        if (!year || !month || !day) return '';
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      })
-      .filter(Boolean)
-      .join(', ');
-  }
-
-  if (answerObj.timeAnswers?.answers?.length) {
-    return answerObj.timeAnswers.answers
-      .map((a) => {
-        const hour = a?.time?.hours;
-        const minute = a?.time?.minutes;
-        if (hour === undefined || minute === undefined) return '';
-        return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-      })
-      .filter(Boolean)
-      .join(', ');
-  }
-
-  return '';
-};
-
-const mapFormResponsesToParticipants = (form, responses) => {
-  const questionMap = normalizeQuestionMap(form);
-  const nameQid = findQuestionId(questionMap, ['이름', '성명', 'name', 'fullname']);
-  const introQid = findQuestionId(questionMap, ['자기소개', '소개', 'intro', 'introduction']);
-  const majorQid = findQuestionId(questionMap, ['학과', '전공', 'major', 'department']);
-  const studentIdQid = findQuestionId(questionMap, ['학번', 'studentid', 'studentno']);
-
-  const list = Array.isArray(responses?.responses) ? responses.responses : [];
-  let mapped = 0;
-  let skipped = 0;
-
-  const participants = list
-    .map((r, i) => {
-      const answers = r?.answers || {};
-      const features = {};
-
-      for (const q of questionMap) {
-        const value = extractAnswerValue(answers[q.qid]);
-        if (value) features[q.title] = value;
-      }
-
-      const respondentEmail = String(r?.respondentEmail || '').trim();
-      if (respondentEmail) features['응답자 이메일'] = respondentEmail;
-
-      const guessedName = extractAnswerValue(answers[nameQid]) || respondentEmail || `참가자-${i + 1}`;
-      const intro = extractAnswerValue(answers[introQid]);
-      const major = extractAnswerValue(answers[majorQid]);
-      const studentId = extractAnswerValue(answers[studentIdQid]);
-
-      mapped += 1;
-      return {
-        id: Date.now() + i,
-        internalId: createInternalId(),
-        name: guessedName,
-        originalName: guessedName,
-        source: 'google-form',
-        enabled: true,
-        features,
-        intro: [
-          studentId ? `학번: ${studentId}` : '',
-          major ? `학과: ${major}` : '',
-          intro ? `자기소개: ${intro}` : ''
-        ].filter(Boolean).join('\n')
-      };
-    })
-    .filter((p) => {
-      const hasIdentifierCandidate = p.name || Object.keys(p.features || {}).length > 0;
-      if (!hasIdentifierCandidate) skipped += 1;
-      return hasIdentifierCandidate;
-    });
-
-  return { participants, mapped, skipped };
-};
-
 function App() {
   const [step, setStep] = useState('input');
   const navigate = useNavigate();
@@ -376,8 +241,6 @@ function App() {
     const nextSearch = params.toString();
     navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
   };
-  const [user, setUser] = useState(null);
-  const [session, setSession] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [config, setConfig] = useState({ teamSize: 0, remainderPolicy: 'spread' });
   const [teams, setTeams] = useState([]);
@@ -387,21 +250,15 @@ function App() {
   const [customPromptEnabled, setCustomPromptEnabled] = useState(false);
   const [teamSizeInput, setTeamSizeInput] = useState('');
 
-  const [formUrl, setFormUrl] = useState('');
-  const [sheetImportLoading, setSheetImportLoading] = useState(false);
-  const [sheetListLoading, setSheetListLoading] = useState(false);
-  const [sheetListOpen, setSheetListOpen] = useState(false);
-  const [driveForms, setDriveForms] = useState([]);
   const [message, setMessage] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const reportCacheKey = user?.id ? `${REPORT_CACHE_KEY}_${user.id}` : `${REPORT_CACHE_KEY}_anon`;
+  const reportCacheKey = `${REPORT_CACHE_KEY}_anon`;
 
   const [availableIdentifierKeys, setAvailableIdentifierKeys] = useState([]);
   const [selectedIdentifierKey, setSelectedIdentifierKey] = useState('');
   const [columnOrder, setColumnOrder] = useState([]);
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [participantQuery, setParticipantQuery] = useState('');
-  const [importPanelOpen, setImportPanelOpen] = useState(false);
   const runAssignLockRef = useRef(false);
   const checkoutResumeLockRef = useRef(false);
   const tableInputRefs = useRef(new Map());
@@ -550,34 +407,6 @@ function App() {
       setSelectedIdentifierKey(columnOrder[0]);
     }
   }, [columnOrder, selectedIdentifierKey]);
-
-  useEffect(() => {
-    let alive = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!alive) return;
-      setSession(data?.session ?? null);
-      setUser(data?.session?.user ?? null);
-    });
-
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((_e, s) => {
-      if (!alive) return;
-      setSession(s ?? null);
-      setUser(s?.user ?? null);
-    });
-
-    return () => {
-      alive = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (routePage !== 'login') return;
-    if (!user) return;
-    goPage('input', { replace: true });
-  }, [routePage, user]);
 
   useEffect(() => {
     if (routePage !== 'report') return;
@@ -751,145 +580,11 @@ function App() {
     const isAuthIssue = /(401|403|unauthorized|forbidden|token|oauth|permission|scope)/i.test(raw);
     if (isAuthIssue) {
       return tr(
-        '권한 또는 세션이 만료되었습니다. 다시 로그인 후 시도해 주세요.',
-        'Your permission/session has expired. Please sign in again and retry.'
+        '접근 권한 오류가 발생했습니다. 설정을 확인한 뒤 다시 시도해 주세요.',
+        'Permission error occurred. Check your configuration and try again.'
       );
     }
     return raw;
-  };
-
-  const login = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}${APP_ROUTES.login}`,
-        scopes:
-          'openid email profile https://www.googleapis.com/auth/forms.body.readonly https://www.googleapis.com/auth/forms.responses.readonly https://www.googleapis.com/auth/drive.readonly',
-        queryParams: { access_type: 'offline', prompt: 'consent', include_granted_scopes: 'true' }
-      }
-    });
-    if (error) setMessage(toUserFacingError(error, '로그인 중 오류가 발생했습니다.', 'An error occurred during sign-in.'));
-  };
-
-  const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) setMessage(tr(`로그아웃 실패: ${error.message}`, `Sign-out failed: ${error.message}`));
-    if (!error) {
-      clearAllReportCaches();
-      safeRemoveSession(PENDING_CHECKOUT_URL_KEY);
-      goPage('landing');
-    }
-  };
-
-  const openSheets = async () => {
-    if (!user) {
-      setMessage(tr('구글폼 불러오기는 로그인 후 사용할 수 있습니다.', 'Google Form import requires sign-in.'));
-      goPage('login');
-      return;
-    }
-    try {
-      const getGoogleAccessToken = async () => {
-        if (session?.provider_token) return session.provider_token;
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) throw error;
-        const refreshed = data?.session?.provider_token;
-        if (!refreshed) {
-          throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
-        }
-        return refreshed;
-      };
-
-      const accessToken = await getGoogleAccessToken();
-      setSheetListLoading(true);
-      setMessage('');
-
-      const q = encodeURIComponent("mimeType='application/vnd.google-apps.form' and trashed=false");
-      const fields = encodeURIComponent('files(id,name,modifiedTime)');
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files?pageSize=50&orderBy=modifiedTime desc&q=${q}&fields=${fields}`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      );
-
-      if (!res.ok) throw new Error(tr('구글폼 목록 조회 실패', 'Failed to fetch Google Form list'));
-
-      const data = await res.json();
-      setDriveForms(Array.isArray(data?.files) ? data.files : []);
-      setSheetListOpen(true);
-    } catch (e) {
-      setMessage(toUserFacingError(e, '구글폼 목록 조회 중 오류가 발생했습니다.', 'An error occurred while loading Google Form list.'));
-    } finally {
-      setSheetListLoading(false);
-    }
-  };
-
-  const importSheet = async (urlOrId) => {
-    if (!user) {
-      setMessage(tr('구글폼 불러오기는 로그인 후 사용할 수 있습니다.', 'Google Form import requires sign-in.'));
-      goPage('login');
-      return;
-    }
-    try {
-      const getGoogleAccessToken = async () => {
-        if (session?.provider_token) return session.provider_token;
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) throw error;
-        const refreshed = data?.session?.provider_token;
-        if (!refreshed) {
-          throw new Error(tr('Google 권한 토큰이 없습니다. 재로그인하세요.', 'Google permission token missing. Please sign in again.'));
-        }
-        return refreshed;
-      };
-
-      const accessToken = await getGoogleAccessToken();
-      const formId = parseFormId(urlOrId ?? formUrl);
-      if (!formId) throw new Error(tr('유효한 Google Form URL 또는 ID를 입력하세요.', 'Enter a valid Google Form URL or Form ID.'));
-
-      setSheetImportLoading(true);
-      setMessage('');
-
-      const formRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      if (!formRes.ok) throw new Error(tr('구글폼 메타데이터 조회 실패', 'Failed to fetch Google Form metadata'));
-      const formData = await formRes.json();
-
-      const allResponses = [];
-      let pageToken = '';
-      for (; ;) {
-        const pageQuery = new URLSearchParams({ pageSize: '500' });
-        if (pageToken) pageQuery.set('pageToken', pageToken);
-        const respRes = await fetch(`https://forms.googleapis.com/v1/forms/${formId}/responses?${pageQuery.toString()}`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        if (!respRes.ok) throw new Error(tr('구글폼 응답 조회 실패', 'Failed to fetch Google Form responses'));
-        const page = await respRes.json();
-        if (Array.isArray(page?.responses)) allResponses.push(...page.responses);
-        if (!page?.nextPageToken) break;
-        pageToken = page.nextPageToken;
-      }
-      const responses = { responses: allResponses };
-
-      const { participants: imported, mapped, skipped } = mapFormResponsesToParticipants(formData, responses);
-      if (!imported.length) throw new Error(tr('가져올 참가자 데이터가 없습니다.', 'No participant data to import.'));
-
-      recordHistorySnapshot();
-      const featureKeys = Array.from(
-        new Set(imported.flatMap((p) => Object.keys(p.features || {})).filter(Boolean))
-      );
-      setAvailableIdentifierKeys((prev) => Array.from(new Set([...prev, ...featureKeys])));
-      if (!selectedIdentifierKey && featureKeys.length > 0) setSelectedIdentifierKey(featureKeys[0]);
-      setShowAllParticipants(false);
-
-      setParticipants((prev) => [...prev.filter((p) => p.name || Object.keys(p.features || {}).length > 0), ...imported]);
-
-      setMessage(tr(`구글폼 불러오기 완료: ${mapped}명 반영, ${skipped}명 스킵`, `Google Form import completed: ${mapped} mapped, ${skipped} skipped`));
-    } catch (e) {
-      setMessage(toUserFacingError(e, '구글폼 데이터 불러오기 중 오류가 발생했습니다.', 'An error occurred while importing Google Form data.'));
-    } finally {
-      setSheetImportLoading(false);
-    }
   };
 
   const mergeImportedParticipants = (imported) => {
@@ -1328,7 +1023,6 @@ function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user?.email || undefined,
           metadata: {
             participant_count: payloadParticipants.length,
             identifier_key: selectedIdentifierKey
@@ -1508,8 +1202,6 @@ function App() {
         : routePage;
   const isEn = uiLang === 'en';
   const tx = {
-    login: isEn ? 'Sign in' : '로그인',
-    logout: isEn ? 'Sign out' : '로그아웃',
     landingBadge: isEn ? 'AI-Optimized Team Building' : 'AI기반 최적화 팀빌딩',
     landingHeadlineLine1: isEn
       ? 'From 1-second random assignment'
@@ -1523,11 +1215,9 @@ function App() {
     flowStep1: isEn ? 'Import data' : '데이터 불러오기',
     flowStep2: isEn ? 'Set rules' : '규칙 설정',
     flowStep3: isEn ? 'Confirm teams' : '팀 확정',
-    flowStep1Desc: isEn ? 'Google Form or CSV' : 'Google Form 또는 CSV',
+    flowStep1Desc: isEn ? 'CSV or manual table input' : 'CSV 또는 직접 테이블 입력',
     flowStep2Desc: isEn ? 'team size and constraints' : '팀 인원과 조건 선택',
     flowStep3Desc: isEn ? 'download and share result' : '결과 확인 후 다운로드',
-    connectOAuth: isEn ? 'Google sign in' : '구글로그인',
-    googleLogin: isEn ? 'Continue with Google' : 'Google 로그인',
     participants: isEn ? 'Participants' : '현재 참가자',
     primaryColumn: isEn ? 'Primary column' : '기준 열',
     customPrompt: isEn ? 'Custom prompt' : '맞춤 프롬프트',
@@ -1549,12 +1239,6 @@ function App() {
     remainderNewTeam: isEn ? 'Create a new team' : '새 팀으로 만들기',
     remainderOneTeam: isEn ? 'Put all remainder in one team' : '한 팀에 전부 배분',
     remainderModeTitle: isEn ? 'Remainder handling' : '나머지 인원 처리 방식',
-    importData: isEn ? 'Import external data' : '외부데이터 가져오기',
-    importHint: isEn ? 'Google Form and CSV upload are supported' : '지원 기능: 구글폼 연결, CSV 업로드',
-    load: isEn ? 'Load' : '불러오기',
-    loading: isEn ? 'Loading...' : '불러오는 중...',
-    myForms: isEn ? 'My Google Forms' : '내 구글폼 목록',
-    loadingList: isEn ? 'Fetching list...' : '목록 조회 중...',
     uploadCsv: isEn ? 'Upload CSV' : 'CSV 업로드',
     columnMgmt: isEn ? 'Row/column management' : '행/열 관리',
     tableTitle: isEn ? 'Participant table' : '참가자 데이터 (테이블)',
@@ -1562,8 +1246,6 @@ function App() {
     noResult: isEn ? 'No matching participants' : '검색 결과가 없습니다.',
     noData: isEn ? 'Please enter data.' : '데이터를 입력해주세요',
     addRow: isEn ? 'Add empty row' : '빈 행 추가',
-    importTools: isEn ? 'Import external data' : '외부데이터 가져오기',
-    hideImportTools: isEn ? 'Close import panel' : '외부데이터 가져오기 닫기',
     runAssignPaid: isEn ? 'Assign teams' : '팀 배정하기',
     runAssignFree: isEn ? 'Assign teams' : '팀 배정하기',
     moveToPayment: isEn ? 'Opening checkout...' : '결제창 이동 중...',
@@ -1579,7 +1261,6 @@ function App() {
     memberDetails: isEn ? 'Details' : '특성 보기',
     hideDetails: isEn ? 'Hide' : '닫기',
     teamReason: isEn ? 'Team rationale' : '팀 편성 근거',
-    formUrlPlaceholder: isEn ? 'Google Form URL or Form ID' : 'Google Form URL 또는 Form ID',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
     pinAsIdentifier: isEn ? 'Set primary column' : '기준 열로 지정',
@@ -1591,7 +1272,7 @@ function App() {
     noColumnToRun: isEn ? 'Cannot start analysis without columns.' : '열이 없으면 분석을 시작할 수 없습니다.',
     duplicateValueNotice: isEn ? 'duplicate values found. You can still continue.' : '건이 있습니다. 진행은 가능합니다.',
     excludeFieldHint: isEn ? 'Choose columns to exclude from analysis.' : '분석에서 제외할 열을 선택할 수 있습니다.',
-    loadFormFirstHint: isEn ? 'Import a form first to show feature columns.' : '폼을 먼저 불러오면 특성 목록이 표시됩니다.',
+    loadFormFirstHint: isEn ? 'Upload CSV or add columns manually to show feature columns.' : 'CSV를 업로드하거나 열을 직접 추가하면 특성 목록이 표시됩니다.',
     noPrimaryColumn: isEn ? 'Not set' : '미설정',
     valueInput: isEn ? 'Enter value' : '값 입력',
     moreView: isEn ? 'Expand' : '펼쳐보기',
@@ -1825,35 +1506,6 @@ function App() {
             </motion.div>
           )}
 
-          {currentPage === 'login' && (
-            <motion.div key="login" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="mt-20 max-w-md mx-auto">
-              <Card className="rounded-[32px] border-0 bg-white/80 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[50px] -z-10" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-[50px] -z-10" />
-                <div className="space-y-3 text-center">
-                  <h3 className="text-3xl font-extrabold tracking-tight text-[#1d1d1f]">{tx.login}</h3>
-                  <p className="text-base text-[#86868b] font-medium">{tx.connectOAuth}</p>
-                </div>
-                <div className="mt-10">
-                  <Button
-                    onClick={login}
-                    className="h-14 w-full rounded-2xl border-0 bg-white shadow-[0_4px_14px_rgba(0,0,0,0.05)] text-[#1d1d1f] font-bold text-lg hover:shadow-[0_6px_20px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 ring-1 ring-inset ring-gray-100"
-                  >
-                    <span className="inline-flex items-center gap-3">
-                      <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
-                        <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.2-.1-2.4-.4-3.5z" />
-                        <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3 0 5.8 1.1 8 3l5.7-5.7C34.1 6.1 29.3 4 24 4c-7.7 0-14.3 4.3-17.7 10.7z" />
-                        <path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.2C29.2 35.9 26.7 37 24 37c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.5 40.1 16.2 44 24 44z" />
-                        <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1 2.8-3 5-5.9 6.6l.1-.1 6.3 5.2C35.4 40 44 34 44 24c0-1.2-.1-2.4-.4-3.5z" />
-                      </svg>
-                      {tx.googleLogin}
-                    </span>
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          )}
-
           {currentPage === 'input' && (
             <div className="mt-8 space-y-6">
               <div className="bg-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[32px] border-0 p-6 md:p-8 space-y-6 relative overflow-hidden">
@@ -1962,71 +1614,7 @@ function App() {
                       <div className="rounded-xl border border-[#d9deea] overflow-hidden">
                         <div className="px-3 py-2 bg-[#f2f5fa] text-sm font-semibold flex items-center justify-between gap-2">
                           <span>{tx.tableTitle}</span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (importPanelOpen) setSheetListOpen(false);
-                              setImportPanelOpen((v) => !v);
-                            }}
-                            className="inline-flex items-center gap-1"
-                          >
-                            <Database size={14} />
-                            {importPanelOpen ? tx.hideImportTools : tx.importTools}
-                          </Button>
                         </div>
-                        {importPanelOpen && (
-                          <div className="px-3 py-3 border-b bg-[#f8fafc] space-y-3">
-                            <p className="text-sm font-bold flex items-center gap-2"><Database size={15} /> {tx.importData}</p>
-                            <p className="text-xs text-[#667085]">{tx.importHint}</p>
-                            <div className="flex flex-col gap-2 md:flex-row">
-                              <Input
-                                value={formUrl}
-                                onChange={(e) => setFormUrl(e.target.value)}
-                                placeholder={tx.formUrlPlaceholder}
-                                className="h-10 flex-1 border-[#d9deea] bg-white"
-                              />
-                              <Button
-                                onClick={() => importSheet()}
-                                disabled={sheetImportLoading}
-                                className="h-10 rounded-md bg-[#1a2138] text-white hover:bg-[#12192d]"
-                              >
-                                {sheetImportLoading ? tx.loading : tx.load}
-                              </Button>
-                              <Button
-                                onClick={openSheets}
-                                disabled={sheetListLoading}
-                                variant="secondary"
-                                className="h-10 rounded-md"
-                              >
-                                {sheetListLoading ? tx.loadingList : tx.myForms}
-                              </Button>
-                              <label className="inline-flex h-10 w-fit items-center gap-2 px-3 bg-[#f2f5fa] rounded cursor-pointer">
-                                <Upload size={16} /> {tx.uploadCsv}
-                                <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
-                              </label>
-                            </div>
-                            {sheetListOpen && driveForms.length > 0 && (
-                              <div className="max-h-52 overflow-y-auto border rounded bg-white">
-                                {driveForms.map((f) => (
-                                  <button
-                                    key={f.id}
-                                    onClick={() => {
-                                      setFormUrl(`https://docs.google.com/forms/d/${f.id}/edit`);
-                                      importSheet(f.id);
-                                      setSheetListOpen(false);
-                                    }}
-                                    className="w-full text-left px-3 py-2 border-b hover:bg-[#f7f9fc]"
-                                  >
-                                    <div className="font-semibold text-sm">{f.name}</div>
-                                    <div className="text-xs text-[#667085]">{f.id}</div>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
                         <div className="px-3 py-2 border-b bg-white flex flex-wrap gap-2 items-center">
                           <div className="flex items-center gap-2">
                             <Search size={14} className="text-[#667085]" />
@@ -2042,6 +1630,10 @@ function App() {
                             <Button type="button" size="sm" variant="outline" onClick={addFeatureColumn}>
                               {tx.addColumn}
                             </Button>
+                            <label className="inline-flex h-8 w-fit cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs transition-[color,box-shadow] outline-none hover:bg-accent hover:text-accent-foreground">
+                              <Upload size={16} /> {tx.uploadCsv}
+                              <input type="file" accept=".csv" className="hidden" onChange={onUploadCsv} />
+                            </label>
                           </div>
                         </div>
                         <div className="px-3 py-2 border-b bg-[#f8fafc] space-y-2">
