@@ -1226,6 +1226,7 @@ function App() {
       : '팀 편성 조건을 구체적으로 적는 입력란입니다. 입력한 내용을 AI가 분석해 배정 결과에 반영합니다.',
     customPromptToggle: isEn ? 'Enable (Paid)' : '사용하기(유료)',
     promptChecklistTitle: isEn ? 'Team Building Report' : '팀 빌딩 리포트',
+    promptChecklist: isEn ? 'Requirements' : '요청사항',
     promptOriginal: isEn ? 'Original prompt' : '사용자 요청 원문',
     promptAppliedDetail: isEn ? 'How reflected' : '반영 상세',
     promptEvidence: isEn ? 'Evidence' : '근거',
@@ -1283,6 +1284,9 @@ function App() {
     reportAmbiguities: isEn ? 'Ambiguous/qualitative handling' : '모호/정성 요청 처리',
     reportWarnings: isEn ? 'Impossible/constraint warnings' : '불가능/제약 경고',
     checklistItem: isEn ? 'Checklist item' : '체크 항목',
+    checklistStatusFull: isEn ? 'Met' : '충족',
+    checklistStatusPartial: isEn ? 'Partially met' : '부분 충족',
+    checklistStatusUnmet: isEn ? 'Unmet' : '미충족',
     requested: isEn ? 'Requested' : '요청됨',
     notRequested: isEn ? 'Not requested' : '요청되지 않음',
     constraintDetail: isEn ? 'Constraint detail status' : '제약 상세 판정',
@@ -1410,10 +1414,6 @@ function App() {
     setCustomPrompt('');
     setConfig({ teamSize: 0, remainderPolicy: 'spread' });
     setTeamSizeInput('');
-    setFormUrl('');
-    setSheetListOpen(false);
-    setDriveForms([]);
-    setImportPanelOpen(false);
     clearPendingCheckoutState();
     setMessage('');
   };
@@ -1896,11 +1896,17 @@ function App() {
                                   <>
                                     {Array.isArray(assignmentReport?.rawAi?.checklist) && assignmentReport.rawAi.checklist.length > 0 && (
                                       <div className="space-y-1">
-                                        <p className="text-[11px] font-semibold text-[#475467]">{tx.promptChecklist || '요청사항'}</p>
+                                        <p className="text-[11px] font-semibold text-[#475467]">{tx.promptChecklist}</p>
                                         {assignmentReport.rawAi.checklist.map((item, idx) => {
                                           const itemTitle = String(item?.item || `${idx + 1}`).trim();
                                           const statusKey = String(item?.status || item?.status_key || '').trim().toLowerCase();
-                                          const statusLabel = statusKey === 'full' ? '충족' : statusKey === 'partial' ? '부분 충족' : statusKey === 'unmet' ? '미충족' : '';
+                                          const statusLabel = statusKey === 'full'
+                                            ? tx.checklistStatusFull
+                                            : statusKey === 'partial'
+                                              ? tx.checklistStatusPartial
+                                              : statusKey === 'unmet'
+                                                ? tx.checklistStatusUnmet
+                                                : '';
                                           const statusClass = statusKey === 'full'
                                             ? 'bg-emerald-100 text-emerald-800'
                                             : statusKey === 'partial'
