@@ -1259,8 +1259,6 @@ function App() {
     downloadCsv: isEn ? 'Download CSV' : 'CSV 다운로드',
     saveImage: isEn ? 'Save as image' : '이미지로 저장',
     shareResult: isEn ? 'Share' : '공유하기',
-    memberDetails: isEn ? 'Details' : '특성 보기',
-    hideDetails: isEn ? 'Hide' : '닫기',
     teamReason: isEn ? 'Team rationale' : '팀 편성 근거',
     promptPlaceholder: isEn ? 'e.g., keep A and B together, balance gender, mix different collaboration styles' : '예: 김민지와 김철수는 같은 팀, 각 팀 성별은 최대한 균형, 성향 다른 사람끼리 섞기',
     addColumn: isEn ? 'Add column' : '특성(열) 추가',
@@ -1952,20 +1950,23 @@ function App() {
                           const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
 
                           return (
-                            <div key={memberKey} className="text-sm border rounded p-2 mb-2 bg-white">
+                            <div key={memberKey} className="mb-2 rounded-lg border bg-white text-sm">
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className="w-full flex items-center justify-between gap-2"
+                                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
+                                  isExpanded
+                                    ? 'bg-blue-50 text-blue-900'
+                                    : 'text-[#111827] hover:bg-blue-50 hover:text-blue-900'
+                                }`}
                               >
-                                <span className="font-bold text-left">{m.name || m.id || '-'}</span>
-                                <span className="inline-flex items-center gap-1 text-xs text-[#344054]">
-                                  {isExpanded ? tx.hideDetails : tx.memberDetails}
+                                <span className="min-w-0 font-bold">{m.name || m.id || '-'}</span>
+                                <span className={`shrink-0 ${isExpanded ? 'text-blue-700' : 'text-[#667085]'}`}>
                                   {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                 </span>
                               </button>
                               {isExpanded && (
-                                <div className="mt-2 grid grid-cols-1 gap-1 rounded bg-[#f8fafc] p-2">
+                                <div className="mt-1 grid grid-cols-1 gap-1 rounded-b-lg bg-[#f8fafc] px-3 pb-3 pt-2">
                                   {features.length === 0 ? (
                                     <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
                                   ) : (
