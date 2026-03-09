@@ -1939,11 +1939,11 @@ function App() {
                     )}
                   </div>
                 )}
-                <div ref={resultCaptureRef} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div ref={resultCaptureRef} className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {teams.map((t) => {
                     return (
-                      <div key={t.id} className="bg-white border rounded-2xl p-4 space-y-3">
-                        <h3 className="font-black mb-2">Team {t.id}</h3>
+                      <div key={t.id} className="bg-white border rounded-2xl p-3.5 space-y-2.5">
+                        <h3 className="font-black mb-1.5">Team {t.id}</h3>
                         {t.members.map((m, i) => {
                           const memberKey = `${t.id}::${m.id || i}`;
                           const isExpanded = Boolean(expandedMemberKeys[memberKey]);
@@ -1954,7 +1954,7 @@ function App() {
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
+                                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
                                   isExpanded
                                     ? 'bg-blue-50 text-blue-900'
                                     : 'text-[#111827] hover:bg-blue-50 hover:text-blue-900'
@@ -1996,7 +1996,6 @@ function App() {
 }
 
 export default App;
-
 
 
 
