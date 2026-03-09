@@ -1939,20 +1939,10 @@ function App() {
                     )}
                   </div>
                 )}
-                <div ref={resultCaptureRef} className="flex flex-wrap items-start gap-3">
+                <div ref={resultCaptureRef} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {teams.map((t) => {
-                    const isTeamExpanded = Array.isArray(t.members)
-                      && t.members.some((member, index) => Boolean(expandedMemberKeys[`${t.id}::${member?.id || index}`]));
-
                     return (
-                      <div
-                        key={t.id}
-                        className={`rounded-xl border bg-white p-2.5 space-y-2 transition-[width] duration-200 ${
-                          isTeamExpanded
-                            ? 'w-full lg:w-[calc(66.666%-0.5rem)] xl:w-[calc(50%-0.375rem)]'
-                            : 'w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)] xl:w-[calc(25%-0.5625rem)]'
-                        }`}
-                      >
+                      <div key={t.id} className="rounded-xl border bg-white p-3 space-y-2">
                         <h3 className="mb-1 text-base font-black">Team {t.id}</h3>
                         {t.members.map((m, i) => {
                           const memberKey = `${t.id}::${m.id || i}`;
@@ -1964,7 +1954,7 @@ function App() {
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className="inline-flex max-w-full rounded-md border bg-white px-2 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
+                                className="inline-flex max-w-full rounded-md border bg-white px-1.5 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
                               >
                                 <span className="block min-w-0 max-w-full truncate">{m.name || m.id || '-'}</span>
                               </button>
