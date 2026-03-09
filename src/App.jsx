@@ -1950,16 +1950,16 @@ function App() {
                           const features = Object.entries(m?.features || {}).filter(([, value]) => String(value || '').trim() !== '');
 
                           return (
-                            <div key={memberKey} className="mb-0.5 rounded-md border bg-white text-sm last:mb-0">
+                            <div key={memberKey} className="mb-0.5 text-sm last:mb-0">
                               <button
                                 type="button"
                                 onClick={() => toggleMemberDetail(t.id, m.id || i)}
-                                className="block w-full rounded-md px-1.5 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:bg-blue-50 hover:text-blue-900"
+                                className="inline-flex max-w-full rounded-md border bg-white px-1.5 py-1 text-left font-bold leading-tight text-[#111827] transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-900"
                               >
-                                <span className="block min-w-0 truncate">{m.name || m.id || '-'}</span>
+                                <span className="block min-w-0 max-w-full truncate">{m.name || m.id || '-'}</span>
                               </button>
                               {isExpanded && (
-                                <div className="mt-1 grid grid-cols-1 gap-1 rounded-b-md bg-[#f8fafc] px-2 pb-2 pt-1.5">
+                                <div className="mt-1 grid grid-cols-1 gap-1 rounded-md border bg-[#f8fafc] px-2 pb-2 pt-1.5">
                                   {features.length === 0 ? (
                                     <p className="text-xs text-[#667085]">{tr('표시할 특성값이 없습니다.', 'No feature values to show.')}</p>
                                   ) : (
