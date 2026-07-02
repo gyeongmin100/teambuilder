@@ -35,7 +35,7 @@ const callOpenAI = async (systemPrompt, userPrompt, env, outputLanguage = 'ko') 
       Authorization: `Bearer ${env.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'gpt-5-mini',
+      model: 'gpt-5.4',
       input: [
         {
           role: 'system',
